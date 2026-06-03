@@ -1297,11 +1297,12 @@ report()                                     # 完整报告 (含所有模型兼�
 | 十 | 全局菜单栏 | 8 个菜单+快捷键 |
 | **十一** | **账户与订阅** | **登录/注册/订阅体系** |
 | **十二** | **版本与升级** | **版本号/更新/关于** |
-| **十三** | **国际化 (i18n)** | **15 语言/系统词库/运行时切换** |
+|| **十三** | **国际化 (i18n)** | **15 语言/系统词库/运行时切换** |
 | **十四** | **硬件检测与模型等级** | **T1~T4/音频模型兼容/升级建议** |
 | 十五 | 模块命名对照 | 达芬奇↔PhantomVox |
 | 十六 | 页面↔AI 映射 | 能力对应表 |
-| 十七 | 实施路线 | P1~P7 分阶段 |
+| **十七** | **实施路线** | **P0~P7 分阶段** |
+| ★ **十八** | **跨平台架构** | **Flutter + Rust + Python | 移动+桌面** |
 ---
 
 ## 十七、分阶段实施路线
@@ -1365,4 +1366,180 @@ PhantomVox 启动
   └── 6. 就绪，显示硬件报告 (可选弹窗)
 ```
 
-*文档版本：v0.8 — 2026-06-03*
+---
+
+## 十八、跨平台架构与开发技术栈
+
+### 18.1 平台目标
+
+| 平台 | 类型 | 优先级 | 部署方式 |
+|------|------|--------|----------|
+| Windows 10/11 | 桌面 | P0 | 原生安装包 (MSI/EXE) |
+| macOS 13+ (Intel + Apple Silicon) | 桌面 | P0 | DMG / App Store |
+| iOS 16+ (iPhone + iPad) | 移动 | P1 | App Store |
+| Android 10+ (手机 + 平板) | 移动 | P1 | APK / Play Store |
+| Linux (Ubuntu/Debian) | 桌面 | P2 | AppImage / Flatpak |
+
+### 18.2 三层技术栈
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                     Flutter UI Layer (Dart)                   │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐       │
+│  │   iOS    │ │ Android  │ │ Windows  │ │  macOS   │       │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────┘       │
+│  单一代码库 · Skia/Impeller 渲染 · Canvas 时间线 · Material 3│
+│  dart:ffi → Rust  │  http/ws → Python AI Server            │
+├──────────────────────────────────────────────────────────────┤
+│                   Rust Media Engine (crate)                   │
+│  phantomvox-media-core                                       │
+│  ├── ffmpeg-sys       — FFmpeg 安全 FFI 绑定                  │
+│  ├── timeline-render  — Canvas 时间线数据模型 + 渲染指令      │
+│  ├── audio-dsp        — 音频处理 (EQ/压缩/变调/频谱)          │
+│  ├── color-math       — 色彩空间转换/LUT/Lift-Gamma-Gain     │
+│  └── codec-bridge     — 编解码器统一接口                      │
+│  编译目标: x86_64-pc-windows-msvc / aarch64-apple-darwin /    │
+│            aarch64-linux-android / aarch64-apple-ios 等       │
+│  调用方: Flutter (dart:ffi) + Python (PyO3)                  │
+├──────────────────────────────────────────────────────────────┤
+│               Python AI Agent Server (现状)                    │
+│  core/engine.py | modules/i18n/ | modules/hardware/           │
+│  桌面端: 本地进程 (localhost:18789) HTTP/WebSocket             │
+│  移动端: 云端部署 (Docker + k8s, 可选 on-device 降级)          │
+│  API: /api/v1/agent, /api/v1/tts, /api/v1/music, /api/v1/proj│
+└──────────────────────────────────────────────────────────────┘
+```
+
+### 18.3 Flutter — UI 层 (核心技术选型)
+
+**为什么选择 Flutter 而非其他框架：**
+
+| 方案 | 跨平台覆盖 | Canvas 性能 | 原生集成 | 生态成熟度 | 包体积 |
+|------|-----------|------------|---------|-----------|-------|
+| **Flutter** | ✅ iOS/Android/Win/macOS | ★★★★★ Skia/Impeller | ★★★★★ Method Channel | ★★★★★ | ~15MB |
+| Tauri v2 | ✅ 全平台(WebView) | ★★★ 受限于 Web | ★★★★ Rust sidecar | ★★★ | ~5MB |
+| React Native | ❌ 桌面弱 | ★★★ JavaScript Bridge | ★★★★ | ★★★★★ | ~30MB |
+| .NET MAUI | ❌ macOS/iOS弱 | ★★★ 系统原生 | ★★★★ | ★★★ | ~50MB |
+| Python Kivy | ❌ 移动体验差 | ★★ 软件渲染 | ★★ | ★★ | ~40MB |
+
+**关键决策理由：**
+1. **Canvas 渲染能力**：专业视频编辑器需要高性能 Canvas 绘制（时间线轨道、调色轮、波形图）。Flutter 的 Skia/Impeller 引擎是目前跨平台框架中最强的 2D 渲染方案。
+2. **单一代码库**：一套 Dart 代码编译到 4 个平台，维护成本远低于多套原生代码（Swift + Kotlin + C#）。
+3. **Hot Reload**：视频编辑 UI 极其复杂，hot reload 迭代效率远超编译型方案。
+4. **FFI 支持**：`dart:ffi` 可以直接调用 Rust 编译的原生库，延迟低于 1μs。
+
+**核心 Flutter package 选型：**
+
+| 用途 | Package | 理由 |
+|------|---------|------|
+| 时间线 Canvas | `custom_paint` + `gesture_detector` | 自绘，完全控制像素 |
+| 状态管理 | `riverpod` | 编译安全、可测试、无 boilerplate |
+| 本地 HTTP 通信 | `dio` + `web_socket_channel` | 与 Python AI Server 通信 |
+| Rust FFI | `dart:ffi` + `ffigen` | 零开销原生调用 |
+| 文件选择 | `file_picker` | 系统原生文件对话框 |
+| 平台窗口 | `window_manager` (桌面) | 窗口缩放/标题栏/系统托盘 |
+| 本地数据库 | `drift` (SQLite) | 项目元数据/用户偏好 |
+| 国际化 | Flutter `l10n` + 现有 Python i18n | 运行时语言切换同步 |
+
+### 18.4 Rust — 媒体引擎层
+
+**为什么选择 Rust 而非 C/C++：**
+
+- **内存安全**：媒体处理中 70% 的 CVE 来自内存安全问题（缓冲区溢出、use-after-free）。Rust 在编译期杜绝此类问题。
+- **零开销抽象**：性能等价手写 C，但安全性和开发效率高一个量级。
+- **跨平台编译**：`rustup target add` 一键添加编译目标，`cargo-lipo` 生成 iOS fat binary，`cargo-ndk` 生成 Android .so。
+- **PyO3 双向调用**：桌面端 Python 可以通过 `pip install phantomvox-media-core` 直接 import Rust 模块。
+
+**媒体引擎 crate 设计：**
+
+```rust
+// phantomvox-media-core 伪架构
+mod ffmpeg_sys {      // 安全封装 FFmpeg API
+    fn transcode(in: &str, out: &str, opts: TranscoderOpts) -> Result<()>;
+    fn probe(path: &str) -> Result<MediaInfo>;
+    fn extract_frame(path: &str, time: f64) -> Result<Vec<u8>>;
+}
+mod timeline_render {  // Canvas 时间线数据模型
+    struct Track { clips: Vec<Clip>, muted: bool }
+    struct Clip { start: f64, duration: f64, effects: Vec<Effect> }
+    fn render_frame(timeline: &Timeline, time: f64) -> RasterFrame;
+}
+mod audio_dsp {       // 音频 DSP
+    fn eq(input: &[f32], freq: f32, gain: f32) -> Vec<f32>;
+    fn time_stretch(input: &[f32], ratio: f64) -> Vec<f32>;
+    fn pitch_shift(input: &[f32], semitones: i32) -> Vec<f32>;
+}
+```
+
+### 18.5 Python — AI Agent 层 (就是我们现在的项目)
+
+**现状可以直接复用为 AI Server，不需要重写：**
+
+```
+Python AI Server  ←→ Flutter UI
+(localhost:18789)     (REST + WebSocket)
+     │
+     ├── POST /api/v1/agent          # AI Agent 对话
+     ├── POST /api/v1/tts            # 文字转语音
+     ├── POST /api/v1/music          # 音乐生成
+     ├── GET  /api/v1/hardware       # 硬件状态
+     ├── GET  /api/v1/locale         # 当前语言
+     ├── POST /api/v1/locale/set     # 切换语言
+     ├── GET  /api/v1/project        # 项目数据
+     └── WS   /api/v1/agent/stream   # Agent 流式响应
+```
+
+**Flutter 端调用示意 (Dart)：**
+
+```dart
+final response = await dio.post(
+  'http://localhost:18789/api/v1/tts',
+  data: {'text': '你好', 'voice': 'edge-tts'},
+);
+```
+
+### 18.6 移动端特殊情况
+
+| 维度 | iOS | Android |
+|------|-----|---------|
+| Rust 编译 | `cargo-lipo` → .xcframework | `cargo-ndk` → .so (arm64-v8a, armeabi-v7a) |
+| Python AI | 云端 API (iOS 禁止动态加载解释器) | 可选 Chaquopy 嵌入式 Python (本地推理) |
+| 离线 TTS | 系统 AVSpeechSynthesizer (降级) | 系统 TTS Engine (降级) |
+| 本地模型 | CoreML 转换 (轻量分类器) | NNAPI / TFLite (轻量模型) |
+| 重型推理 | 必须走云端 | 必须走云端 |
+| 文件访问 | 沙箱 + 系统文件浏览器 | SAF + 存储权限 |
+
+### 18.7 开发工具链总览
+
+| 工具 | 用途 | 安装方式 |
+|------|------|----------|
+| **Flutter SDK** 3.29+ | UI 开发 | `fvm` (Flutter Version Manager) |
+| **Rust** 1.85+ | 媒体引擎 | `rustup` |
+| **Python** 3.11+ | AI Server | system / pyenv |
+| **VS Code** + 插件 | 主力 IDE | Flutter / Rust-analyzer / Python |
+| **Docker** | 移动端 AI 后端 | system |
+| **GitHub Actions** | CI/CD | 在线配置 |
+| **Fastlane** | App Store / Play 发布 | Ruby gem |
+| **CodeMagic** | Flutter + Rust 联合构建 | 在线 CI (支持 iOS 签名) |
+
+### 18.8 开发阶段与平台对应
+
+| 阶段 | 开发目标 | 使用工具 | 平台 |
+|------|---------|---------|------|
+| P0 | ✅ Python AI Server 基础 | VS Code + Python | 调试用 CLI |
+| P1 | Flutter 项目初始化 + Rust 骨架 | Flutter + Rust + Docker | Windows / macOS (开发机) |
+| P2 | ProEdit 时间线 + 素材管理 | Flutter Canvas + Rust timeline | Windows / macOS |
+| P3 | AudioForge + TTS 集成 | Flutter + Python AI Server | 桌面端 |
+| P4 | Palette + EffectLab | Flutter Canvas + Shaders | 桌面端 |
+| P5 | StoryCut + AI Agent UI | Flutter + WebSocket | 桌面端 |
+| P6 | 移动端适配 | Flutter responsive | iOS + Android |
+| P7 | 云端 AI 后端部署 | Docker + k8s | 云端 |
+
+### 18.9 关键结论
+
+1. **当前 Python 代码不需要改**——它天然就是未来的 AI Server，只差一层 HTTP API 包装。
+2. **Rust 媒体引擎从 P2 开始介入**——P1 先搭 Flutter UI 骨架和 Python API 通信。
+3. **Flutter 是所有 UI 的唯一选择**——不要 Web 前端、不要原生 Swift/Kotlin，维护三套 UI 成本不可接受。
+4. **移动端 P6 才做**——前期集中桌面端验证产品价值，移动端作为扩展而非核心。
+
+*文档版本：v0.9 — 2026-06-03*
