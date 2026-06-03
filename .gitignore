@@ -10,3 +10,6 @@ build/
 *.bak
 *.save
 *.old
+
+# Local-only architecture docs (Chinese)
+docs/
