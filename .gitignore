@@ -1,0 +1,12 @@
+# PhantomVox AI — Python
+__pycache__/
+*.py[cod]
+venv/
+.env
+*.egg-info/
+dist/
+build/
+.DS_Store
+*.bak
+*.save
+*.old

@@ -1,0 +1,228 @@
+"""
+i18n.py - PhantomVox AI 系统级国际化核心
+
+架构设计：
+  I18nManager (单例)
+    ├── 加载 JSON 词库 (懒加载)
+    ├── 键解析: dot 路径 + 扁平化兼容
+    ├── 插值: {placeholder} 模板语法
+    ├── 复数: key.one / key.many + count 自动选择
+    ├── 回退链: 目标语言 → en (fallback) → 键名
+    ├── 事件: locale_changed 监听器模式
+    ├── 检测: locale.getdefaultlocale()
+    └── 持久化: 用户偏好 JSON
+
+用法:
+    _("menu.file.new")                     → "新建项目"
+    _("welcome", name="PhantomVox")        → "欢迎使用 PhantomVox"
+    _("timeline.clips", count=5)           → "5 个片段"
+"""
+
+import json
+import locale
+import os
+import re
+from pathlib import Path
+from typing import Dict, List, Optional, Callable, Any
+
+_LOCALE_DIR = Path(__file__).parent / "locales"
+_USER_PREF_PATH = Path.home() / ".phantomvox" / "locale.json"
+_FALLBACK_LOCALE = "en"
+
+# ── 单例 ──────────────────────────────────────────────────────
+
+_instance: Optional["I18nManager"] = None
+
+
+def I18n() -> "I18nManager":
+    """获取全局单例 (lazy init)"""
+    global _instance
+    if _instance is None:
+        _instance = I18nManager()
+    return _instance
+
+
+# ── 快捷函数 ───────────────────────────────────────────────────
+
+def _(*args, **kwargs) -> str:
+    """全局快捷翻译函数。
+    _(key)              → str
+    _(key, count=N)     → 自动复数
+    _(key, name="X")    → 插值 {name}
+    """
+    return I18n().t(*args, **kwargs)
+
+
+# ── 主类 ──────────────────────────────────────────────────────
+
+class I18nManager:
+    """国际化管理器 (单例)"""
+
+    def __init__(self):
+        self._cache: Dict[str, Dict[str, str]] = {}       # locale -> flat dict
+        self._raw: Dict[str, Dict] = {}                   # locale -> raw JSON
+        self._current: str = _FALLBACK_LOCALE
+        self._listeners: List[Callable[[str, str], None]] = []   # (old, new)
+        self._loaded: set = set()                         # already-loaded locales
+
+        locale_id = self._detect_system_locale()
+        self._load_user_preference()
+        if not self._current:
+            self._current = locale_id
+
+    # ── 公共 API ────────────────────────────────────────────
+
+    @property
+    def current(self) -> str:
+        return self._current
+
+    @property
+    def available(self) -> List[str]:
+        """列出所有可用语言 (发现 locales/*.json)"""
+        files = sorted(_LOCALE_DIR.glob("*.json"))
+        return [f.stem for f in files]
+
+    def t(self, key: str, **kwargs) -> str:
+        """翻译 + 插值 + 复数"""
+        self._ensure_loaded(self._current)
+        self._ensure_loaded(_FALLBACK_LOCALE)
+
+        raw_key = key
+        interp_params = dict(kwargs)  # copy for interpolation later
+        # 复数检测: 如果有 count 参数, 尝试 key.one / key.many
+        count = kwargs.pop("count", None)
+        if count is not None:
+            interp_params["count"] = count  # ensure count is available for interpolation
+            plural_key = f"{key}.many" if count > 1 else f"{key}.one"
+            raw_key = plural_key
+
+        # 当前语言 → 回退 (en) → 键名
+        val = self._resolve(raw_key, self._current)
+        if val is None:
+            val = self._resolve(raw_key, _FALLBACK_LOCALE)
+        if val is None:
+            # 尝试去掉复数后缀回退到基础键
+            if count is not None:
+                val = self._resolve(key, self._current)
+                if val is None:
+                    val = self._resolve(key, _FALLBACK_LOCALE)
+            if val is None:
+                val = raw_key
+
+        # 插值
+        if interp_params:
+            val = self._interpolate(val, interp_params)
+
+        return val
+
+    def set_locale(self, locale_id: str, persist: bool = True):
+        """切换语言"""
+        if locale_id not in self.available:
+            available = ", ".join(self.available)
+            raise ValueError(
+                f"不支持的语言: '{locale_id}'。可用: [{available}]"
+            )
+        old = self._current
+        self._current = locale_id
+        if persist:
+            self._save_user_preference()
+        for cb in self._listeners:
+            cb(old, locale_id)
+
+    def on_locale_changed(self, callback: Callable[[str, str], None]):
+        """注册语言切换监听器: callback(old_locale, new_locale)"""
+        self._listeners.append(callback)
+
+    def reload(self):
+        """重新加载所有词库 (热更新)"""
+        self._cache.clear()
+        self._raw.clear()
+        self._loaded.clear()
+        self._ensure_loaded(self._current)
+
+    # ── 内部 ────────────────────────────────────────────────
+
+    def _ensure_loaded(self, locale_id: str):
+        if locale_id in self._loaded:
+            return
+        path = _LOCALE_DIR / f"{locale_id}.json"
+        if not path.exists():
+            return  # 静默忽略, fallback 链兜底
+        with open(path, "r", encoding="utf-8") as f:
+            raw = json.load(f)
+        self._raw[locale_id] = raw
+        self._cache[locale_id] = self._flatten(raw)
+        self._loaded.add(locale_id)
+
+    def _flatten(self, data: dict, prefix: str = "") -> Dict[str, str]:
+        """递归拍平嵌套字典: {"menu": {"file": {"new": "..."}}} → "menu.file.new" """
+        result = {}
+        for key, val in data.items():
+            full = f"{prefix}.{key}" if prefix else key
+            if isinstance(val, dict):
+                result.update(self._flatten(val, full))
+            else:
+                result[full] = str(val)
+        return result
+
+    def _resolve(self, key: str, locale_id: str) -> Optional[str]:
+        cache = self._cache.get(locale_id, {})
+        return cache.get(key, None)
+
+    _INTERP_RE = re.compile(r"\{(\w+)\}")
+
+    def _interpolate(self, template: str, params: dict) -> str:
+        def _replacer(m):
+            name = m.group(1)
+            return str(params.get(name, f"{{{name}}}"))
+        return self._INTERP_RE.sub(_replacer, template)
+
+    def _detect_system_locale(self) -> str:
+        """检测系统语言 (Linux locale)"""
+        # 尝试环境变量
+        lang = os.environ.get("LANG", "") or os.environ.get("LC_ALL", "")
+        if lang:
+            parts = lang.split(".")
+            lang_id = parts[0].replace("-", "_")
+            return self._best_match(lang_id)
+        # 尝试 Python locale
+        try:
+            code, _ = locale.getdefaultlocale()
+            if code:
+                return self._best_match(code.replace("-", "_"))
+        except Exception:
+            pass
+        return "zh_CN" if self._is_chinese_env() else _FALLBACK_LOCALE
+
+    def _is_chinese_env(self) -> bool:
+        return any(k in os.environ.get("LANG", "")
+                   for k in ["zh_CN", "zh_TW", "zh_HK", "zh_SG"])
+
+    def _best_match(self, locale_id: str) -> str:
+        available = set(self.available)
+        # 精确匹配
+        if locale_id in available:
+            return locale_id
+        # 语言前缀匹配: zh_CN → zh, en_US → en
+        lang_prefix = locale_id.split("_")[0]
+        for avail in available:
+            if avail.startswith(lang_prefix):
+                return avail
+        return _FALLBACK_LOCALE
+
+    def _load_user_preference(self):
+        if _USER_PREF_PATH.exists():
+            try:
+                with open(_USER_PREF_PATH, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                self._current = data.get("locale", self._current)
+            except Exception:
+                pass
+
+    def _save_user_preference(self):
+        _USER_PREF_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with open(_USER_PREF_PATH, "w", encoding="utf-8") as f:
+            json.dump({"locale": self._current}, f, ensure_ascii=False)
+
+    def __repr__(self) -> str:
+        return f"<I18nManager current='{self._current}' loaded={list(self._loaded)}>"
