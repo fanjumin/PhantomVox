@@ -118,6 +118,50 @@ def main():
     # ── 启动引擎 ──────────────────────────────────────
     engine = Engine(locale=args.locale)
 
+    # ── 注册音频引擎 ──────────────────────────────────
+    from modules.audio import AudioEngine
+    from modules.audio.providers.edge_tts import EdgeTTSProvider
+    from modules.audio.providers.suno import SunoProvider
+    from modules.audio.providers.musicgen import MusicGenProvider
+
+    audio = AudioEngine(hardware=engine.hardware)
+    audio.register_tts("edge_tts", EdgeTTSProvider())
+    audio.register_music("suno", SunoProvider())
+    audio.register_music("musicgen_small", MusicGenProvider(model_size="small"))
+    engine.register("audio", audio)
+
+    # ── 注册 Agent 引擎 ─────────────────────────────────
+    from modules.agent import AgentEngine
+    from modules.agent.panels.chat import ChatPanel, ThinkPanel, ImageGenPanel, VideoGenPanel, CodeGenPanel
+
+    agent_engine = AgentEngine(engine=engine)
+    agent_engine.register_panel("chat", ChatPanel())
+    agent_engine.register_panel("think", ThinkPanel())
+    agent_engine.register_panel("image_gen", ImageGenPanel())
+    agent_engine.register_panel("video_gen", VideoGenPanel())
+    agent_engine.register_panel("code_gen", CodeGenPanel())
+    engine.register("agent", agent_engine)
+
+    # ── 注册模型配置 ───────────────────────────────────
+    from modules.modelconfig import ConfigManager
+    config_mgr = ConfigManager()
+    engine.register("config", config_mgr)
+
+    # ── Timeline 引擎 ────────────────────────────────────
+    from modules.timeline import TimelineEngine
+    timeline_engine = TimelineEngine()
+    engine.register("timeline", timeline_engine)
+
+    # ── CodeGen 引擎 (P6) ───────────────────────────────
+    from modules.codegen import CodeGenEngine
+    codegen_engine = CodeGenEngine()
+    engine.register("codegen", codegen_engine)
+
+    # ── VideoGen 引擎 (P6) ──────────────────────────────
+    from modules.videogen import VideoGenEngine
+    videogen_engine = VideoGenEngine()
+    engine.register("videogen", videogen_engine)
+
     if args.info:
         cmd_info(engine)
         return
