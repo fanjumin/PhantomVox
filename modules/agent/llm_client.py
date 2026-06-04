@@ -42,6 +42,34 @@ OPENAI_COMPATIBLE = {
     "bytedance",
 }
 
+# Provider API model name mapping (registry key → actual API model name)
+MODEL_NAME_MAP: dict = {
+    "gpt-4o": "gpt-4o",
+    "gpt-4.1": "gpt-4.1",
+    "o1": "o1",
+    "o3-mini": "o3-mini",
+    "claude-4-sonnet": "claude-sonnet-4-20250514",
+    "claude-4-opus": "claude-opus-4-20250514",
+    "claude-3.5-haiku": "claude-3-5-haiku-latest",
+    "gemini-2.5-pro": "gemini-2.5-pro-exp-03-25",
+    "gemini-2.5-flash": "gemini-2.5-flash-001",
+    "deepseek-v4": "deepseek-chat",
+    "deepseek-r1": "deepseek-reasoner",
+    "qwen2.5-72b": "qwen2.5-72b-instruct",
+    "qwen2.5-32b": "qwen2.5-32b-instruct",
+    "qwen-vl-plus": "qwen-vl-plus",
+    "glm-4-plus": "glm-4-plus",
+    "glm-4-air": "glm-4-air",
+    "glm-4v-plus": "glm-4v-plus",
+    "doubao-pro": "doubao-pro-32k",
+    "mistral-large": "mistral-large-latest",
+}
+
+
+def _resolve_model_name(model_key: str) -> str:
+    """Map registry key to actual API model name."""
+    return MODEL_NAME_MAP.get(model_key, model_key)
+
 
 def chat(
     config_manager: Any,
@@ -98,11 +126,14 @@ def chat(
     if not api_key:
         return {"status": "error", "error": f"No API key configured for '{provider}'. Go to Settings → AI Models → API Keys."}
 
+    # Resolve registry key to actual API model name
+    api_model = _resolve_model_name(model_key)
+
     try:
         if provider == "anthropic":
-            return _call_anthropic(endpoint, api_key, model_key, messages, temperature, max_tokens)
+            return _call_anthropic(endpoint, api_key, api_model, messages, temperature, max_tokens)
         elif provider in OPENAI_COMPATIBLE:
-            return _call_openai_compat(endpoint, api_key, model_key, messages, temperature, max_tokens, stream)
+            return _call_openai_compat(endpoint, api_key, api_model, messages, temperature, max_tokens, stream)
         else:
             return {"status": "error", "error": f"Provider '{provider}' not implemented yet."}
     except Exception as e:
