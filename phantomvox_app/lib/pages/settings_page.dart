@@ -358,7 +358,7 @@ class _SettingsPageState extends State<SettingsPage>
             children: [
               const Icon(Icons.movie_creation, size: 48, color: Color(0xFF6C63FF)),
               const SizedBox(height: 8),
-              Text(i18n.tr('v0.3.1'),
+              Text(i18n.tr('v0.3.3'),
                   style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
               const SizedBox(height: 4),
               Text(i18n.tr('Where AI Meets Creativity'),

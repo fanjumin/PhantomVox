@@ -428,6 +428,8 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
           const SizedBox(width: 4),
           _topBtn(i18n.tr('Import'), Icons.file_open, () => _importFlowGraph()),
           const SizedBox(width: 4),
+          _topBtn(i18n.tr('Export'), Icons.save_alt, () => _exportFlowGraph()),
+          const SizedBox(width: 4),
           _topBtn(i18n.tr('+ Node'), Icons.add, () => _addNode()),
           const SizedBox(width: 4),
           _topBtn(i18n.tr('AI'), Icons.auto_awesome,
@@ -900,6 +902,78 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
               content: Text('Import failed: $e'),
+              duration: const Duration(seconds: 3)),
+        );
+      }
+    }
+  }
+
+  // ── Export ───────────────────────────────────────────────
+
+  Future<void> _exportFlowGraph() async {
+    final dataDir = '/home/guxiao/projects/video_ai_agent/data';
+    final picked = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        final ctrl = TextEditingController(text: '$dataDir/');
+        return AlertDialog(
+          backgroundColor: const Color(0xFF16213E),
+          title: const Text('Export Flow Graph',
+              style: TextStyle(color: Colors.white, fontSize: 14)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Save to path:',
+                  style: TextStyle(color: Colors.white70, fontSize: 12)),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: 300,
+                child: TextField(
+                  controller: ctrl,
+                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                  decoration: const InputDecoration(
+                    hintText: '/path/to/export.json',
+                    hintStyle: TextStyle(color: Colors.grey, fontSize: 12),
+                    border: OutlineInputBorder(),
+                    contentPadding:
+                        EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel',
+                    style: TextStyle(color: Colors.grey, fontSize: 12))),
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, ctrl.text),
+                child: const Text('Export',
+                    style:
+                        TextStyle(color: Color(0xFF6C63FF), fontSize: 12))),
+          ],
+        );
+      },
+    );
+
+    if (picked == null || picked.isEmpty) return;
+
+    try {
+      await _api.post('/api/v1/flowgraph/export', body: {'path': picked});
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Exported successfully'),
+              duration: Duration(seconds: 2)),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text('Export failed: $e'),
               duration: const Duration(seconds: 3)),
         );
       }

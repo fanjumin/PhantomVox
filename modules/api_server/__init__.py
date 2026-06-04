@@ -474,6 +474,20 @@ def create_app(engine=None):
         except Exception as e:
             return jsonify({"error": str(e)}), 400
 
+    @app.route("/api/v1/flowgraph/export", methods=["POST"])
+    def flowgraph_export():
+        """Export current flow graph to a JSON file."""
+        data = request.get_json(silent=True) or {}
+        path = data.get("path", "")
+        if not path:
+            return jsonify({"error": "No path provided"}), 400
+        agent = app.engine.get("agent")
+        try:
+            agent._director.flowgraph.save_to_file(path)
+            return jsonify({"status": "ok"})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
     @app.route("/api/v1/flowgraph/expand", methods=["POST"])
     def flowgraph_expand():
         """AI expand a node — Director generates child suggestions."""
