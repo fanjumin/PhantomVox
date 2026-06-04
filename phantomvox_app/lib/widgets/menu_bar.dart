@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'file_operations.dart';
+import 'profile_dialog.dart';
 
 /// PhantomVox global menu bar — shared across all workspaces.
 /// Layout matches architecture doc chapter 11 with English labels.
@@ -122,13 +124,13 @@ class PhantomVoxMenuBar extends StatelessWidget implements PreferredSizeWidget {
                 leadingIcon: const Icon(Icons.add, size: 14),
                 shortcut: const SingleActivator(LogicalKeyboardKey.keyN, control: true),
                 child: const Text('New Project'),
-                onPressed: () => _showSnack(context, 'New project coming soon'),
+                onPressed: () => FileOperations.showNewProjectDialog(context),
               ),
               MenuItemButton(
                 leadingIcon: const Icon(Icons.folder_open, size: 14),
                 shortcut: const SingleActivator(LogicalKeyboardKey.keyO, control: true),
                 child: const Text('Open Project'),
-                onPressed: () => _showSnack(context, 'Open project coming soon'),
+                onPressed: () => FileOperations.showOpenProjectDialog(),
               ),
               SubmenuButton(
                 leadingIcon: const Icon(Icons.history, size: 14),
@@ -145,13 +147,13 @@ class PhantomVoxMenuBar extends StatelessWidget implements PreferredSizeWidget {
                 leadingIcon: const Icon(Icons.save, size: 14),
                 shortcut: const SingleActivator(LogicalKeyboardKey.keyS, control: true),
                 child: const Text('Save'),
-                onPressed: () => _showSnack(context, 'Save coming soon'),
+                onPressed: () => FileOperations.showSaveDialog(),
               ),
               MenuItemButton(
                 leadingIcon: const Icon(Icons.save_as, size: 14),
                 shortcut: const SingleActivator(LogicalKeyboardKey.keyS, control: true, shift: true),
                 child: const Text('Save As...'),
-                onPressed: () => _showSnack(context, 'Save as coming soon'),
+                onPressed: () => FileOperations.showSaveDialog(),
               ),
               MenuItemButton(
                 leadingIcon: const Icon(Icons.description, size: 14),
@@ -164,7 +166,7 @@ class PhantomVoxMenuBar extends StatelessWidget implements PreferredSizeWidget {
                 menuChildren: [
                   MenuItemButton(
                     child: const Text('Media File...'),
-                    onPressed: () => _showSnack(context, 'Import file coming soon'),
+                    onPressed: () => FileOperations.showImportDialog(),
                   ),
                   MenuItemButton(
                     child: const Text('Media Folder...'),
@@ -190,7 +192,7 @@ class PhantomVoxMenuBar extends StatelessWidget implements PreferredSizeWidget {
                 menuChildren: [
                   MenuItemButton(
                     child: const Text('Video...'),
-                    onPressed: () => _showSnack(context, 'Export video coming soon'),
+                    onPressed: () => FileOperations.showExportDialog(context),
                   ),
                   MenuItemButton(
                     child: const Text('Audio Only'),
@@ -507,7 +509,7 @@ class PhantomVoxMenuBar extends StatelessWidget implements PreferredSizeWidget {
             ],
           ),
           const Spacer(),
-          // Account / user area placeholder
+          // Account / user area — opens local profile dialog
           Padding(
             padding: const EdgeInsets.only(right: 8),
             child: IconButton(
@@ -515,8 +517,11 @@ class PhantomVoxMenuBar extends StatelessWidget implements PreferredSizeWidget {
               color: Colors.grey,
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(maxWidth: 24, maxHeight: 24),
-              tooltip: 'Login / Account',
-              onPressed: () => _showSnack(context, 'Account system coming soon'),
+              tooltip: 'Local Profile',
+              onPressed: () => showDialog(
+                context: context,
+                builder: (_) => const ProfileDialog(),
+              ),
             ),
           ),
         ],

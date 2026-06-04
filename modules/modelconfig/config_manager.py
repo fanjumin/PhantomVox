@@ -5,9 +5,11 @@ Responsibilities:
 - Manage model selection per module (LLM/Image/Video/Audio/Restore)
 - API Key secure storage
 - Hardware-aware: auto-filter unavailable local models
+- Local user profile (~/.phantomvox/profile.json)
 """
 
 from __future__ import annotations
+import json
 import os
 from typing import Any, Dict, List, Optional
 from dataclasses import dataclass, field, asdict
@@ -52,6 +54,15 @@ DEFAULT_CONFIG: dict = {
 
 CONFIG_DIR = os.path.expanduser("~/.phantomvox")
 CONFIG_PATH = os.path.join(CONFIG_DIR, "config.yaml")
+PROFILE_PATH = os.path.join(CONFIG_DIR, "profile.json")
+
+DEFAULT_PROFILE: dict = {
+    "display_name": "",
+    "avatar": "",
+    "theme": "dark",
+    "created_at": "",
+    "updated_at": "",
+}
 
 
 @dataclass
@@ -258,3 +269,31 @@ class ConfigManager:
             "exists": os.path.exists(self._path),
             "config": self.get_all(),
         }
+
+    # ── Local Profile ───────────────────────────────────
+
+    def get_profile(self) -> dict:
+        """Read local user profile from ~/.phantomvox/profile.json"""
+        profile = dict(DEFAULT_PROFILE)
+        if os.path.exists(PROFILE_PATH):
+            try:
+                with open(PROFILE_PATH) as f:
+                    data = json.load(f)
+                if isinstance(data, dict):
+                    profile.update(data)
+            except Exception:
+                pass
+        return profile
+
+    def save_profile(self, data: dict) -> dict:
+        """Save local user profile. Merges with existing data."""
+        existing = self.get_profile()
+        from datetime import datetime
+        existing.update(data)
+        existing["updated_at"] = datetime.now().isoformat()
+        if not existing.get("created_at"):
+            existing["created_at"] = existing["updated_at"]
+        os.makedirs(CONFIG_DIR, exist_ok=True)
+        with open(PROFILE_PATH, "w") as f:
+            json.dump(existing, f, indent=2, ensure_ascii=False)
+        return existing

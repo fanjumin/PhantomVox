@@ -441,6 +441,19 @@ def create_app(engine=None):
             cfg.set_api_key(provider, key)
         return jsonify({"status": "ok"})
 
+    # ── Profile ─────────────────────────────────────────
+
+    @app.route("/api/v1/profile")
+    def profile_get():
+        cfg = app.engine.get("config")
+        return jsonify(cfg.get_profile())
+
+    @app.route("/api/v1/profile", methods=["POST"])
+    def profile_save():
+        cfg = app.engine.get("config")
+        data = request.get_json(silent=True) or {}
+        return jsonify(cfg.save_profile(data))
+
     # ── Timeline endpoints ──────────────────────────────
 
     @app.route("/api/v1/timelines", methods=["POST"])
