@@ -13,3 +13,4 @@ build/
 
 # Local-only architecture docs (Chinese)
 docs/
+.hermes/

@@ -1,8 +1,11 @@
+import 'dart:math' as math;
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 
-/// AudioForge page — TTS, Music generation, Voice cloning
+/// AudioForge page — professional audio mixing workspace + AI audio workshop
+/// Reference: DaVinci Resolve Fairlight workspace
+/// TOP_METER_BAR + PLAY_BAR + (TRACK_LIST + WAVE_TIMELINE + MIXER) + AI_WORKSHOP
 class AudioForgePage extends StatefulWidget {
   const AudioForgePage({super.key});
 
@@ -10,39 +13,33 @@ class AudioForgePage extends StatefulWidget {
   State<AudioForgePage> createState() => _AudioForgePageState();
 }
 
-class _AudioForgePageState extends State<AudioForgePage>
-    with SingleTickerProviderStateMixin {
+class _AudioForgePageState extends State<AudioForgePage> {
   final ApiService _api = ApiService();
-  late TabController _tabCtrl;
-
-  // ── TTS state ──
-  final _ttsTextCtrl = TextEditingController(text: 'Hello, this is a test.');
+  final TextEditingController _ttsCtrl = TextEditingController(text: 'Hello, this is a test.');
+  final TextEditingController _musicPromptCtrl = TextEditingController();
   List<Map<String, dynamic>> _ttsVoices = [];
-  String? _selectedVoice;
-  String? _ttsResult;
-
-  // ── Music state ──
-  final _musicPromptCtrl = TextEditingController();
   List<Map<String, dynamic>> _musicStyles = [];
+  String? _selectedVoice;
   String? _selectedStyle;
   double _musicDuration = 15;
+  String? _ttsResult;
   String? _musicResult;
-
   bool _loading = false;
   String? _error;
+  double _playhead = 0.0;
+  double _duration = 30.0;
+  bool _aiPanelExpanded = true;
 
   @override
   void initState() {
     super.initState();
-    _tabCtrl = TabController(length: 3, vsync: this);
     _loadVoices();
     _loadStyles();
   }
 
   @override
   void dispose() {
-    _tabCtrl.dispose();
-    _ttsTextCtrl.dispose();
+    _ttsCtrl.dispose();
     _musicPromptCtrl.dispose();
     super.dispose();
   }
@@ -58,15 +55,12 @@ class _AudioForgePageState extends State<AudioForgePage>
         }
       });
     } catch (_) {
-      // Offline: use mock data
       _ttsVoices = [
         {'id': 'en-US-JennyNeural', 'name': 'Jenny (English)'},
         {'id': 'zh-CN-Xiaoxiao', 'name': 'Xiaoxiao (Chinese)'},
         {'id': 'ja-JP-Nanami', 'name': 'Nanami (Japanese)'},
-        {'id': 'fr-FR-Denise', 'name': 'Denise (French)'},
-        {'id': 'de-DE-Katja', 'name': 'Katja (German)'},
       ];
-      _selectedVoice = _ttsVoices.first['id']?.toString();
+      _selectedVoice = 'en-US-JennyNeural';
     }
   }
 
@@ -75,14 +69,11 @@ class _AudioForgePageState extends State<AudioForgePage>
       final resp = await _api.get('/api/v1/music/styles');
       setState(() {
         _musicStyles = List<Map<String, dynamic>>.from(resp);
-        if (_musicStyles.isNotEmpty) {
-          _selectedStyle = _musicStyles.first['name']?.toString() ?? 'default';
-        }
+        if (_musicStyles.isNotEmpty) _selectedStyle = _musicStyles.first['name']?.toString();
       });
     } catch (_) {
       _musicStyles = [
-        {'name': 'default'}, {'name': 'jazz'}, {'name': 'electronic'},
-        {'name': 'classical'}, {'name': 'pop'}, {'name': 'cinematic'},
+        {'name': 'default'}, {'name': 'jazz'}, {'name': 'cinematic'},
       ];
       _selectedStyle = 'default';
     }
@@ -92,13 +83,13 @@ class _AudioForgePageState extends State<AudioForgePage>
     setState(() { _loading = true; _error = null; _ttsResult = null; });
     try {
       final resp = await _api.post('/api/v1/tts', body: {
-        'text': _ttsTextCtrl.text,
+        'text': _ttsCtrl.text,
         'voice': _selectedVoice ?? 'en-US-JennyNeural',
       });
       setState(() {
         _ttsResult = resp['status'] == 'ok'
             ? 'TTS generated: ${resp['output_path'] ?? 'OK'}'
-            : 'Result: ${resp['result'] ?? resp.toString()}';
+            : 'Result: ${resp.toString()}';
         _loading = false;
       });
     } catch (e) {
@@ -117,7 +108,7 @@ class _AudioForgePageState extends State<AudioForgePage>
       setState(() {
         _musicResult = resp['status'] == 'ok'
             ? 'Music generated: ${resp['output_path'] ?? 'OK'}'
-            : 'Result: ${resp['result'] ?? resp.toString()}';
+            : 'Result: ${resp.toString()}';
         _loading = false;
       });
     } catch (e) {
@@ -131,241 +122,417 @@ class _AudioForgePageState extends State<AudioForgePage>
       backgroundColor: const Color(0xFF0F0F1A),
       body: Column(
         children: [
-          // Header
-          Container(
-            height: 40,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            color: const Color(0xFF16213E),
+          _buildMeterBar(),
+          _buildPlayBar(),
+          Expanded(
             child: Row(
               children: [
-                const Text('AudioForge',
-                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                const Spacer(),
-                if (_loading)
-                  const SizedBox(
-                    width: 16, height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
+                _buildTrackList(),
+                const VerticalDivider(width: 1, color: Color(0xFF2A2A3E)),
+                Expanded(child: _buildWaveTimeline()),
+                const VerticalDivider(width: 1, color: Color(0xFF2A2A3E)),
+                _buildMixerPanel(),
               ],
             ),
           ),
-          // Error banner
           if (_error != null)
             Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(8),
-              color: Colors.red.withOpacity(0.2),
-              child: Text(_error!, style: const TextStyle(fontSize: 12, color: Color(0xFFEF9A9A))),
+              width: double.infinity, padding: const EdgeInsets.all(6),
+              color: Colors.red.withValues(alpha: 0.2),
+              child: Text(_error!, style: const TextStyle(fontSize: 10, color: Color(0xFFEF9A9A))),
             ),
-          // Tabs
-          TabBar(
-            controller: _tabCtrl,
-            labelColor: Colors.white,
-            unselectedLabelColor: Colors.grey,
-            indicatorColor: const Color(0xFF6C63FF),
-            tabs: const [
-              Tab(icon: Icon(Icons.record_voice_over, size: 18), text: 'TTS'),
-              Tab(icon: Icon(Icons.music_note, size: 18), text: 'Music'),
-              Tab(icon: Icon(Icons.person_outline, size: 18), text: 'Voice Clone'),
-            ],
+          _buildAiWorkshop(),
+        ],
+      ),
+    );
+  }
+
+  // ── TOP_GLOBAL_METER_BAR (48px) ──────────────────────
+
+  Widget _buildMeterBar() {
+    return Container(
+      height: 48,
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      color: const Color(0xFF0D0D1A),
+      child: Row(
+        children: [
+          // Left: buttons
+          _meterBtn(Icons.folder, 'Media Pool'),
+          _meterBtn(Icons.auto_fix_high, 'Effects'),
+          _meterBtn(Icons.list_alt, 'Index'),
+          _meterBtn(Icons.group_work, 'Groups'),
+          _meterBtn(Icons.library_music, 'Sound Lib'),
+          _meterBtn(Icons.mic, 'ADR'),
+          Container(width: 1, height: 24, color: const Color(0xFF2A2A3E)),
+
+          // Project name
+          const SizedBox(width: 6),
+          const Text('Land of Ice and Fire - Iceland',
+              style: TextStyle(fontSize: 9, color: Colors.white54)),
+          const Spacer(),
+
+          // Meter: Bus + CR
+          _miniVu(Colors.cyan, 0.7),
+          const Text('Bus1', style: TextStyle(fontSize: 7, color: Colors.grey)),
+          const SizedBox(width: 4),
+          _miniVu(Colors.cyan, 0.5),
+          const Text('CR', style: TextStyle(fontSize: 7, color: Colors.grey)),
+          const SizedBox(width: 8),
+
+          // Loudness readings
+          _loudLabel('TP', '+5.1'),
+          _loudLabel('M', '+19.7'),
+          _loudLabel('Short', '+10.3'),
+          _loudLabel('S.Max', '+15.2'),
+          _loudLabel('Rng', '6.3'),
+          _loudLabel('Int', '+13.3'),
+
+          const SizedBox(width: 4),
+          _miniBtn('Pause'),
+          _miniBtn('Reset'),
+          const SizedBox(width: 4),
+          _miniBtn('DIM', active: true),
+          const SizedBox(width: 8),
+
+          // Buttons (right side)
+          _meterBtn(Icons.tune, 'Mixer'),
+          _meterBtn(Icons.equalizer, 'Meters'),
+          _meterBtn(Icons.info_outline, 'Metadata'),
+          _meterBtn(Icons.tune, 'Inspector'),
+        ],
+      ),
+    );
+  }
+
+  Widget _meterBtn(IconData icon, String label) {
+    return TextButton.icon(
+      icon: Icon(icon, size: 11, color: Colors.grey),
+      label: Text(label, style: const TextStyle(fontSize: 8, color: Colors.grey)),
+      onPressed: () {},
+      style: TextButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 3),
+        minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+    );
+  }
+
+  Widget _miniVu(Color color, double level) {
+    return Container(
+      width: 6, height: 28,
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A2E),
+        borderRadius: BorderRadius.circular(1),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          Container(
+            height: 28 * level,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.6),
+              borderRadius: BorderRadius.circular(1),
+            ),
           ),
-          // Tab content
+        ],
+      ),
+    );
+  }
+
+  Widget _loudLabel(String key, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(key, style: const TextStyle(fontSize: 6, color: Colors.grey)),
+          Text(value, style: const TextStyle(fontSize: 7, color: Colors.white70)),
+        ],
+      ),
+    );
+  }
+
+  Widget _miniBtn(String label, {bool active = false}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+      decoration: BoxDecoration(
+        color: active ? const Color(0xFF699EFF) : const Color(0xFF1A1A2E),
+        borderRadius: BorderRadius.circular(2),
+      ),
+      child: Text(label, style: TextStyle(fontSize: 7, color: active ? Colors.white : Colors.grey)),
+    );
+  }
+
+  // ── PLAY_CONTROL_BAR (32px) ──────────────────────────
+
+  Widget _buildPlayBar() {
+    return Container(
+      height: 32,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      color: const Color(0xFF12121E),
+      child: Row(
+        children: [
+          const Text('01:01:57:00',
+              style: TextStyle(fontSize: 11, fontFamily: 'monospace', color: Colors.white)),
+          const SizedBox(width: 8),
+          _playBtn(Icons.skip_previous),
+          _playBtn(Icons.play_arrow, color: const Color(0xFF4CAF50)),
+          _playBtn(Icons.skip_next),
+          _playBtn(Icons.loop),
+          const SizedBox(width: 4),
+          Container(
+            width: 20, height: 20,
+            decoration: BoxDecoration(
+              color: Colors.red.withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: const Center(child: Text('REC', style: TextStyle(fontSize: 7, color: Colors.red))),
+          ),
+          const SizedBox(width: 4),
+          _playBtn(Icons.settings),
+          const Spacer(),
+          // Time ruler area
           Expanded(
-            child: TabBarView(
-              controller: _tabCtrl,
+            child: Container(
+              height: 16,
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F0F1A),
+                borderRadius: BorderRadius.circular(2),
+              ),
+              child: Stack(
+                children: [
+                  // Ruler ticks
+                  CustomPaint(size: Size.infinite, painter: _RulerPainter()),
+                  // Playhead
+                  Positioned(
+                    left: (_playhead / _duration) * 200,
+                    top: 0, bottom: 0,
+                    child: Container(width: 1, color: Colors.red),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _playBtn(IconData icon, {Color? color}) {
+    return SizedBox(
+      width: 24, height: 24,
+      child: IconButton(
+        padding: EdgeInsets.zero,
+        icon: Icon(icon, size: 14, color: color ?? Colors.white70),
+        onPressed: () {},
+      ),
+    );
+  }
+
+  // ── LEFT_TRACK (120px) ───────────────────────────────
+
+  Widget _buildTrackList() {
+    final tracks = [
+      {'id': 'A1', 'name': 'Audio1', 'fx': '2.0', 'plugin': 'None', 'clips': 4},
+      {'id': 'A2', 'name': 'Audio2', 'fx': '2.0', 'plugin': 'None', 'clips': 2},
+      {'id': 'A3', 'name': 'Audio3', 'fx': '2.0', 'plugin': 'None', 'clips': 1},
+      {'id': 'A4', 'name': 'Audio4', 'fx': '2.0', 'plugin': 'None', 'clips': 1},
+      {'id': 'A5', 'name': 'Audio5', 'fx': '2.0', 'plugin': 'None', 'clips': 1},
+    ];
+    return Container(
+      width: 120,
+      color: const Color(0xFF12121E),
+      child: ListView.builder(
+        itemCount: tracks.length,
+        itemBuilder: (_, i) {
+          final t = tracks[i];
+          return Container(
+            height: 60,
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(color: const Color(0xFF2A2A3E).withValues(alpha: 0.5)),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildTtsTab(),
-                _buildMusicTab(),
-                _buildVoiceCloneTab(),
+                Row(
+                  children: [
+                    Text(t['name'] as String, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: Colors.white70)),
+                    const Spacer(),
+                    Text('fx:${t['fx']}', style: const TextStyle(fontSize: 8, color: Colors.grey)),
+                  ],
+                ),
+                Text(t['plugin'] as String, style: const TextStyle(fontSize: 8, color: Colors.grey)),
+                Text('${t['clips']} Clips', style: const TextStyle(fontSize: 8, color: Colors.grey)),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    _rsmBtn('R', Colors.red),
+                    const SizedBox(width: 2),
+                    _rsmBtn('S', Colors.orange),
+                    const SizedBox(width: 2),
+                    _rsmBtn('M', Colors.grey),
+                  ],
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _rsmBtn(String label, Color activeColor) {
+    return Container(
+      width: 18, height: 14,
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A2E),
+        borderRadius: BorderRadius.circular(2),
+      ),
+      child: Center(child: Text(label, style: TextStyle(fontSize: 7, color: activeColor.withValues(alpha: 0.5)))),
+    );
+  }
+
+  // ── CENTRAL_WAVE_TIMELINE ────────────────────────────
+
+  Widget _buildWaveTimeline() {
+    final waves = [
+      {'name': 'Open Seas.wav', 'color': const Color(0xFF4CAF50), 'segments': 2},
+      {'name': 'Open Seas + Wind', 'color': const Color(0xFFFF5252), 'segments': 1},
+      {'name': 'Driving Beach.wav', 'color': const Color(0xFF2196F3), 'segments': 1},
+      {'name': 'Desert Wind.wav', 'color': const Color(0xFFFF9800), 'segments': 1},
+    ];
+    return Container(
+      color: const Color(0xFF0A0A14),
+      child: ListView.builder(
+        itemCount: waves.length,
+        itemBuilder: (_, i) {
+          return Container(
+            height: 60,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(color: const Color(0xFF2A2A3E).withValues(alpha: 0.3)),
+              ),
+            ),
+            child: Row(
+              children: [
+                Text(waves[i]['name'] as String, style: const TextStyle(fontSize: 8, color: Colors.grey)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: CustomPaint(
+                    painter: _WavePainter(waves[i]['color'] as Color, waves[i]['segments'] as int),
+                    size: const Size(double.infinity, 40),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // ── RIGHT_MIXER (220px) ──────────────────────────────
+
+  Widget _buildMixerPanel() {
+    return Container(
+      width: 220,
+      color: const Color(0xFF12121E),
+      child: Column(
+        children: [
+          _sectionHeader('Mixer'),
+          const Divider(height: 1, color: Color(0xFF2A2A3E)),
+          Expanded(
+            child: Row(
+              children: [
+                _mixerChannel('A1', 'Voice Isl', const Color(0xFF4CAF50)),
+                _mixerChannel('A2', 'Voice Isl', const Color(0xFF2196F3)),
+                _mixerChannel('A3', 'Dial Lev', const Color(0xFFFF9800)),
+                _mixerChannel('A4', 'Dial Lev', const Color(0xFF9C27B0)),
+                _mixerBus('Bus1'),
               ],
             ),
           ),
-          // AI Audio Workshop bottom panel
-          _buildAudioWorkshop(),
         ],
       ),
     );
   }
 
-  // ── TTS tab ──
-
-  Widget _buildTtsTab() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Text-to-Speech',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 12),
-          // Voice selector
-          DropdownButtonFormField<String>(
-            value: _selectedVoice,
-            decoration: _inputDeco('Voice'),
-            dropdownColor: const Color(0xFF16213E),
-            items: _ttsVoices.map((v) => DropdownMenuItem(
-              value: v['id']?.toString() ?? v['name']?.toString(),
-              child: Text(v['name']?.toString() ?? v['id']?.toString() ?? '', style: const TextStyle(fontSize: 13)),
-            )).toList(),
-            onChanged: (v) => setState(() => _selectedVoice = v),
-          ),
-          const SizedBox(height: 12),
-          // Text input
-          TextField(
-            controller: _ttsTextCtrl,
-            maxLines: 5,
-            style: const TextStyle(fontSize: 13),
-            decoration: _inputDeco('Enter text to synthesize...'),
-          ),
-          const SizedBox(height: 16),
-          // Generate button
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: _loading ? null : _doTts,
-              icon: const Icon(Icons.volume_up, size: 18),
-              label: Text(_loading ? 'Generating...' : 'Generate Speech'),
-            ),
-          ),
-          // Result
-          if (_ttsResult != null) ...[
-            const SizedBox(height: 16),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFF1A2E1A),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.check_circle, color: Colors.green, size: 18),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(_ttsResult!,
-                        style: const TextStyle(fontSize: 12, color: Color(0xFFA5D6A7))),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  // ── Music tab ──
-
-  Widget _buildMusicTab() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Music Generation',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 12),
-          // Style selector
-          DropdownButtonFormField<String>(
-            value: _selectedStyle,
-            decoration: _inputDeco('Style'),
-            dropdownColor: const Color(0xFF16213E),
-            items: _musicStyles.map((s) => DropdownMenuItem(
-              value: s['name']?.toString() ?? 'default',
-              child: Text(s['name']?.toString() ?? '', style: const TextStyle(fontSize: 13)),
-            )).toList(),
-            onChanged: (v) => setState(() => _selectedStyle = v),
-          ),
-          const SizedBox(height: 12),
-          // Duration slider
-          Row(
-            children: [
-              const Text('Duration: ', style: TextStyle(fontSize: 13)),
-              Expanded(
-                child: Slider(
-                  value: _musicDuration,
-                  min: 5, max: 60, divisions: 11,
-                  label: '${_musicDuration.toInt()}s',
-                  onChanged: (v) => setState(() => _musicDuration = v),
-                ),
-              ),
-              SizedBox(
-                width: 32,
-                child: Text('${_musicDuration.toInt()}s',
-                    style: const TextStyle(fontSize: 12, fontFamily: 'monospace')),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          // Prompt input
-          TextField(
-            controller: _musicPromptCtrl,
-            maxLines: 3,
-            style: const TextStyle(fontSize: 13),
-            decoration: _inputDeco('Describe the music...'),
-          ),
-          const SizedBox(height: 16),
-          // Generate button
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: _loading ? null : _doMusic,
-              icon: const Icon(Icons.music_note, size: 18),
-              label: Text(_loading ? 'Generating...' : 'Generate Music'),
-            ),
-          ),
-          // Result
-          if (_musicResult != null) ...[
-            const SizedBox(height: 16),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFF1A2E1A),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.check_circle, color: Colors.green, size: 18),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(_musicResult!,
-                        style: const TextStyle(fontSize: 12, color: Color(0xFFA5D6A7))),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  // ── Voice Clone tab (placeholder) ──
-
-  Widget _buildVoiceCloneTab() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
+  Widget _mixerChannel(String id, String plugin, Color color) {
+    return Expanded(
+      child: Container(
+        margin: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A1A2E),
+          borderRadius: BorderRadius.circular(3),
+        ),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.person_search, size: 64, color: Colors.white24),
-            const SizedBox(height: 16),
-            const Text('Voice Cloning',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            Text(
-              'Upload a 5-10 second voice sample, then enter text to synthesize with cloned voice.\n\n'
-              'Requires: F5-TTS (T2 GPU) or GPT-SoVITS (T2~T3)',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+            Text(id, style: TextStyle(fontSize: 8, fontWeight: FontWeight.w600, color: Colors.white70)),
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F0F1A),
+                borderRadius: BorderRadius.circular(2),
+              ),
+              child: Text(plugin, style: const TextStyle(fontSize: 6, color: Colors.grey)),
             ),
-            const SizedBox(height: 24),
-            OutlinedButton.icon(
-              onPressed: null,
-              icon: const Icon(Icons.upload_file, size: 18),
-              label: const Text('Upload Reference Audio'),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _slotDot('DYN', false),
+                const SizedBox(width: 2),
+                _slotDot('EQ', true),
+              ],
+            ),
+            const Spacer(),
+            Container(
+              width: 10, height: 40,
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F0F1A),
+                borderRadius: BorderRadius.circular(2),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Container(
+                    height: 30,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(1),
+                      gradient: LinearGradient(
+                        begin: Alignment.bottomCenter, end: Alignment.topCenter,
+                        colors: [color, color.withValues(alpha: 0.3), const Color(0xFFCD5C5C)],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 2),
+            // Fader
+            Container(
+              height: 30, width: 12,
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F0F1A),
+                borderRadius: BorderRadius.circular(1),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(height: 2, width: 10, color: color),
+                ],
+              ),
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _rsmDot('R', Colors.red),
+                _rsmDot('S', Colors.orange),
+                _rsmDot('M', Colors.grey),
+              ],
             ),
           ],
         ),
@@ -373,89 +540,304 @@ class _AudioForgePageState extends State<AudioForgePage>
     );
   }
 
-  // ── AI Audio Workshop ──
+  Widget _mixerBus(String name) {
+    return Expanded(
+      child: Container(
+        margin: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A1A2E),
+          borderRadius: BorderRadius.circular(3),
+          border: Border.all(color: const Color(0xFF8B4513).withValues(alpha: 0.5)),
+        ),
+        child: Column(
+          children: [
+            Text(name, style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w600, color: Colors.orangeAccent)),
+            _slotDot('FX', false),
+            _slotDot('EQ', false),
+            const Spacer(),
+            Container(
+              height: 50, width: 14,
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F0F1A),
+                borderRadius: BorderRadius.circular(1),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(height: 4, width: 12, color: Colors.orangeAccent),
+                ],
+              ),
+            ),
+            Text(name, style: const TextStyle(fontSize: 7, color: Colors.orangeAccent)),
+          ],
+        ),
+      ),
+    );
+  }
 
-  bool _workshopExpanded = false;
+  Widget _slotDot(String label, bool active) {
+    return Container(
+      width: 14, height: 10,
+      margin: const EdgeInsets.symmetric(vertical: 1),
+      decoration: BoxDecoration(
+        color: active ? const Color(0xFF699EFF) : const Color(0xFF2A2A3E),
+        borderRadius: BorderRadius.circular(1),
+      ),
+      child: Center(child: Text(label, style: TextStyle(fontSize: 5, color: active ? Colors.white : Colors.grey))),
+    );
+  }
 
-  Widget _buildAudioWorkshop() {
+  Widget _rsmDot(String label, Color color) {
+    return Container(
+      width: 10, height: 10,
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A2E),
+        borderRadius: BorderRadius.circular(1),
+      ),
+      child: Center(child: Text(label, style: TextStyle(fontSize: 5, color: color.withValues(alpha: 0.5)))),
+    );
+  }
+
+  // ── AI AUDIO WORKSHOP (bottom panel, 120px) ──────────
+
+  Widget _buildAiWorkshop() {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         const Divider(height: 1, color: Color(0xFF2A2A3E)),
         GestureDetector(
-          onTap: () => setState(() => _workshopExpanded = !_workshopExpanded),
+          onTap: () => setState(() => _aiPanelExpanded = !_aiPanelExpanded),
           child: Container(
             height: 24,
-            color: const Color(0xFF12121E),
+            color: const Color(0xFF0D0D1A),
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: Row(
               children: [
-                const Icon(Icons.auto_fix_high, size: 12, color: Color(0xFF6C63FF)),
+                const Icon(Icons.auto_fix_high, size: 12, color: Color(0xFF699EFF)),
                 const SizedBox(width: 4),
                 const Text('AI Audio Workshop',
                     style: TextStyle(fontSize: 10, color: Colors.grey)),
                 const Spacer(),
-                Icon(
-                  _workshopExpanded ? Icons.expand_less : Icons.expand_more,
-                  size: 14, color: Colors.grey,
-                ),
+                if (_loading)
+                  const SizedBox(width: 12, height: 12,
+                      child: CircularProgressIndicator(strokeWidth: 2)),
+                Icon(_aiPanelExpanded ? Icons.expand_less : Icons.expand_more,
+                    size: 14, color: Colors.grey),
               ],
             ),
           ),
         ),
-        if (_workshopExpanded)
-          Container(
-            height: 80,
-            color: const Color(0xFF0F0F1A),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _workshopTool(Icons.record_voice_over, 'Voice Clone', Colors.blue),
-                _workshopTool(Icons.text_fields, 'TTS', Colors.teal),
-                _workshopTool(Icons.music_note, 'Music Gen', Colors.purple),
-                _workshopTool(Icons.noise_control_off, 'Denoise', Colors.green),
-                _workshopTool(Icons.tune, 'Mix', Colors.orange),
-              ],
+        if (_aiPanelExpanded)
+          SizedBox(
+            height: 120,
+            child: Container(
+              color: const Color(0xFF0F0F1A),
+              padding: const EdgeInsets.all(8),
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    // TTS row
+                    Row(
+                      children: [
+                        const SizedBox(width: 40, child: Text('TTS', style: TextStyle(fontSize: 9, color: Color(0xFF699EFF)))),
+                        Expanded(
+                          child: SizedBox(
+                            height: 24,
+                            child: TextField(
+                              controller: _ttsCtrl,
+                              style: const TextStyle(fontSize: 10, color: Colors.white),
+                              decoration: _aiInput('Text to synthesize...'),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        SizedBox(
+                          width: 60, height: 24,
+                          child: DropdownButtonFormField<String>(
+                            value: _selectedVoice,
+                            isDense: true,
+                            decoration: _aiInput('Voice'),
+                            dropdownColor: const Color(0xFF16213E),
+                            style: const TextStyle(fontSize: 9, color: Colors.white),
+                            items: _ttsVoices.map((v) => DropdownMenuItem(
+                              value: v['id']?.toString(),
+                              child: Text(v['name']?.toString() ?? '', style: const TextStyle(fontSize: 9)),
+                            )).toList(),
+                            onChanged: (v) => setState(() => _selectedVoice = v),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        SizedBox(
+                          height: 24,
+                          child: FilledButton(
+                            onPressed: _loading ? null : _doTts,
+                            style: FilledButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              minimumSize: Size.zero,
+                            ),
+                            child: const Text('Generate', style: TextStyle(fontSize: 9)),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    // Music row
+                    Row(
+                      children: [
+                        const SizedBox(width: 40, child: Text('Music', style: TextStyle(fontSize: 9, color: Color(0xFF9C27B0)))),
+                        Expanded(
+                          child: SizedBox(
+                            height: 24,
+                            child: TextField(
+                              controller: _musicPromptCtrl,
+                              style: const TextStyle(fontSize: 10, color: Colors.white),
+                              decoration: _aiInput('Describe the music...'),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        SizedBox(
+                          width: 50, height: 24,
+                          child: DropdownButtonFormField<String>(
+                            value: _selectedStyle,
+                            isDense: true,
+                            decoration: _aiInput('Style'),
+                            dropdownColor: const Color(0xFF16213E),
+                            style: const TextStyle(fontSize: 9, color: Colors.white),
+                            items: _musicStyles.map((s) => DropdownMenuItem(
+                              value: s['name']?.toString(),
+                              child: Text(s['name']?.toString() ?? '', style: const TextStyle(fontSize: 9)),
+                            )).toList(),
+                            onChanged: (v) => setState(() => _selectedStyle = v),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        SizedBox(
+                          height: 24,
+                          child: FilledButton(
+                            onPressed: _loading ? null : _doMusic,
+                            style: FilledButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              minimumSize: Size.zero,
+                            ),
+                            child: const Text('Generate', style: TextStyle(fontSize: 9)),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    // Quick action chips
+                    Row(
+                      children: [
+                        const SizedBox(width: 40),
+                        _workshopChip(Icons.person_outline, 'Voice Clone'),
+                        const SizedBox(width: 4),
+                        _workshopChip(Icons.noise_control_off, 'Denoise'),
+                        const SizedBox(width: 4),
+                        _workshopChip(Icons.tune, 'Auto Mix'),
+                        const SizedBox(width: 4),
+                        _workshopChip(Icons.record_voice_over, 'Dialogue Match'),
+                        const SizedBox(width: 4),
+                        _workshopChip(Icons.equalizer, 'Level Match'),
+                        const SizedBox(width: 4),
+                        // Results
+                        if (_ttsResult != null)
+                          Text('TTS: OK', style: TextStyle(fontSize: 8, color: Colors.green)),
+                        if (_musicResult != null)
+                          Text('Music: OK', style: TextStyle(fontSize: 8, color: Colors.purple)),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
       ],
     );
   }
 
-  Widget _workshopTool(IconData icon, String label, Color color) {
-    return InkWell(
-      onTap: () {},
-      child: Container(
-        width: 80,
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: color.withValues(alpha: 0.3)),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, size: 20, color: color),
-            const SizedBox(height: 4),
-            Text(label,
-                style: TextStyle(fontSize: 9, color: color, fontWeight: FontWeight.w500)),
-          ],
-        ),
+  Widget _workshopChip(IconData icon, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A2E),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: const Color(0xFF2A2A3E)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 10, color: Colors.grey),
+          const SizedBox(width: 3),
+          Text(label, style: const TextStyle(fontSize: 8, color: Colors.grey)),
+        ],
       ),
     );
   }
 
-  // ── Helpers ──
-
-  InputDecoration _inputDeco(String hint) {
+  InputDecoration _aiInput(String hint) {
     return InputDecoration(
       hintText: hint,
-      hintStyle: const TextStyle(fontSize: 12, color: Colors.grey),
-      border: const OutlineInputBorder(),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      hintStyle: const TextStyle(fontSize: 9, color: Colors.grey),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(3),
+        borderSide: BorderSide.none,
+      ),
       filled: true,
       fillColor: const Color(0xFF1A1A2E),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+      isDense: true,
     );
   }
+
+  Widget _sectionHeader(String title) {
+    return Container(
+      width: double.infinity, height: 22,
+      padding: const EdgeInsets.only(left: 6),
+      color: const Color(0xFF0D0D1A),
+      alignment: Alignment.centerLeft,
+      child: Text(title, style: const TextStyle(fontSize: 9, color: Colors.grey, fontWeight: FontWeight.w600)),
+    );
+  }
+}
+
+// ── Custom Painters ──
+
+class _RulerPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = const Color(0xFF2A2A3E)
+      ..strokeWidth = 0.5;
+    for (double x = 0; x < size.width; x += 20) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _WavePainter extends CustomPainter {
+  final Color color;
+  final int segments;
+
+  _WavePainter(this.color, this.segments);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color.withValues(alpha: 0.4)
+      ..strokeWidth = 1.5;
+    final path = Path();
+    path.moveTo(0, size.height / 2);
+    for (double x = 0; x < size.width; x += 2) {
+      final y = size.height / 2 + math.sin(x / 20) * 8;
+      path.lineTo(x, y);
+    }
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

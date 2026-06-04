@@ -56,6 +56,16 @@ def create_app(engine=None):
     timeline_engine = TimelineEngine()
     engine.register("timeline", timeline_engine)
 
+    # ── CodeGen engine ──────────────────────────────────
+    from modules.codegen import CodeGenEngine
+    codegen_engine = CodeGenEngine()
+    engine.register("codegen", codegen_engine)
+
+    # ── VideoGen engine ──────────────────────────────────
+    from modules.videogen import VideoGenEngine
+    videogen_engine = VideoGenEngine()
+    engine.register("videogen", videogen_engine)
+
     app = Flask(__name__)
     app.engine = engine
 

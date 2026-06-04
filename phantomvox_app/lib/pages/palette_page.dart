@@ -1,6 +1,10 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
-/// Palette page — color grading workspace
+/// Palette page — precision color grading workspace
+/// Reference: DaVinci Resolve Color workspace
+/// Layout: TOP_BAR + (LEFT_GALLERY + CENTRAL_VIEWER + RIGHT_NODE_GRAPH) + MIDDLE_CLIP_STRIP + BOTTOM_COLOR_PANEL
 class PalettePage extends StatefulWidget {
   const PalettePage({super.key});
 
@@ -8,25 +12,13 @@ class PalettePage extends StatefulWidget {
   State<PalettePage> createState() => _PalettePageState();
 }
 
-class _PalettePageState extends State<PalettePage>
-    with SingleTickerProviderStateMixin {
-  late TabController _toolTabCtrl;
-
+class _PalettePageState extends State<PalettePage> {
   double _lift = 0.0, _gamma = 0.0, _gain = 0.0;
   double _saturation = 0.0, _temp = 0.0, _tint = 0.0;
   double _exposure = 0.0, _contrast = 0.0;
-
-  @override
-  void initState() {
-    super.initState();
-    _toolTabCtrl = TabController(length: 3, vsync: this);
-  }
-
-  @override
-  void dispose() {
-    _toolTabCtrl.dispose();
-    super.dispose();
-  }
+  int _selectedClip = 25;
+  String _colorTab = 'Wheels';
+  final List<String> _colorTabs = ['Wheels', 'Warper', 'Picker', 'Scopes'];
 
   @override
   Widget build(BuildContext context) {
@@ -34,98 +26,150 @@ class _PalettePageState extends State<PalettePage>
       backgroundColor: const Color(0xFF0F0F1A),
       body: Column(
         children: [
-          // Header
-          Container(
-            height: 32,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            color: const Color(0xFF0D0D1A),
-            child: Row(
-              children: [
-                const Text('Palette',
-                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-                const Spacer(),
-                _headerBtn(Icons.auto_fix_high, 'AI Match'),
-                const SizedBox(width: 8),
-                _headerBtn(Icons.style, 'Presets'),
-                const SizedBox(width: 8),
-                _headerBtn(Icons.file_download, 'Export LUT'),
-                const SizedBox(width: 8),
-                _headerBtn(Icons.more_horiz, ''),
-              ],
-            ),
-          ),
-          // Main 3-panel body
+          _buildTopBar(),
           Expanded(
             child: Row(
               children: [
-                // Left: Reference gallery
-                _buildReferenceGallery(),
+                _buildLeftGallery(),
                 const VerticalDivider(width: 1, color: Color(0xFF2A2A3E)),
-                // Center: Viewport + Color tools
-                Expanded(flex: 3, child: _buildCenterPanel()),
+                Expanded(child: _buildViewer()),
                 const VerticalDivider(width: 1, color: Color(0xFF2A2A3E)),
-                // Right: Node workspace
-                _buildNodeWorkspace(),
+                _buildNodeGraph(),
               ],
             ),
           ),
+          _buildClipStrip(),
+          _buildColorPanel(),
         ],
       ),
     );
   }
 
-  // ── Left panel: Reference gallery ──
+  // ── TOP_BAR (32px) ────────────────────────────────────
 
-  Widget _buildReferenceGallery() {
-    return SizedBox(
+  Widget _buildTopBar() {
+    return Container(
+      height: 32,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      color: const Color(0xFF0D0D1A),
+      child: Row(
+        children: [
+          _tbBtn(Icons.photo_library, 'Gallery'),
+          const SizedBox(width: 4),
+          _tbBtn(Icons.palette_outlined, 'LUTs'),
+          const SizedBox(width: 4),
+          _tbBtn(Icons.folder, 'Media Pool'),
+          const SizedBox(width: 4),
+          _tbDropdown('Clips'),
+          const SizedBox(width: 16),
+          Container(width: 1, height: 16, color: const Color(0xFF2A2A3E)),
+          const SizedBox(width: 8),
+          const Text('The Ranch - Short Story | Edited',
+              style: TextStyle(fontSize: 10, color: Colors.white54)),
+          const Spacer(),
+          _tbLabel('Zoom: 78%'),
+          const SizedBox(width: 8),
+          _tbLabel('Timeline 1'),
+          const SizedBox(width: 8),
+          _tbLabel('17:28:12:11'),
+          const SizedBox(width: 8),
+          _tbLabel('Clip'),
+          const SizedBox(width: 12),
+          _tbBtn(Icons.file_download, 'Quick Export'),
+          const SizedBox(width: 4),
+          _tbBtn(Icons.timeline, 'Timeline'),
+          const SizedBox(width: 4),
+          _tbBtn(Icons.account_tree, 'Nodes'),
+          const SizedBox(width: 4),
+          _tbBtn(Icons.auto_fix_high, 'Effects'),
+          const SizedBox(width: 4),
+          _tbBtn(Icons.light, 'Lightbox'),
+          const SizedBox(width: 4),
+          _tbBtn(Icons.colorize, 'AI Match', accent: true),
+        ],
+      ),
+    );
+  }
+
+  Widget _tbBtn(IconData icon, String label, {bool accent = false}) {
+    final color = accent ? const Color(0xFF699EFF) : Colors.grey;
+    return TextButton.icon(
+      icon: Icon(icon, size: 12, color: color),
+      label: Text(label, style: TextStyle(fontSize: 9, color: color)),
+      onPressed: () {},
+      style: TextButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+    );
+  }
+
+  Widget _tbDropdown(String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 9, color: Colors.grey)),
+        const Icon(Icons.arrow_drop_down, size: 14, color: Colors.grey),
+      ],
+    );
+  }
+
+  Widget _tbLabel(String text) {
+    return Text(text, style: const TextStyle(fontSize: 9, color: Colors.grey));
+  }
+
+  // ── LEFT_GALLERY (180px) ──────────────────────────────
+
+  Widget _buildLeftGallery() {
+    return Container(
       width: 180,
+      color: const Color(0xFF12121E),
       child: Column(
         children: [
-          // Section header
+          _sectionHeader('Gallery'),
+          // Directory tree
           Container(
-            height: 28,
-            padding: const EdgeInsets.only(left: 8),
-            color: const Color(0xFF12121E),
-            alignment: Alignment.centerLeft,
-            child: const Text('Reference Gallery',
-                style: TextStyle(fontSize: 11, color: Colors.grey)),
-          ),
-          // Style presets row
-          Container(
-            height: 32,
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            color: const Color(0xFF16162A),
-            child: Row(
+            constraints: const BoxConstraints(maxHeight: 140),
+            child: ListView(
+              padding: EdgeInsets.zero,
               children: [
-                _chip('Stills', true),
-                const SizedBox(width: 4),
-                _chip('Presets', false),
-                const SizedBox(width: 4),
-                _chip('Grades', false),
+                _treeItem('Stills - Master', Icons.folder, true),
+                _treeItem('Stills - Landsc.', Icons.folder, false),
+                _treeItem('Stills - Car', Icons.folder, false),
+                _treeItem('PowerGrade 1', Icons.auto_awesome, false),
+                _treeItem('Timelines', Icons.timeline, false),
               ],
             ),
           ),
+          const Divider(height: 1, color: Color(0xFF2A2A3E)),
           // Thumbnail grid
           Expanded(
             child: GridView.count(
-              crossAxisCount: 2,
+              crossAxisCount: 3,
               padding: const EdgeInsets.all(4),
-              mainAxisSpacing: 4,
-              crossAxisSpacing: 4,
+              mainAxisSpacing: 3,
+              crossAxisSpacing: 3,
               childAspectRatio: 16 / 9,
-              children: List.generate(12, (i) => Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1A1A30),
-                  borderRadius: BorderRadius.circular(4),
-                  border: i == 0
-                      ? Border.all(color: const Color(0xFF6C63FF), width: 2)
-                      : null,
-                ),
-                child: Center(
-                  child: Text('Ref ${i + 1}',
-                      style: TextStyle(fontSize: 10, color: Colors.grey[600])),
-                ),
-              )),
+              children: List.generate(15, (i) {
+                final selected = i == 0;
+                return Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1A1A30),
+                    borderRadius: BorderRadius.circular(3),
+                    border: selected
+                        ? Border.all(color: const Color(0xFF699EFF), width: 1.5)
+                        : null,
+                  ),
+                  child: Align(
+                    alignment: Alignment.bottomCenter,
+                    child: Padding(
+                      padding: const EdgeInsets.all(2),
+                      child: Text('#1.19.1',
+                          style: TextStyle(fontSize: 7, color: selected ? const Color(0xFF699EFF) : Colors.grey.shade600)),
+                    ),
+                  ),
+                );
+              }),
             ),
           ),
         ],
@@ -133,20 +177,34 @@ class _PalettePageState extends State<PalettePage>
     );
   }
 
-  // ── Center panel: Viewport + Color tools ──
+  Widget _treeItem(String name, IconData icon, bool selected) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      color: selected ? const Color(0xFF1A1A3E) : null,
+      child: Row(
+        children: [
+          Icon(icon, size: 12, color: selected ? const Color(0xFF699EFF) : Colors.grey),
+          const SizedBox(width: 5),
+          Text(name, style: TextStyle(
+            fontSize: 10, color: selected ? Colors.white : Colors.grey,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+          )),
+        ],
+      ),
+    );
+  }
 
-  Widget _buildCenterPanel() {
+  // ── CENTRAL_VIEWER ────────────────────────────────────
+
+  Widget _buildViewer() {
     return Column(
       children: [
-        // Viewport
         Expanded(
-          flex: 2,
           child: Container(
             color: const Color(0xFF0A0A14),
             child: Center(
               child: Container(
-                width: 320,
-                height: 180,
+                width: 480, height: 270,
                 decoration: BoxDecoration(
                   color: Colors.black,
                   borderRadius: BorderRadius.circular(4),
@@ -154,25 +212,23 @@ class _PalettePageState extends State<PalettePage>
                 ),
                 child: Stack(
                   children: [
-                    // Mock gradient image
                     Positioned.fill(
                       child: CustomPaint(painter: _GradientPainter()),
                     ),
-                    // Overlay controls
                     Positioned(
                       left: 8, bottom: 8,
                       child: Row(
                         children: [
-                          _smallBtn(Icons.skip_previous, 18),
-                          _smallBtn(Icons.play_arrow, 18),
-                          _smallBtn(Icons.skip_next, 18),
+                          _smallBtn(Icons.skip_previous),
+                          _smallBtn(Icons.play_arrow),
+                          _smallBtn(Icons.skip_next),
+                          _smallBtn(Icons.loop),
                           const SizedBox(width: 8),
                           const Text('01:14:56:13',
                               style: TextStyle(fontSize: 10, color: Colors.white70, fontFamily: 'monospace')),
                         ],
                       ),
                     ),
-                    // Info overlay
                     Positioned(
                       right: 8, top: 8,
                       child: Container(
@@ -182,19 +238,18 @@ class _PalettePageState extends State<PalettePage>
                           borderRadius: BorderRadius.circular(2),
                         ),
                         child: const Text('HDR | Rec.709',
-                            style: TextStyle(fontSize: 9, color: Colors.white70)),
+                            style: TextStyle(fontSize: 8, color: Colors.white70)),
                       ),
                     ),
-                    // Scopes mini view
                     Positioned(
                       right: 8, bottom: 8,
                       child: Row(
                         children: [
-                          _scopeDot(Colors.red),
+                          _scopeBar(Colors.red, 0.7),
                           const SizedBox(width: 2),
-                          _scopeDot(Colors.green),
+                          _scopeBar(Colors.green, 0.5),
                           const SizedBox(width: 2),
-                          _scopeDot(Colors.blue),
+                          _scopeBar(Colors.blue, 0.3),
                         ],
                       ),
                     ),
@@ -204,160 +259,268 @@ class _PalettePageState extends State<PalettePage>
             ),
           ),
         ),
-        // Color tools tab bar
-        Container(
-          height: 28,
-          color: const Color(0xFF12121E),
-          child: TabBar(
-            controller: _toolTabCtrl,
-            labelColor: Colors.white,
-            unselectedLabelColor: Colors.grey,
-            indicatorColor: const Color(0xFF6C63FF),
-            labelStyle: const TextStyle(fontSize: 10),
-            tabs: const [
-              Tab(text: 'Wheels'),
-              Tab(text: 'Curves'),
-              Tab(text: 'Scopes'),
-            ],
-          ),
-        ),
-        // Color tools content
-        Expanded(
-          flex: 2,
-          child: TabBarView(
-            controller: _toolTabCtrl,
-            children: [
-              _buildColorWheels(),
-              _buildCurvesTab(),
-              _buildScopesTab(),
-            ],
-          ),
-        ),
       ],
     );
   }
 
-  Widget _buildColorWheels() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(12),
+  Widget _scopeBar(Color color, double level) {
+    return Container(
+      width: 4, height: 24,
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A2E),
+        borderRadius: BorderRadius.circular(1),
+      ),
       child: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          // Lift / Gamma / Gain wheels (simplified as sliders)
-          _wheelSlider('Lift', _lift, Color(0xFF448AFF), (v) => _lift = v),
-          const SizedBox(height: 8),
-          _wheelSlider('Gamma', _gamma, Color(0xFF69F0AE), (v) => _gamma = v),
-          const SizedBox(height: 8),
-          _wheelSlider('Gain', _gain, Color(0xFFFF5252), (v) => _gain = v),
-          const Divider(color: Color(0xFF2A2A3E), height: 16),
-          // Global controls
-          Row(
-            children: [
-              Expanded(child: _knobSlider('Exposure', _exposure, -2, 2, (v) => _exposure = v)),
-              const SizedBox(width: 8),
-              Expanded(child: _knobSlider('Contrast', _contrast, -1, 1, (v) => _contrast = v)),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(child: _knobSlider('Saturation', _saturation, -1, 1, (v) => _saturation = v)),
-              const SizedBox(width: 8),
-              Expanded(child: _knobSlider('Temp', _temp, -1, 1, (v) => _temp = v)),
-              const SizedBox(width: 8),
-              Expanded(child: _knobSlider('Tint', _tint, -1, 1, (v) => _tint = v)),
-            ],
+          Container(
+            height: 24 * level,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.7),
+              borderRadius: BorderRadius.circular(1),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildCurvesTab() {
-    return Center(
-      child: Container(
-        width: 180, height: 180,
-        decoration: BoxDecoration(
-          color: const Color(0xFF141424),
-          border: Border.all(color: const Color(0xFF2A2A3E)),
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: CustomPaint(painter: _CurveGridPainter()),
+  // ── RIGHT_NODE_GRAPH (220px) ──────────────────────────
+
+  Widget _buildNodeGraph() {
+    return Container(
+      width: 220,
+      color: const Color(0xFF0D0D18),
+      child: Column(
+        children: [
+          _sectionHeader('Node Graph'),
+          const Divider(height: 1, color: Color(0xFF2A2A3E)),
+          Expanded(
+            child: Stack(
+              children: [
+                CustomPaint(size: Size.infinite, painter: _GridPainter()),
+                // Group labels
+                Positioned(left: 4, top: 4,
+                    child: _groupLabel('Pre-Process', const Color(0xFF448AFF))),
+                // IDT (19), NR (20), BEAUTY (21)
+                Positioned(left: 4, top: 18, child: _nodeBtn('19 IDT', const Color(0xFF448AFF))),
+                Positioned(left: 76, top: 18, child: _nodeBtn('20 NR', const Color(0xFF448AFF))),
+                Positioned(left: 148, top: 18, child: _nodeBtn('21 BEAUTY', const Color(0xFF448AFF))),
+
+                Positioned(left: 4, top: 52,
+                    child: _groupLabel('Color', const Color(0xFF4CAF50))),
+                // 01-05
+                Positioned(left: 4, top: 66, child: _nodeBtn('01 EXP', const Color(0xFF4CAF50))),
+                Positioned(left: 76, top: 66, child: _nodeBtn('02 CON', const Color(0xFF4CAF50))),
+                Positioned(left: 148, top: 66, child: _nodeBtn('03 WB', const Color(0xFF4CAF50))),
+                Positioned(left: 4, top: 92, child: _nodeBtn('04 SAT', const Color(0xFF4CAF50))),
+                Positioned(left: 76, top: 92, child: _nodeBtn('05 HL/SKY', const Color(0xFF4CAF50))),
+
+                Positioned(left: 4, top: 120,
+                    child: _groupLabel('Region', const Color(0xFFFF9800))),
+                // 06-10
+                Positioned(left: 4, top: 134, child: _nodeBtn('06 FLG-L', const Color(0xFFFF9800), small: true)),
+                Positioned(left: 76, top: 134, child: _nodeBtn('07 FLG-C', const Color(0xFFFF9800), small: true)),
+                Positioned(left: 148, top: 134, child: _nodeBtn('08 FLG-R', const Color(0xFFFF9800), small: true)),
+                Positioned(left: 4, top: 156, child: _nodeBtn('09 FLG-T', const Color(0xFFFF9800), small: true)),
+                Positioned(left: 76, top: 156, child: _nodeBtn('10 FLG-B', const Color(0xFFFF9800), small: true)),
+
+                Positioned(left: 4, top: 178,
+                    child: _groupLabel('Mask', const Color(0xFF9C27B0))),
+                // 11-15
+                Positioned(left: 4, top: 192, child: _nodeBtn('11 CIRC-L', const Color(0xFF9C27B0), small: true)),
+                Positioned(left: 76, top: 192, child: _nodeBtn('12 CIRC-C', const Color(0xFF9C27B0), small: true)),
+                Positioned(left: 148, top: 192, child: _nodeBtn('13 CIRC-R', const Color(0xFF9C27B0), small: true)),
+                Positioned(left: 4, top: 214, child: _nodeBtn('14 VGN-IN', const Color(0xFF9C27B0), small: true)),
+                Positioned(left: 76, top: 214, child: _nodeBtn('15 VGN-OUT', const Color(0xFF9C27B0), small: true)),
+
+                // Final Out
+                Positioned(
+                  right: 8, bottom: 8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withValues(alpha: 0.2),
+                      border: Border.all(color: Colors.red, width: 1.5),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.arrow_forward, size: 10, color: Colors.red),
+                        const SizedBox(width: 4),
+                        const Text('Final Out',
+                            style: TextStyle(fontSize: 9, color: Colors.red, fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildScopesTab() {
-    return Padding(
-      padding: const EdgeInsets.all(8),
+  Widget _groupLabel(String text, Color color) {
+    return Text(text, style: TextStyle(fontSize: 8, color: color, fontWeight: FontWeight.w600));
+  }
+
+  Widget _nodeBtn(String label, Color color, {bool small = false}) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: small ? 4 : 5, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        border: Border.all(color: color, width: 0.5),
+        borderRadius: BorderRadius.circular(3),
+      ),
+      child: Text(label, style: TextStyle(
+        fontSize: small ? 7 : 8, color: color,
+        fontWeight: FontWeight.w500,
+      )),
+    );
+  }
+
+  // ── MIDDLE_CLIP_STRIP (40px) ─────────────────────────
+
+  Widget _buildClipStrip() {
+    return Container(
+      height: 40,
+      color: const Color(0xFF12121E),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
       child: Row(
         children: [
-          Expanded(
-            child: Container(
-              height: 120,
-              decoration: BoxDecoration(
-                color: const Color(0xFF141424),
-                border: Border.all(color: const Color(0xFF2A2A3E)),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: const Center(
-                child: Text('Waveform',
-                    style: TextStyle(fontSize: 10, color: Colors.grey)),
-              ),
-            ),
+          const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('\u2190 All Clips',
+                  style: TextStyle(fontSize: 8, color: Colors.grey)),
+              Text('Blackmagic RAW',
+                  style: TextStyle(fontSize: 7, color: Colors.grey)),
+            ],
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: Container(
-              height: 120,
-              decoration: BoxDecoration(
-                color: const Color(0xFF141424),
-                border: Border.all(color: const Color(0xFF2A2A3E)),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: const Center(
-                child: Text('Vectorscope',
-                    style: TextStyle(fontSize: 10, color: Colors.grey)),
-              ),
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: 14,
+              itemBuilder: (_, i) {
+                final idx = 18 + i;
+                final selected = idx == _selectedClip;
+                return GestureDetector(
+                  onTap: () => setState(() => _selectedClip = idx),
+                  child: Container(
+                    width: 36,
+                    margin: const EdgeInsets.symmetric(horizontal: 2),
+                    decoration: BoxDecoration(
+                      color: selected ? const Color(0xFF1A1A3E) : const Color(0xFF0F0F1A),
+                      border: Border.all(
+                        color: selected ? const Color(0xFF699EFF) : const Color(0xFF2A2A3E),
+                        width: selected ? 1.5 : 0.5,
+                      ),
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                    child: Center(
+                      child: Text('$idx',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: selected ? Colors.white : Colors.grey,
+                            fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+                          )),
+                    ),
+                  ),
+                );
+              },
             ),
           ),
+          const SizedBox(width: 8),
+          const Text('25', style: TextStyle(fontSize: 10, color: Color(0xFF699EFF))),
         ],
       ),
     );
   }
 
-  // ── Right panel: Node workspace ──
+  // ── BOTTOM_COLOR_PANEL (200px) ───────────────────────
 
-  Widget _buildNodeWorkspace() {
-    return SizedBox(
-      width: 240,
+  Widget _buildColorPanel() {
+    return Container(
+      height: 200,
+      color: const Color(0xFF0F0F1A),
       child: Column(
         children: [
+          // Tab bar
           Container(
             height: 28,
-            padding: const EdgeInsets.only(left: 8),
-            color: const Color(0xFF12121E),
-            alignment: Alignment.centerLeft,
-            child: const Text('Node Graph',
-                style: TextStyle(fontSize: 11, color: Colors.grey)),
-          ),
-          // Node canvas
-          Expanded(
-            child: Container(
-              color: const Color(0xFF0D0D18),
-              child: Stack(
-                children: [
-                  // Grid background
-                  CustomPaint(
-                    size: Size.infinite,
-                    painter: _GridPainter(),
+            color: const Color(0xFF0D0D1A),
+            child: Row(
+              children: _colorTabs.map((t) => GestureDetector(
+                onTap: () => setState(() => _colorTab = t),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(
+                        color: _colorTab == t ? const Color(0xFF699EFF) : Colors.transparent,
+                        width: 2,
+                      ),
+                    ),
                   ),
-                  // Nodes
-                  _node('Input', 16, 24, const Color(0xFF448AFF)),
-                  _node('IDT', 80, 60, const Color(0xFF4CAF50)),
-                  _node('NR', 80, 100, const Color(0xFF4CAF50)),
-                  _node('Grade', 80, 140, const Color(0xFFFF9800)),
-                  _node('Output', 140, 170, const Color(0xFFFF5252)),
-                  // Connection lines drawn behind nodes
+                  child: Text(t, style: TextStyle(
+                    fontSize: 10,
+                    color: _colorTab == t ? Colors.white : Colors.grey,
+                  )),
+                ),
+              )).toList(),
+            ),
+          ),
+          const Divider(height: 1, color: Color(0xFF2A2A3E)),
+          Expanded(child: _buildColorContent()),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildColorContent() {
+    switch (_colorTab) {
+      case 'Wheels':
+        return _buildWheels();
+      case 'Warper':
+        return _buildWarper();
+      case 'Picker':
+        return _buildPicker();
+      case 'Scopes':
+        return _buildScopes();
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
+  Widget _buildWheels() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(8),
+      child: Row(
+        children: [
+          // 4 color wheels (simplified as circular controls)
+          Expanded(child: _miniWheel('Shadows', const Color(0xFF448AFF), _lift)),
+          Expanded(child: _miniWheel('Midtones', const Color(0xFF69F0AE), _gamma)),
+          Expanded(child: _miniWheel('Highlights', const Color(0xFFFF5252), _gain)),
+          Expanded(child: _miniWheel('Global', const Color(0xFFFF9800), _exposure)),
+          Container(width: 1, height: 120, color: const Color(0xFF2A2A3E)),
+          // Parameter list
+          Expanded(
+            flex: 2,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _paramSlider('Exposure', _exposure, -2, 2),
+                  _paramSlider('Contrast', _contrast, -1, 1),
+                  _paramSlider('Saturation', _saturation, -1, 1),
+                  _paramSlider('Temp', _temp, -1, 1),
+                  _paramSlider('Tint', _tint, -1, 1),
                 ],
               ),
             ),
@@ -367,198 +530,231 @@ class _PalettePageState extends State<PalettePage>
     );
   }
 
-  Widget _node(String label, double left, double top, Color color) {
-    return Positioned(
-      left: left,
-      top: top,
-      child: GestureDetector(
-        onTap: () {},
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+  Widget _miniWheel(String label, Color color, double value) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 48, height: 48,
           decoration: BoxDecoration(
-            color: color.withOpacity(0.2),
-            border: Border.all(color: color, width: 1),
-            borderRadius: BorderRadius.circular(4),
+            shape: BoxShape.circle,
+            color: const Color(0xFF1A1A2E),
+            border: Border.all(color: color.withValues(alpha: 0.5), width: 2),
           ),
-          child: Text(label,
-              style: TextStyle(fontSize: 10, color: color, fontWeight: FontWeight.w500)),
+          child: Center(
+            child: Container(
+              width: 8, height: 8,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: color,
+              ),
+            ),
+          ),
         ),
+        const SizedBox(height: 4),
+        Text(label, style: const TextStyle(fontSize: 8, color: Colors.grey)),
+        Text(value.toStringAsFixed(2),
+            style: TextStyle(fontSize: 8, color: color, fontFamily: 'monospace')),
+      ],
+    );
+  }
+
+  Widget _paramSlider(String label, double value, double min, double max) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 56,
+          child: Text(label, style: const TextStyle(fontSize: 9, color: Colors.grey)),
+        ),
+        Expanded(
+          child: SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              trackHeight: 3,
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
+              overlayShape: const RoundSliderOverlayShape(overlayRadius: 8),
+            ),
+            child: Slider(value: value, min: min, max: max, onChanged: (v) => setState(() => _updateParam(label, v))),
+          ),
+        ),
+        SizedBox(
+          width: 32,
+          child: Text(value.toStringAsFixed(2),
+              style: const TextStyle(fontSize: 9, color: Colors.white54, fontFamily: 'monospace')),
+        ),
+      ],
+    );
+  }
+
+  void _updateParam(String label, double v) {
+    switch (label) {
+      case 'Exposure': _exposure = v;
+      case 'Contrast': _contrast = v;
+      case 'Saturation': _saturation = v;
+      case 'Temp': _temp = v;
+      case 'Tint': _tint = v;
+    }
+  }
+
+  Widget _buildWarper() {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 140, height: 100,
+            decoration: BoxDecoration(
+              color: const Color(0xFF1A1A2E),
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: const Color(0xFF2A2A3E)),
+            ),
+            child: CustomPaint(
+              painter: _HexGridPainter(),
+              size: const Size(140, 100),
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text('Color Warper \u00b7 HSP Mode',
+              style: TextStyle(fontSize: 8, color: Colors.grey)),
+        ],
       ),
     );
   }
 
-  // ── Reusable widgets ──
+  Widget _buildPicker() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _pickerChip('Auto Lock', false),
+        const SizedBox(width: 6),
+        _pickerChip('1-Point', false),
+        const SizedBox(width: 6),
+        _pickerChip('Hue', true),
+        const SizedBox(width: 6),
+        _pickerChip('Sat', false),
+        const SizedBox(width: 6),
+        _pickerChip('Luma', false),
+        const SizedBox(width: 12),
+        _smallBtn(Icons.colorize),
+        const SizedBox(width: 8),
+        _smallBtn(Icons.timeline),
+      ],
+    );
+  }
 
-  Widget _headerBtn(IconData icon, String label) {
-    return InkWell(
-      onTap: () {},
+  Widget _pickerChip(String label, bool active) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: active ? const Color(0xFF699EFF) : const Color(0xFF1A1A2E),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(label, style: TextStyle(fontSize: 9, color: active ? Colors.white : Colors.grey)),
+    );
+  }
+
+  Widget _buildScopes() {
+    return Padding(
+      padding: const EdgeInsets.all(8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Container(
+              height: 100,
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: const Color(0xFF141424),
+                border: Border.all(color: const Color(0xFF2A2A3E)),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('RGB Parade', style: TextStyle(fontSize: 8, color: Colors.grey)),
+                  const Spacer(),
+                  Row(
+                    children: [
+                      _paradeBar(Colors.red, 0.8),
+                      const SizedBox(width: 4),
+                      _paradeBar(Colors.green, 0.6),
+                      const SizedBox(width: 4),
+                      _paradeBar(Colors.blue, 0.4),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _paradeBar(Color color, double level) {
+    return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        height: 28,
-        child: Row(
+        height: 60,
+        decoration: BoxDecoration(
+          color: const Color(0xFF0F0F1A),
+          borderRadius: BorderRadius.circular(2),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            Icon(icon, size: 14, color: Colors.grey),
-            if (label.isNotEmpty) ...[
-              const SizedBox(width: 4),
-              Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
-            ],
+            Container(
+              height: 60 * level,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.6),
+                borderRadius: BorderRadius.circular(1),
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _chip(String label, bool active) {
+  // ── Helpers ───────────────────────────────────────────
+
+  Widget _sectionHeader(String title) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: active ? const Color(0xFF6C63FF) : const Color(0xFF2A2A3E),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(label,
-          style: TextStyle(fontSize: 10, color: active ? Colors.white : Colors.grey)),
+      width: double.infinity,
+      height: 26,
+      padding: const EdgeInsets.only(left: 8),
+      color: const Color(0xFF0D0D1A),
+      alignment: Alignment.centerLeft,
+      child: Text(title, style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.w600)),
     );
   }
 
-  Widget _smallBtn(IconData icon, double size) {
+  Widget _smallBtn(IconData icon) {
     return SizedBox(
       width: 24, height: 24,
       child: IconButton(
         padding: EdgeInsets.zero,
-        icon: Icon(icon, size: size, color: Colors.white70),
+        icon: Icon(icon, size: 14, color: Colors.white70),
         onPressed: () {},
       ),
     );
   }
-
-  Widget _scopeDot(Color color) {
-    return Container(
-      width: 8, height: 8,
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.6),
-        borderRadius: BorderRadius.circular(1),
-      ),
-    );
-  }
-
-  Widget _wheelSlider(String label, double value, Color color, ValueChanged<double> onChanged) {
-    return Row(
-      children: [
-        Container(
-          width: 40,
-          alignment: Alignment.centerLeft,
-          child: Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
-        ),
-        Expanded(
-          child: SliderTheme(
-            data: SliderTheme.of(context).copyWith(
-              trackHeight: 4,
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-              overlayShape: const RoundSliderOverlayShape(overlayRadius: 10),
-              activeTrackColor: color,
-              inactiveTrackColor: color.withOpacity(0.2),
-              thumbColor: color,
-            ),
-            child: Slider(
-              value: value,
-              min: -1, max: 1,
-              onChanged: onChanged,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _knobSlider(String label, double value, double min, double max, ValueChanged<double> onChanged) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)),
-        SliderTheme(
-          data: SliderTheme.of(context).copyWith(
-            trackHeight: 3,
-            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
-            overlayShape: const RoundSliderOverlayShape(overlayRadius: 8),
-          ),
-          child: Slider(
-            value: value,
-            min: min, max: max,
-            onChanged: onChanged,
-          ),
-        ),
-      ],
-    );
-  }
 }
 
-// ── Custom painters ──
+// ── Custom Painters ─────────────────────────────────────
 
 class _GradientPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final rect = Offset.zero & size;
     final gradient = LinearGradient(
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
       colors: [
-        const Color(0xFF1A237E),
-        const Color(0xFF4A148C),
-        const Color(0xFF311B92),
-        const Color(0xFF1A237E),
+        const Color(0xFF1A1A3E).withValues(alpha: 0.3),
+        const Color(0xFF2A1A3E).withValues(alpha: 0.3),
       ],
     );
     canvas.drawRect(rect, Paint()..shader = gradient.createShader(rect));
-    // Color bars overlay
-    final barH = size.height / 3;
-    for (int i = 0; i < 3; i++) {
-      final colors = [Colors.red, Colors.green, Colors.blue];
-      canvas.drawRect(
-        Rect.fromLTWH(0, barH * i, size.width * 0.6, barH),
-        Paint()..color = colors[i].withOpacity(0.3),
-      );
-    }
   }
 
   @override
-  bool shouldRepaint(_GradientPainter old) => false;
-}
-
-class _CurveGridPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final gridPaint = Paint()
-      ..color = const Color(0xFF2A2A3E)
-      ..strokeWidth = 0.5;
-    // Grid lines
-    for (int i = 1; i < 4; i++) {
-      final x = size.width * i / 4;
-      final y = size.height * i / 4;
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
-    }
-    // S-curve
-    final curvePaint = Paint()
-      ..color = const Color(0xFF6C63FF)
-      ..strokeWidth = 2
-      ..style = PaintingStyle.stroke;
-    final path = Path();
-    path.moveTo(0, size.height);
-    path.cubicTo(
-      size.width * 0.25, size.height * 0.75,
-      size.width * 0.75, size.height * 0.25,
-      size.width, 0,
-    );
-    canvas.drawPath(path, curvePaint);
-    // Diagonal reference
-    final diagPaint = Paint()
-      ..color = const Color(0xFF2A2A3E)
-      ..strokeWidth = 0.5;
-    canvas.drawLine(Offset.zero, Offset(size.width, size.height), diagPaint);
-  }
-
-  @override
-  bool shouldRepaint(_CurveGridPainter old) => false;
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _GridPainter extends CustomPainter {
@@ -576,5 +772,30 @@ class _GridPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_GridPainter old) => false;
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _HexGridPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = const Color(0xFF2A2A3E)
+      ..strokeWidth = 0.5;
+    final center = Offset(size.width / 2, size.height / 2);
+    for (int ring = 0; ring < 3; ring++) {
+      for (int i = 0; i < 6; i++) {
+        final angle = (i / 6) * math.pi * 2 - 1.5708;
+        final r = 20.0 + ring * 18.0;
+        final p = Offset(center.dx + r * math.cos(angle), center.dy + r * math.sin(angle));
+        for (int j = 0; j < 6; j++) {
+          final a2 = (j / 6) * math.pi * 2 - 1.5708;
+          final p2 = Offset(center.dx + r * math.cos(a2), center.dy + r * math.sin(a2));
+          canvas.drawLine(p, p2, paint);
+        }
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

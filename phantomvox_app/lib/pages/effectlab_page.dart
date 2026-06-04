@@ -1,6 +1,9 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
-/// EffectLab page — visual effects compositing workspace
+/// EffectLab page — visual effects compositing workspace (Fusion-style)
+/// Reference: DaVinci Resolve Fusion workspace
+/// Layout: TOP_BAR + (LEFT_PREVIEW + OUTPUT_VIEWPORT + RIGHT_INSPECTOR) + BOTTOM_FRAME_TIMELINE + BOTTOM_NODE_CANVAS
 class EffectLabPage extends StatefulWidget {
   const EffectLabPage({super.key});
 
@@ -9,7 +12,10 @@ class EffectLabPage extends StatefulWidget {
 }
 
 class _EffectLabPageState extends State<EffectLabPage> {
-  int _selectedNode = 1;
+  int _selectedNode = 3;
+  String _inspectorTab = 'Tools';
+  final List<String> _tabOptions = ['Tools', 'Modifiers'];
+  String _rendererSubtab = 'Controls';
 
   @override
   Widget build(BuildContext context) {
@@ -17,81 +23,101 @@ class _EffectLabPageState extends State<EffectLabPage> {
       backgroundColor: const Color(0xFF0F0F1A),
       body: Column(
         children: [
-          // Header
-          Container(
-            height: 32,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            color: const Color(0xFF0D0D1A),
+          _buildTopBar(),
+          Expanded(
             child: Row(
               children: [
-                const Text('EffectLab',
-                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-                const Spacer(),
-                _headerBtn(Icons.auto_fix_high, 'AI Generate'),
-                const SizedBox(width: 8),
-                _headerBtn(Icons.playlist_add, 'Effects'),
-                const SizedBox(width: 8),
-                _headerBtn(Icons.splitscreen, 'Split View'),
-                const SizedBox(width: 8),
-                _headerBtn(Icons.more_horiz, ''),
+                _buildLeftPreview(),
+                const VerticalDivider(width: 1, color: Color(0xFF2A2A3E)),
+                Expanded(flex: 2, child: _buildOutputViewport()),
+                const VerticalDivider(width: 1, color: Color(0xFF2A2A3E)),
+                _buildInspector(),
               ],
             ),
           ),
-          // Main body
-          Expanded(
-            child: Column(
-              children: [
-                // Top: preview area
-                Expanded(
-                  flex: 3,
-                  child: Row(
-                    children: [
-                      // Left: isolated element preview
-                      _buildLeftPreview(),
-                      const VerticalDivider(width: 1, color: Color(0xFF2A2A3E)),
-                      // Center: output viewport
-                      Expanded(flex: 2, child: _buildOutputViewport()),
-                      const VerticalDivider(width: 1, color: Color(0xFF2A2A3E)),
-                      // Right: inspector
-                      _buildInspector(),
-                    ],
-                  ),
-                ),
-                // Divider
-                Container(height: 1, color: const Color(0xFF2A2A3E)),
-                // Bottom: node workspace + frame timeline
-                Expanded(
-                  flex: 2,
-                  child: Row(
-                    children: [
-                      Expanded(flex: 3, child: _buildNodeWorkspace()),
-                      const VerticalDivider(width: 1, color: Color(0xFF2A2A3E)),
-                      _buildFrameTimeline(),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
+          Container(height: 1, color: const Color(0xFF2A2A3E)),
+          _buildFrameTimeline(),
+          Container(height: 1, color: const Color(0xFF2A2A3E)),
+          Expanded(child: _buildNodeCanvas()),
         ],
       ),
     );
   }
 
-  // ── Left: isolated element preview ──
+  // ── TOP_BAR (32px) ────────────────────────────────────
+
+  Widget _buildTopBar() {
+    return Container(
+      height: 32,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      color: const Color(0xFF0D0D1A),
+      child: Row(
+        children: [
+          _tbBtn(Icons.folder, 'Media Pool'),
+          const SizedBox(width: 4),
+          _tbBtn(Icons.auto_fix_high, 'Effects'),
+          const SizedBox(width: 4),
+          _tbBtn(Icons.movie, 'Clips'),
+          const SizedBox(width: 4),
+          _tbBtn(Icons.account_tree, 'Nodes'),
+          const SizedBox(width: 12),
+          Container(width: 1, height: 16, color: const Color(0xFF2A2A3E)),
+          const SizedBox(width: 8),
+          const Text('The Investigator - Car VFX | Edited',
+              style: TextStyle(fontSize: 9, color: Colors.white54)),
+          const Spacer(),
+          _tbLabel('Zoom: 400%'),
+          const SizedBox(width: 6),
+          _tbLabel('uMerge1'),
+          const SizedBox(width: 6),
+          _tbLabel('MediaOut'),
+          const SizedBox(width: 6),
+          _tbLabel('Preset: Default'),
+          const SizedBox(width: 6),
+          _tbLabel('2048x1080 float32'),
+          const SizedBox(width: 8),
+          _tbBtn(Icons.show_chart, 'Spline'),
+          _tbBtn(Icons.keyboard, 'Keyframes'),
+          _tbBtn(Icons.info_outline, 'Metadata'),
+          _tbBtn(Icons.tune, 'Inspector'),
+          _tbBtn(Icons.auto_awesome, 'AI Generate', accent: true),
+        ],
+      ),
+    );
+  }
+
+  Widget _tbBtn(IconData icon, String label, {bool accent = false}) {
+    final color = accent ? const Color(0xFF699EFF) : Colors.grey;
+    return TextButton.icon(
+      icon: Icon(icon, size: 11, color: color),
+      label: Text(label, style: TextStyle(fontSize: 8, color: color)),
+      onPressed: () {},
+      style: TextButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 3),
+        minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+    );
+  }
+
+  Widget _tbLabel(String text) {
+    return Text(text, style: const TextStyle(fontSize: 8, color: Colors.grey));
+  }
+
+  // ── LEFT_PREVIEW (180px) ──────────────────────────────
 
   Widget _buildLeftPreview() {
-    return SizedBox(
-      width: 200,
+    return Container(
+      width: 180,
+      color: const Color(0xFF12121E),
       child: Column(
         children: [
           Container(
-            height: 24,
+            height: 22,
             padding: const EdgeInsets.only(left: 8),
-            color: const Color(0xFF12121E),
+            color: const Color(0xFF0D0D1A),
             alignment: Alignment.centerLeft,
-            child: const Text('Element Preview',
-                style: TextStyle(fontSize: 10, color: Colors.grey)),
+            child: const Text('uMerge1',
+                style: TextStyle(fontSize: 9, color: Color(0xFF699EFF), fontWeight: FontWeight.w600)),
           ),
           Expanded(
             child: Container(
@@ -102,75 +128,88 @@ class _EffectLabPageState extends State<EffectLabPage> {
                   decoration: BoxDecoration(
                     color: Colors.black,
                     borderRadius: BorderRadius.circular(2),
-                    border: Border.all(color: const Color(0xFF2A2A3E), width: 0.5),
+                    border: Border.all(color: const Color(0xFF2A2A3E)),
                   ),
                   child: const Center(
-                    child: Text('Effect Only',
-                        style: TextStyle(fontSize: 9, color: Colors.white38)),
+                    child: Text('Explosion FX',
+                        style: TextStyle(fontSize: 8, color: Colors.white38)),
                   ),
                 ),
               ),
             ),
           ),
-          // Coordinates label
           Container(
-            height: 20,
+            height: 18,
             color: const Color(0xFF12121E),
             padding: const EdgeInsets.only(left: 8),
             alignment: Alignment.centerLeft,
             child: const Text('X: 320 | Y: 240 | Z: 0',
-                style: TextStyle(fontSize: 9, color: Colors.grey, fontFamily: 'monospace')),
+                style: TextStyle(fontSize: 8, color: Colors.grey, fontFamily: 'monospace')),
           ),
         ],
       ),
     );
   }
 
-  // ── Center: output viewport ──
+  // ── OUTPUT_VIEWPORT ───────────────────────────────────
 
   Widget _buildOutputViewport() {
     return Column(
       children: [
         Container(
-          height: 24,
+          height: 22,
           padding: const EdgeInsets.only(left: 8),
           color: const Color(0xFF12121E),
           alignment: Alignment.centerLeft,
-          child: const Text('Output',
-              style: TextStyle(fontSize: 10, color: Colors.grey)),
+          child: const Text('Output | MediaOut',
+              style: TextStyle(fontSize: 9, color: Colors.grey)),
         ),
         Expanded(
           child: Container(
             color: const Color(0xFF0A0A14),
-            child: Center(
-              child: Container(
-                width: 320, height: 180,
-                decoration: BoxDecoration(
-                  color: Colors.black,
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: const Color(0xFF2A2A3E)),
-                ),
-                child: Stack(
-                  children: [
-                    // Mock composite content
-                    CustomPaint(painter: _EffectGradientPainter()),
-                    // Overlay controls
-                    Positioned(
-                      left: 8, bottom: 8,
-                      child: Row(
-                        children: [
-                          _smallBtn(Icons.skip_previous, 16),
-                          _smallBtn(Icons.play_arrow, 16),
-                          _smallBtn(Icons.skip_next, 16),
-                          const SizedBox(width: 8),
-                          const Text('Frame 43',
-                              style: TextStyle(fontSize: 9, color: Colors.white70, fontFamily: 'monospace')),
-                        ],
-                      ),
+            child: Stack(
+              children: [
+                Center(
+                  child: Container(
+                    width: 400, height: 225,
+                    decoration: BoxDecoration(
+                      color: Colors.black,
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: const Color(0xFF2A2A3E)),
                     ),
-                  ],
+                    child: Stack(
+                      children: [
+                        CustomPaint(painter: _EffectGradientPainter()),
+                        Positioned(
+                          left: 8, bottom: 8,
+                          child: Row(
+                            children: [
+                              _smallBtn(Icons.skip_previous),
+                              _smallBtn(Icons.play_arrow),
+                              _smallBtn(Icons.skip_next),
+                              const SizedBox(width: 8),
+                              const Text('Frame 43',
+                                  style: TextStyle(fontSize: 9, color: Colors.white70, fontFamily: 'monospace')),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
+                Positioned(
+                  right: 12, bottom: 12,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                    child: const Text('2048x1080 float32',
+                        style: TextStyle(fontSize: 7, color: Colors.white60)),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -178,44 +217,150 @@ class _EffectLabPageState extends State<EffectLabPage> {
     );
   }
 
-  // ── Right: inspector ──
+  // ── RIGHT_INSPECTOR (260px) ───────────────────────────
 
   Widget _buildInspector() {
-    return SizedBox(
-      width: 220,
+    return Container(
+      width: 260,
+      color: const Color(0xFF12121E),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Tab bar
           Container(
-            height: 24,
-            padding: const EdgeInsets.only(left: 8),
-            color: const Color(0xFF12121E),
-            alignment: Alignment.centerLeft,
-            child: const Text('Inspector',
-                style: TextStyle(fontSize: 10, color: Colors.grey)),
+            height: 22,
+            color: const Color(0xFF0D0D1A),
+            child: Row(
+              children: _tabOptions.map((t) => GestureDetector(
+                onTap: () => setState(() => _inspectorTab = t),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(
+                        color: _inspectorTab == t ? const Color(0xFF699EFF) : Colors.transparent,
+                        width: 2,
+                      ),
+                    ),
+                  ),
+                  child: Text(t, style: TextStyle(
+                    fontSize: 9, color: _inspectorTab == t ? Colors.white : Colors.grey,
+                  )),
+                ),
+              )).toList(),
+            ),
           ),
+          const Divider(height: 1, color: Color(0xFF2A2A3E)),
+          // Inspector content
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.all(8),
+              padding: EdgeInsets.zero,
               children: [
-                _sectionTitle('Transform'),
-                _paramRow('Position X', '320'),
-                _paramRow('Position Y', '240'),
-                _paramRow('Scale', '1.0'),
-                _paramRow('Rotation', '0°'),
-                const SizedBox(height: 8),
-                _sectionTitle('Renderer'),
-                _paramRow('Blend Mode', 'Normal'),
-                _paramRow('Opacity', '100%'),
-                _paramRow('Camera', 'Default'),
-                _paramRow('Eye', 'Mono'),
-                const SizedBox(height: 8),
-                _sectionTitle('Tools / Modifiers'),
-                _toolBtn('Corner Pin'),
-                _toolBtn('Corner Blur'),
-                _toolBtn('Bump Map'),
-                _toolBtn('Defocus'),
-                _toolBtn('Glow'),
+                // Renderer3D1 header
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  color: const Color(0xFF1A1A3E),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.view_in_ar, size: 12, color: Color(0xFF699EFF)),
+                      const SizedBox(width: 4),
+                      const Text('Renderer3D1', style: TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.w600)),
+                      const Spacer(),
+                      _insLabel('In'), _insInput('0'),
+                      _insLabel('Out'), _insInput('155'),
+                      _insLabel('Now'), _insInput('154'),
+                    ],
+                  ),
+                ),
+                // Subtabs
+                Container(
+                  height: 20,
+                  color: const Color(0xFF0F0F1A),
+                  child: Row(
+                    children: ['Controls', 'Image', 'Settings'].map((t) => GestureDetector(
+                      onTap: () => setState(() => _rendererSubtab = t),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          border: Border(
+                            bottom: BorderSide(
+                              color: _rendererSubtab == t ? const Color(0xFF699EFF) : Colors.transparent,
+                              width: 1.5,
+                            ),
+                          ),
+                        ),
+                        child: Text(t, style: TextStyle(fontSize: 8, color: _rendererSubtab == t ? Colors.white : Colors.grey)),
+                      ),
+                    )).toList(),
+                  ),
+                ),
+                // Controls content
+                ..._buildControlsContent(),
+                // Fold groups
+                _foldGroup('Anti-Aliasing', []),
+                _foldGroup('Accumulation Effects', []),
+                _foldGroup('Lighting', [
+                  _checkRow('Enable Lighting', true),
+                  _checkRow('Shadows', false),
+                  _paramRow('Shading Model', 'Smooth', dropdown: true),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Texture Depth', style: TextStyle(fontSize: 8, color: Colors.grey)),
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            _radioChip('int8', true),
+                            const SizedBox(width: 4),
+                            _radioChip('int16', false),
+                            const SizedBox(width: 4),
+                            _radioChip('float16', false),
+                            const SizedBox(width: 4),
+                            _radioChip('float32', false),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  _paramRow('Transparency', 'Z Buffer', dropdown: true),
+                  _checkRow('Wireframe', false),
+                  _checkRow('Wire Antialias', true),
+                ]),
+                // AI Generate (original)
+                _foldGroup('AI Effect Generation', [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    child: Column(
+                      children: [
+                        TextField(
+                          style: const TextStyle(fontSize: 9, color: Colors.white),
+                          decoration: InputDecoration(
+                            hintText: 'Describe the effect...',
+                            hintStyle: const TextStyle(fontSize: 9, color: Colors.grey),
+                            filled: true, fillColor: const Color(0xFF1A1A2E),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(3),
+                              borderSide: BorderSide.none,
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                          ),
+                          maxLines: 2,
+                        ),
+                        const SizedBox(height: 6),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: () {},
+                            child: const Text('Generate', style: TextStyle(fontSize: 9, color: Color(0xFF699EFF))),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ]),
               ],
             ),
           ),
@@ -224,153 +369,64 @@ class _EffectLabPageState extends State<EffectLabPage> {
     );
   }
 
-  // ── Node workspace ──
-
-  Widget _buildNodeWorkspace() {
-    return Column(
-      children: [
-        Container(
-          height: 24,
-          padding: const EdgeInsets.only(left: 8),
-          color: const Color(0xFF12121E),
-          alignment: Alignment.centerLeft,
-          child: const Text('Node Graph',
-              style: TextStyle(fontSize: 10, color: Colors.grey)),
-        ),
-        Expanded(
-          child: Container(
-            color: const Color(0xFF0D0D18),
-            child: Stack(
-              children: [
-                // Grid background
-                CustomPaint(
-                  size: Size.infinite,
-                  painter: _GridPainter2(),
-                ),
-                // Nodes arranged in a merge chain
-                _node('MediaIn1', 16, 20, const Color(0xFF448AFF), false),
-                _node('MediaIn2', 16, 60, const Color(0xFF448AFF), false),
-                _node('Merge', 80, 38, const Color(0xFF4CAF50), false),
-                _node('Glow', 140, 50, const Color(0xFFFF9800), true),
-                _node('Transform', 200, 38, const Color(0xFFAB47BC), false),
-                _node('MediaOut', 260, 20, const Color(0xFFFF5252), false),
-                // Inline arrows connecting nodes
-                Positioned(
-                  left: 52, top: 42,
-                  child: Text('→', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-                ),
-                Positioned(
-                  left: 116, top: 54,
-                  child: Text('→', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-                ),
-                Positioned(
-                  left: 176, top: 42,
-                  child: Text('→', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-                ),
-                Positioned(
-                  left: 236, top: 22,
-                  child: Text('→', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-                ),
-                // Right-click context hint
-                Positioned(
-                  right: 8, bottom: 8,
-                  child: Text('[right-click for AI]',
-                      style: TextStyle(fontSize: 8, color: Colors.grey[700])),
-                ),
-              ],
+  List<Widget> _buildControlsContent() {
+    return [
+      // Camera & Eye
+      _paramRow('Camera', 'Default', dropdown: true),
+      _paramRow('Eye', 'Mono', dropdown: true),
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              decoration: BoxDecoration(
+                color: const Color(0xFF2A2A3E),
+                borderRadius: BorderRadius.circular(2),
+              ),
+              child: const Text('Hardware Renderer',
+                  style: TextStyle(fontSize: 8, color: Colors.grey)),
             ),
-          ),
+            const SizedBox(height: 4),
+            _checkRow('Image', true, radio: true),
+            _checkRow('Deep Image', false, radio: true),
+            const Divider(height: 6, color: Color(0xFF2A2A3E)),
+            const Text('Output Channels', style: TextStyle(fontSize: 8, color: Colors.grey)),
+            const SizedBox(height: 2),
+            _checkRow('RGBA', true),
+            _checkRow('Z', false),
+            _checkRow('Normal', false),
+            _checkRow('Vector', true),
+            _checkRow('Back Vector', false),
+            _checkRow('Texture Coord', false),
+            _checkRow('Object ID', false),
+            _checkRow('Material ID', false),
+            _checkRow('World Position', false),
+          ],
         ),
-      ],
-    );
+      ),
+    ];
   }
 
-  // ── Frame timeline ──
-
-  Widget _buildFrameTimeline() {
-    return SizedBox(
-      width: 180,
-      child: Column(
+  Widget _paramRow(String label, String value, {bool dropdown = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      child: Row(
         children: [
-          Container(
-            height: 24,
-            padding: const EdgeInsets.only(left: 8),
-            color: const Color(0xFF12121E),
-            alignment: Alignment.centerLeft,
-            child: const Text('Frame Timeline',
-                style: TextStyle(fontSize: 10, color: Colors.grey)),
-          ),
+          SizedBox(width: 80, child: Text(label, style: const TextStyle(fontSize: 8, color: Colors.grey))),
           Expanded(
             child: Container(
-              color: const Color(0xFF0F0F1A),
-              padding: const EdgeInsets.all(8),
-              child: Column(
+              height: 18,
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1A2E),
+                borderRadius: BorderRadius.circular(2),
+              ),
+              child: Row(
                 children: [
-                  // Frame info
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1A1A2E),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: const Row(
-                      children: [
-                        Text('In: 13.0', style: TextStyle(fontSize: 9, color: Colors.grey, fontFamily: 'monospace')),
-                        SizedBox(width: 8),
-                        Text('Out: 58.0', style: TextStyle(fontSize: 9, color: Colors.grey, fontFamily: 'monospace')),
-                        SizedBox(width: 8),
-                        Text('Cur: 43.0', style: TextStyle(fontSize: 9, color: Color(0xFFFF5252), fontFamily: 'monospace')),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  // Mini frame strip
-                  Expanded(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        border: Border.all(color: const Color(0xFF2A2A3E)),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                      child: Column(
-                        children: [
-                          // Keyframe markers row
-                          Expanded(
-                            child: CustomPaint(
-                              size: Size.infinite,
-                              painter: _KeyframePainter(),
-                            ),
-                          ),
-                          // Frame counter
-                          Container(
-                            height: 16,
-                            color: const Color(0xFF12121E),
-                            padding: const EdgeInsets.symmetric(horizontal: 4),
-                            child: Row(
-                              children: List.generate(10, (i) => Expanded(
-                                child: Text('${i * 10}',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(fontSize: 7, color: Colors.grey[700])),
-                              )),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  // Play controls
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _smallBtn(Icons.first_page, 14),
-                      _smallBtn(Icons.skip_previous, 16),
-                      _smallBtn(Icons.play_arrow, 16),
-                      _smallBtn(Icons.skip_next, 16),
-                      _smallBtn(Icons.last_page, 14),
-                      const SizedBox(width: 8),
-                      _smallBtn(Icons.add, 14),
-                    ],
-                  ),
+                  if (dropdown) const Icon(Icons.arrow_drop_down, size: 12, color: Colors.grey),
+                  Text(value, style: const TextStyle(fontSize: 8, color: Colors.white, fontFamily: 'monospace')),
                 ],
               ),
             ),
@@ -380,191 +436,304 @@ class _EffectLabPageState extends State<EffectLabPage> {
     );
   }
 
-  // ── Reusable widgets ──
-
-  Widget _headerBtn(IconData icon, String label) {
-    return InkWell(
-      onTap: () {},
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        height: 28,
-        child: Row(
-          children: [
-            Icon(icon, size: 14, color: Colors.grey),
-            if (label.isNotEmpty) ...[
-              const SizedBox(width: 4),
-              Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _smallBtn(IconData icon, double size) {
-    return SizedBox(
-      width: 22, height: 22,
-      child: IconButton(
-        padding: EdgeInsets.zero,
-        icon: Icon(icon, size: size, color: Colors.white70),
-        onPressed: () {},
-      ),
-    );
-  }
-
-  Widget _node(String label, double left, double top, Color color, bool selected) {
-    return Positioned(
-      left: left,
-      top: top,
-      child: GestureDetector(
-        onTap: () => setState(() {}),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-          decoration: BoxDecoration(
-            color: color.withOpacity(selected ? 0.3 : 0.15),
-            border: Border.all(
-              color: selected ? Colors.white : color,
-              width: selected ? 1.5 : 1,
-            ),
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: Text(label,
-              style: TextStyle(
-                fontSize: 9,
-                color: selected ? Colors.white : color,
-                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-              )),
-        ),
-      ),
-    );
-  }
-
-  Widget _sectionTitle(String label) {
+  Widget _checkRow(String label, bool checked, {bool radio = false}) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Text(label,
-          style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.w600)),
-    );
-  }
-
-  Widget _paramRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
       child: Row(
         children: [
-          Text(label, style: const TextStyle(fontSize: 10, color: Colors.white70)),
-          const Spacer(),
+          Icon(
+            radio ? (checked ? Icons.radio_button_checked : Icons.radio_button_unchecked)
+                 : (checked ? Icons.check_box : Icons.check_box_outline_blank),
+            size: 12, color: checked ? const Color(0xFF699EFF) : Colors.grey,
+          ),
+          const SizedBox(width: 4),
+          Text(label, style: const TextStyle(fontSize: 8, color: Colors.white70)),
+        ],
+      ),
+    );
+  }
+
+  Widget _radioChip(String label, bool selected) {
+    return GestureDetector(
+      onTap: () {},
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFF699EFF) : const Color(0xFF1A1A2E),
+          borderRadius: BorderRadius.circular(3),
+        ),
+        child: Text(label, style: TextStyle(fontSize: 7, color: selected ? Colors.white : Colors.grey)),
+      ),
+    );
+  }
+
+  Widget _foldGroup(String title, List<Widget> children) {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+          color: const Color(0xFF0F0F1A),
+          child: Row(
+            children: [
+              const Icon(Icons.expand_less, size: 12, color: Colors.grey),
+              const SizedBox(width: 4),
+              Text(title, style: const TextStyle(fontSize: 8, color: Colors.grey, fontWeight: FontWeight.w600)),
+              const Spacer(),
+            ],
+          ),
+        ),
+        ...children,
+        const Divider(height: 1, color: Color(0xFF2A2A3E)),
+      ],
+    );
+  }
+
+  Widget _insLabel(String text) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2),
+      child: Text(text, style: const TextStyle(fontSize: 7, color: Colors.grey)),
+    );
+  }
+
+  Widget _insInput(String value) {
+    return Container(
+      width: 24, height: 14,
+      padding: const EdgeInsets.symmetric(horizontal: 2),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A2E),
+        borderRadius: BorderRadius.circular(2),
+      ),
+      child: Text(value, style: const TextStyle(fontSize: 7, color: Colors.white70, fontFamily: 'monospace')),
+    );
+  }
+
+  // ── BOTTOM_FRAME_TIMELINE (32px) ──────────────────────
+
+  Widget _buildFrameTimeline() {
+    return Container(
+      height: 32,
+      color: const Color(0xFF12121E),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Row(
+        children: [
+          const Text('Frame: 32', style: TextStyle(fontSize: 9, color: Colors.grey)),
+          Expanded(
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 8),
+              height: 12,
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F0F1A),
+                borderRadius: BorderRadius.circular(2),
+              ),
+              child: Stack(
+                children: [
+                  // Tick marks
+                  CustomPaint(size: Size.infinite, painter: _FrameRulerPainter()),
+                  // Playhead
+                  Positioned(
+                    left: 0.43 * 200, top: 0, bottom: 0,
+                    child: Container(
+                      width: 1,
+                      color: Colors.red,
+                      child: const Center(
+                        child: Text('43.0', style: TextStyle(fontSize: 6, color: Colors.red)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const Text('78', style: TextStyle(fontSize: 9, color: Colors.grey)),
+          const SizedBox(width: 12),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: BoxDecoration(
               color: const Color(0xFF1A1A2E),
               borderRadius: BorderRadius.circular(2),
             ),
-            child: Text(value,
-                style: const TextStyle(fontSize: 10, color: Colors.grey, fontFamily: 'monospace')),
+            child: const Text('In:13.0', style: TextStyle(fontSize: 8, color: Colors.grey, fontFamily: 'monospace')),
+          ),
+          const SizedBox(width: 4),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1A1A2E),
+              borderRadius: BorderRadius.circular(2),
+            ),
+            child: const Text('Out:58.0', style: TextStyle(fontSize: 8, color: Colors.grey, fontFamily: 'monospace')),
+          ),
+          const SizedBox(width: 8),
+          _smallBtn(Icons.skip_previous),
+          _smallBtn(Icons.play_arrow),
+          _smallBtn(Icons.skip_next),
+          _smallBtn(Icons.loop),
+        ],
+      ),
+    );
+  }
+
+  // ── BOTTOM_NODE_CANVAS (180px) ────────────────────────
+
+  Widget _buildNodeCanvas() {
+    return Container(
+      color: const Color(0xFF0D0D18),
+      child: Stack(
+        children: [
+          CustomPaint(size: Size.infinite, painter: _NodeGridPainter()),
+          // Connection lines
+          CustomPaint(size: Size.infinite, painter: _ConnectionPainter()),
+          // Nodes
+          _node('MediaIn1', 16, 20, const Color(0xFF448AFF)),
+          _node('MediaIn2', 16, 64, const Color(0xFF448AFF)),
+          _node('Merge', 86, 38, const Color(0xFF4CAF50)),
+          _node('Glow', 152, 48, const Color(0xFFFF9800), selected: true),
+          _node('Transform', 218, 38, const Color(0xFF9C27B0)),
+          _node('MediaOut', 284, 20, const Color(0xFFFF5252)),
+          // Context menu hint
+          Positioned(
+            right: 12, bottom: 8,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1A2E),
+                borderRadius: BorderRadius.circular(2),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: const [
+                  Icon(Icons.mouse, size: 8, color: Colors.grey),
+                  SizedBox(width: 3),
+                  Text('right-click: AI | Edit | Replace | Delete',
+                      style: TextStyle(fontSize: 6, color: Colors.grey)),
+                ],
+              ),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _toolBtn(String label) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 1),
-      child: InkWell(
-        onTap: () {},
+  Widget _node(String label, double left, double top, Color color, {bool selected = false}) {
+    return Positioned(
+      left: left, top: top,
+      child: GestureDetector(
+        onTap: () => setState(() => _selectedNode = 1),
         child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
           decoration: BoxDecoration(
-            color: const Color(0xFF1A1A2E),
-            borderRadius: BorderRadius.circular(4),
+            color: color.withValues(alpha: selected ? 0.3 : 0.15),
+            border: Border.all(
+              color: selected ? Colors.white : color,
+              width: selected ? 1.5 : 0.5,
+            ),
+            borderRadius: BorderRadius.circular(3),
           ),
-          child: Text(label,
-              style: const TextStyle(fontSize: 11, color: Colors.white70)),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.lens, size: 6, color: color),
+              const SizedBox(width: 3),
+              Text(label, style: TextStyle(
+                fontSize: 8,
+                color: selected ? Colors.white : color,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+              )),
+            ],
+          ),
         ),
+      ),
+    );
+  }
+
+  // ── Helpers ───────────────────────────────────────────
+
+  Widget _smallBtn(IconData icon) {
+    return SizedBox(
+      width: 20, height: 20,
+      child: IconButton(
+        padding: EdgeInsets.zero,
+        icon: Icon(icon, size: 12, color: Colors.white70),
+        onPressed: () {},
       ),
     );
   }
 }
 
-// ── Custom painters ──
+// ── Custom Painters ──
 
 class _EffectGradientPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final rect = Offset.zero & size;
-    // Dark base
     canvas.drawRect(rect, Paint()..color = const Color(0xFF0D0D18));
-    // Glow effect simulation
     final center = Offset(size.width / 2, size.height / 2);
-    final glow = RadialGradient(
+    final gradient = RadialGradient(
       colors: [
-        const Color(0xFFFF6B35).withOpacity(0.4),
-        const Color(0xFF0D0D18).withOpacity(0),
+        const Color(0xFFFF9800).withValues(alpha: 0.15),
+        const Color(0xFFFF5252).withValues(alpha: 0.05),
+        Colors.transparent,
       ],
     );
-    canvas.drawCircle(center, size.width * 0.4, Paint()..shader = glow.createShader(rect));
-    // Particle-like dots
-    final dotPaint = Paint()..color = Colors.white.withOpacity(0.3);
-    final seeds = [13, 27, 41, 55, 69, 83, 97];
-    for (int i = 0; i < seeds.length; i++) {
-      final x = (seeds[i] * 7.3) % size.width;
-      final y = (seeds[i] * 11.7) % size.height;
-      final r = (seeds[i] % 3) + 1.0;
-      canvas.drawCircle(Offset(x, y), r, dotPaint);
+    canvas.drawCircle(center, size.width / 3, Paint()..shader = gradient.createShader(rect));
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _FrameRulerPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = const Color(0xFF2A2A3E)
+      ..strokeWidth = 0.5;
+    for (double x = 0; x < size.width; x += 15) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
     }
   }
 
   @override
-  bool shouldRepaint(_EffectGradientPainter old) => false;
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-class _GridPainter2 extends CustomPainter {
+class _NodeGridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
       ..color = const Color(0xFF1A1A2E)
-      ..strokeWidth = 0.5;
-    for (double x = 0; x < size.width; x += 20) {
+      ..strokeWidth = 0.3;
+    for (double x = 0; x < size.width; x += 15) {
       canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
     }
-    for (double y = 0; y < size.height; y += 20) {
-      canvas.drawLine(Offset(0, y), Offset(size.height, y), paint);
+    for (double y = 0; y < size.height; y += 15) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
     }
   }
 
   @override
-  bool shouldRepaint(_GridPainter2 old) => false;
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-class _KeyframePainter extends CustomPainter {
+class _ConnectionPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = const Color(0xFF2A2A3E);
-    // Keyframe diamonds
-    final keyframes = [0.1, 0.25, 0.5, 0.75, 0.9];
-    for (final kf in keyframes) {
-      final x = size.width * kf;
-      final y = size.height / 2;
-      final diamond = Path()
-        ..moveTo(x, y - 4)
-        ..lineTo(x + 3, y)
-        ..lineTo(x, y + 4)
-        ..lineTo(x - 3, y)
-        ..close();
-      canvas.drawPath(diamond, Paint()..color = const Color(0xFFFFD600));
-    }
-    // Playhead line
-    canvas.drawLine(
-      Offset(size.width * 0.43, 0),
-      Offset(size.width * 0.43, size.height),
-      Paint()
-        ..color = const Color(0xFFFF5252)
-        ..strokeWidth = 1,
-    );
+    final paint = Paint()
+      ..color = const Color(0xFF2A2A3E)
+      ..strokeWidth = 1.0;
+    // MediaIn1 → Merge
+    canvas.drawLine(const Offset(58, 28), const Offset(84, 46), paint);
+    // MediaIn2 → Merge
+    canvas.drawLine(const Offset(58, 72), const Offset(84, 46), paint);
+    // Merge → Glow
+    canvas.drawLine(const Offset(128, 46), const Offset(150, 56), paint);
+    // Glow → Transform
+    canvas.drawLine(const Offset(194, 56), const Offset(216, 46), paint);
+    // Transform → MediaOut
+    canvas.drawLine(const Offset(260, 46), const Offset(282, 28), paint);
   }
 
   @override
-  bool shouldRepaint(_KeyframePainter old) => false;
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
