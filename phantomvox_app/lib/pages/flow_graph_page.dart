@@ -472,17 +472,16 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
       children: [
         Expanded(child: Row(
           children: [
-            // Tree view (60%)
+            // Tree view (45%)
             Expanded(flex: 3, child: _buildTreeView()),
             Container(width: 1, color: const Color(0xFF2A2A4E)),
-            // Node detail panel (40%)
+            // Node detail panel (25%)
             Expanded(flex: 2, child: _buildDetailPanel()),
+            Container(width: 1, color: const Color(0xFF2A2A4E)),
+            // Right panel: Chat / Versions (30%)
+            Expanded(flex: 2, child: _buildRightPanel()),
           ],
         )),
-        if (_showBottomPanel) ...[
-          const Divider(height: 1, color: Color(0xFF2A2A4E)),
-          SizedBox(height: 120, child: _buildBottomPanel()),
-        ],
       ],
     );
   }
@@ -755,19 +754,18 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
     );
   }
 
-  // ══════════════ Bottom panel ═══════════════════════════
+  // ══════════════ Right panel ═════════════════════════
 
-  Widget _buildBottomPanel() {
+  Widget _buildRightPanel() {
     return Container(
       color: const Color(0xFF0D0D1A),
       child: Column(
         children: [
+          // Tab headers
           Row(
             children: [
-              _bottomTabBtn('Chat', 0),
-              _bottomTabBtn('Versions', 1),
-              const Spacer(),
-              _bottomTabBtn('×', -1),
+              _rightTabBtn('Chat', 0),
+              _rightTabBtn('Versions', 1),
             ],
           ),
           const Divider(height: 1, color: Color(0xFF2A2A4E)),
@@ -779,16 +777,12 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
     );
   }
 
-  Widget _bottomTabBtn(String label, int idx) {
+  Widget _rightTabBtn(String label, int idx) {
     final active = idx == _bottomTab;
     return GestureDetector(
       onTap: () {
-        if (idx == -1) {
-          setState(() => _showBottomPanel = false);
-        } else {
-          setState(() => _bottomTab = idx);
-          if (idx == 1) _loadVersions();
-        }
+        setState(() => _bottomTab = idx);
+        if (idx == 1) _loadVersions();
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -798,7 +792,7 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
           )),
         ),
         child: Text(
-          idx == -1 ? '×' : i18n.tr(label),
+          label,
           style: TextStyle(fontSize: 11, color: active ? Colors.white : Colors.grey),
         ),
       ),
