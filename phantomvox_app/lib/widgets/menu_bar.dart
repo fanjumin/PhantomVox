@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'file_operations.dart';
 import 'profile_dialog.dart';
 import '../services/project_manager.dart';
+import '../services/i18n_service.dart';
 import '../../widgets/tr.dart';
 
 
@@ -635,7 +636,7 @@ class _MenuButtonState extends State<_MenuButton> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    widget.label,
+                    i18n.tr(widget.label),
                     style: TextStyle(
                       fontSize: 11,
                       color: _hovered || controller.isOpen

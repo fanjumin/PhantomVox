@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../widgets/tr.dart';
+import '../widgets/tr.dart';
 
 
 /// Flow Graph — DAG workflow orchestration center.
@@ -124,8 +125,7 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
       padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Row(
         children: [
-          const Text('Flow Graph',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1, color: Colors.white)),
+          Tr('Flow Graph', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1, color: Colors.white)),
           const SizedBox(width: 16),
           Expanded(
             child: ListView(
@@ -171,7 +171,7 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: const Center(
-                    child: Text('Idle', style: TextStyle(fontSize: 10, color: Colors.green)),
+                    child: Tr('Idle', style: TextStyle(fontSize: 10, color: Colors.green)),
                   ),
                 ),
                 const SizedBox(width: 6),
@@ -259,11 +259,11 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
       position: RelativeRect.fromLTRB(globalPos.dx, globalPos.dy, globalPos.dx + 1, globalPos.dy + 1),
       color: const Color(0xFF16213E),
       items: [
-        const PopupMenuItem(value: 'run', child: Text('▶ Run', style: TextStyle(color: Colors.white, fontSize: 12))),
-        const PopupMenuItem(value: 'pause', child: Text('⏸ Pause', style: TextStyle(color: Colors.white, fontSize: 12))),
-        const PopupMenuItem(value: 'edit', child: Text('✏ Edit', style: TextStyle(color: Colors.white, fontSize: 12))),
-        const PopupMenuItem(value: 'backtrack', child: Text('↩ Backtrack', style: TextStyle(color: Colors.white, fontSize: 12))),
-        const PopupMenuItem(value: 'save', child: Text('💾 Save as Template', style: TextStyle(color: Colors.white, fontSize: 12))),
+        const PopupMenuItem(value: 'run', child: Tr('▶ Run', style: TextStyle(color: Colors.white, fontSize: 12))),
+        const PopupMenuItem(value: 'pause', child: Tr('⏸ Pause', style: TextStyle(color: Colors.white, fontSize: 12))),
+        const PopupMenuItem(value: 'edit', child: Tr('✏ Edit', style: TextStyle(color: Colors.white, fontSize: 12))),
+        const PopupMenuItem(value: 'backtrack', child: Tr('↩ Backtrack', style: TextStyle(color: Colors.white, fontSize: 12))),
+        const PopupMenuItem(value: 'save', child: Tr('💾 Save as Template', style: TextStyle(color: Colors.white, fontSize: 12))),
       ],
     ).then((v) {
       if (v != null) {
@@ -285,7 +285,7 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
         children: [
           Row(
             children: [
-              const Text('Scheduled Tasks', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
+              Tr('Scheduled Tasks', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
               const Spacer(),
               _actionChip('+ Add', Icons.add, () {}),
               const SizedBox(width: 8),
@@ -315,9 +315,9 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
       child: Row(
         children: const [
           SizedBox(width: 24),
-          Expanded(child: Text('Name', style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold))),
-          Expanded(child: Text('Schedule', style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold))),
-          SizedBox(width: 80, child: Text('Status', style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold))),
+          Expanded(child: Tr('Name', style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold))),
+          Expanded(child: Tr('Schedule', style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold))),
+          SizedBox(width: 80, child: Tr('Status', style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold))),
           SizedBox(width: 60),
         ],
       ),
@@ -343,7 +343,7 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
             width: 60,
             child: TextButton(
               onPressed: () {},
-              child: const Text('Edit', style: TextStyle(fontSize: 10)),
+              child: Tr('Edit', style: TextStyle(fontSize: 10)),
             ),
           ),
         ],
@@ -359,7 +359,7 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Workflow Settings', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
+          Tr('Workflow Settings', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
           const SizedBox(height: 16),
           _settingRow('Execution Mode', 'Serial'),
           _settingRow('Parallel Branches', 'Enabled'),
@@ -400,7 +400,7 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
         children: [
           Row(
             children: [
-              const Text('Run Logs', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
+              Tr('Run Logs', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
               const Spacer(),
               _actionChip('Clear', Icons.delete_sweep, () => setState(() => _runs.clear())),
             ],
@@ -427,11 +427,11 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
       ),
       child: Row(
         children: const [
-          Expanded(flex: 2, child: Text('Run ID', style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold))),
-          Expanded(child: Text('Progress', style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold))),
-          Expanded(child: Text('Status', style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold))),
-          Expanded(child: Text('Duration', style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold))),
-          SizedBox(width: 80, child: Text('Action', style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold))),
+          Expanded(flex: 2, child: Tr('Run ID', style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold))),
+          Expanded(child: Tr('Progress', style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold))),
+          Expanded(child: Tr('Status', style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold))),
+          Expanded(child: Tr('Duration', style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold))),
+          SizedBox(width: 80, child: Tr('Action', style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold))),
         ],
       ),
     );
@@ -524,11 +524,11 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
         children: [
           Row(
             children: [
-              const Text('Scheduled Tasks', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
+              Tr('Scheduled Tasks', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
               const Spacer(),
               TextButton(
                 onPressed: () {},
-                child: const Text('+ Add', style: TextStyle(fontSize: 10)),
+                child: Tr('+ Add', style: TextStyle(fontSize: 10)),
               ),
             ],
           ),
@@ -565,10 +565,10 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
         children: [
           Row(
             children: [
-              const Text('Workflow Monitor', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
+              Tr('Workflow Monitor', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
               const Spacer(),
-              TextButton(onPressed: () {}, child: const Text('New', style: TextStyle(fontSize: 10))),
-              TextButton(onPressed: () {}, child: const Text('Pause All', style: TextStyle(fontSize: 10))),
+              TextButton(onPressed: () {}, child: Tr('New', style: TextStyle(fontSize: 10))),
+              TextButton(onPressed: () {}, child: Tr('Pause All', style: TextStyle(fontSize: 10))),
             ],
           ),
           Expanded(

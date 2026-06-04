@@ -202,7 +202,7 @@ class _AgentPageState extends State<AgentPage>
               children: [
                 Tr('AI Agent', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
                 const Spacer(),
-                Text('Model: GPT-4o',
+                Tr('Model: GPT-4o',
                     style: TextStyle(fontSize: 10, color: Colors.grey[600])),
                 const SizedBox(width: 8),
                 _headerChip('All Agents Active', Colors.green),
@@ -619,7 +619,7 @@ class _AgentPageState extends State<AgentPage>
               icon: _loading
                   ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
                   : const Icon(Icons.code, size: 16),
-              label: Text(_loading ? 'Generating...' : 'Generate Code', style: const TextStyle(fontSize: 11)),
+              label: Text(_loading ? i18n.tr('Generating...') : i18n.tr('Generate Code'), style: const TextStyle(fontSize: 11)),
             ),
           ),
           const SizedBox(height: 12),
@@ -741,7 +741,7 @@ class _AgentPageState extends State<AgentPage>
                     : Colors.grey.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(6),
               ),
-              child: Text(active ? 'ACTIVE' : 'IDLE',
+              child: Text(active ? i18n.tr('ACTIVE') : i18n.tr('IDLE'),
                   style: TextStyle(
                     fontSize: 7,
                     color: active ? Colors.green[300] : Colors.grey[600],
