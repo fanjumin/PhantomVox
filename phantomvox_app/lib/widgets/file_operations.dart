@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import '../services/project_manager.dart';
 
 /// Static helpers for file operations triggered from the menu bar.
 /// All methods operate on the Flutter context for dialogs & navigation.
@@ -241,5 +242,49 @@ class FileOperations {
         },
       ),
     );
+  }
+
+  // ── High-level workflows ─────────────────────────────
+
+  /// Full new project workflow: dialog → ProjectManager.
+  static Future<bool> handleNewProject(BuildContext context) async {
+    final result = await showNewProjectDialog(context);
+    if (result == null) return false;
+    ProjectManager().newProject(
+      result['name'] as String? ?? 'Untitled',
+      result['resolution'] as String? ?? '1920×1080',
+      result['fps'] as String? ?? '24',
+      result['sample_rate'] as String? ?? '48000',
+    );
+    return true;
+  }
+
+  /// Full open project workflow: file picker → ProjectManager.
+  static Future<String?> handleOpenProject() async {
+    final path = await showOpenProjectDialog();
+    if (path == null) return null;
+    return await ProjectManager().openProject(path);
+  }
+
+  /// Full save workflow: save to current path or ask for path.
+  static Future<String?> handleSave() async {
+    final pm = ProjectManager();
+    if (pm.currentPath != null) {
+      return await pm.saveProject(null);
+    }
+    return await handleSaveAs();
+  }
+
+  /// Full save-as workflow: file picker → ProjectManager.
+  static Future<String?> handleSaveAs() async {
+    final path = await showSaveDialog();
+    if (path == null) return null;
+    return await ProjectManager().saveProject(path);
+  }
+
+  /// Full export workflow: dialog → file picker.
+  static Future<bool> handleExport(BuildContext context) async {
+    final result = await showExportDialog(context);
+    return result != null;
   }
 }

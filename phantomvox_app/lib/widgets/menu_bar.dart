@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'file_operations.dart';
 import 'profile_dialog.dart';
+import '../services/project_manager.dart';
 
 /// PhantomVox global menu bar — shared across all workspaces.
 /// Layout matches architecture doc chapter 11 with English labels.
@@ -51,6 +52,8 @@ class PhantomVoxMenuBar extends StatelessWidget implements PreferredSizeWidget {
               ),
             ],
           ),
+          // Current project name
+          _ProjectLabel(),
           const SizedBox(width: 4),
           // AI
           _MenuButton(
@@ -124,13 +127,13 @@ class PhantomVoxMenuBar extends StatelessWidget implements PreferredSizeWidget {
                 leadingIcon: const Icon(Icons.add, size: 14),
                 shortcut: const SingleActivator(LogicalKeyboardKey.keyN, control: true),
                 child: const Text('New Project'),
-                onPressed: () => FileOperations.showNewProjectDialog(context),
+                onPressed: () => FileOperations.handleNewProject(context),
               ),
               MenuItemButton(
                 leadingIcon: const Icon(Icons.folder_open, size: 14),
                 shortcut: const SingleActivator(LogicalKeyboardKey.keyO, control: true),
                 child: const Text('Open Project'),
-                onPressed: () => FileOperations.showOpenProjectDialog(),
+                onPressed: () => FileOperations.handleOpenProject(),
               ),
               SubmenuButton(
                 leadingIcon: const Icon(Icons.history, size: 14),
@@ -147,13 +150,13 @@ class PhantomVoxMenuBar extends StatelessWidget implements PreferredSizeWidget {
                 leadingIcon: const Icon(Icons.save, size: 14),
                 shortcut: const SingleActivator(LogicalKeyboardKey.keyS, control: true),
                 child: const Text('Save'),
-                onPressed: () => FileOperations.showSaveDialog(),
+                onPressed: () => FileOperations.handleSave(),
               ),
               MenuItemButton(
                 leadingIcon: const Icon(Icons.save_as, size: 14),
                 shortcut: const SingleActivator(LogicalKeyboardKey.keyS, control: true, shift: true),
                 child: const Text('Save As...'),
-                onPressed: () => FileOperations.showSaveDialog(),
+                onPressed: () => FileOperations.handleSaveAs(),
               ),
               MenuItemButton(
                 leadingIcon: const Icon(Icons.description, size: 14),
@@ -192,7 +195,7 @@ class PhantomVoxMenuBar extends StatelessWidget implements PreferredSizeWidget {
                 menuChildren: [
                   MenuItemButton(
                     child: const Text('Video...'),
-                    onPressed: () => FileOperations.showExportDialog(context),
+                    onPressed: () => FileOperations.handleExport(context),
                   ),
                   MenuItemButton(
                     child: const Text('Audio Only'),
@@ -655,6 +658,37 @@ class _MenuButtonState extends State<_MenuButton> {
         );
       },
       menuChildren: widget.children,
+    );
+  }
+}
+
+/// Shows the name of the currently open project.
+class _ProjectLabel extends StatelessWidget {
+  const _ProjectLabel();
+
+  @override
+  Widget build(BuildContext context) {
+    final pm = ProjectManager();
+    if (!pm.hasProject) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(width: 1, height: 14, color: const Color(0xFF2A2A3E)),
+          const SizedBox(width: 6),
+          Icon(Icons.description, size: 11, color: Colors.grey[600]),
+          const SizedBox(width: 4),
+          Text(
+            pm.name,
+            style: const TextStyle(
+              fontSize: 11,
+              color: Color(0xFFAAAAAA),
+              fontWeight: FontWeight.w400,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

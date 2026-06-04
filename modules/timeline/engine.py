@@ -21,12 +21,14 @@ class ProjectSerializer:
     """Serialize/deserialize .phantomvox project files"""
 
     @staticmethod
-    def save(timeline: Timeline, path: str):
+    def save(timeline: Timeline, path: str, metadata: dict = None):
         data = {
             "version": "1.0",
             "type": "phantomvox-project",
             "timeline": timeline.to_dict(),
         }
+        if metadata:
+            data["metadata"] = metadata
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
         with open(path, "w") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)

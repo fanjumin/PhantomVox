@@ -454,6 +454,41 @@ def create_app(engine=None):
         data = request.get_json(silent=True) or {}
         return jsonify(cfg.save_profile(data))
 
+    # ── Project (save/load .phantomvox) ─────────────────
+
+    @app.route("/api/v1/project/new", methods=["POST"])
+    def project_new():
+        tl = app.engine.get("timeline")
+        data = request.get_json(silent=True) or {}
+        result = tl.create(data.get("name", "Untitled"))
+        return jsonify(result)
+
+    @app.route("/api/v1/project/save", methods=["POST"])
+    def project_save():
+        from modules.timeline.engine import ProjectSerializer
+        data = request.get_json(silent=True) or {}
+        path = data.get("path", "")
+        timeline_data = data.get("timeline")
+        if not path or not timeline_data:
+            return jsonify({"error": "Missing 'path' or 'timeline' field"}), 400
+        from modules.timeline.models import Timeline
+        timeline = Timeline.from_dict(timeline_data)
+        ProjectSerializer.save(timeline, path, data.get("metadata", {}))
+        return jsonify({"status": "ok", "path": path})
+
+    @app.route("/api/v1/project/load")
+    def project_load():
+        from modules.timeline.engine import ProjectSerializer
+        path = request.args.get("path", "")
+        if not path or not os.path.exists(path):
+            return jsonify({"error": "File not found"}), 404
+        try:
+            with open(path) as f:
+                data = json.load(f)
+            return jsonify(data)
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
     # ── Timeline endpoints ──────────────────────────────
 
     @app.route("/api/v1/timelines", methods=["POST"])
