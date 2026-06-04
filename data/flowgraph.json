@@ -3,7 +3,7 @@
   "nodes": {
     "root": {
       "id": "root",
-      "label": "初三语文上学期视频教学课程规划",
+      "label": "测试第二次生成",
       "node_type": "topic",
       "description": "",
       "status": "pending",
@@ -13,16 +13,14 @@
       "children": [
         "n1",
         "n2",
-        "n3",
-        "n4",
-        "n5"
+        "n3"
       ],
       "ai_generated": false,
       "metadata": {}
     },
     "n1": {
       "id": "n1",
-      "label": "第一单元：现代诗歌与小说",
+      "label": "开场序幕",
       "node_type": "scene",
       "description": "",
       "status": "pending",
@@ -39,7 +37,7 @@
     },
     "n1a": {
       "id": "n1a",
-      "label": "《沁园春·雪》赏析：意象与情感",
+      "label": "寂静的清晨街道",
       "node_type": "beat",
       "description": "",
       "status": "pending",
@@ -52,7 +50,7 @@
     },
     "n1b": {
       "id": "n1b",
-      "label": "《我爱这土地》精读：象征手法",
+      "label": "主角的日常习惯",
       "node_type": "beat",
       "description": "",
       "status": "pending",
@@ -65,7 +63,7 @@
     },
     "n1c": {
       "id": "n1c",
-      "label": "小说单元导入：如何分析人物形象 [AI]",
+      "label": "意外事件触发 [AI]",
       "node_type": "missing",
       "description": "",
       "status": "pending",
@@ -78,7 +76,7 @@
     },
     "n2": {
       "id": "n2",
-      "label": "第二单元：议论文与论证方法",
+      "label": "核心冲突展开",
       "node_type": "scene",
       "description": "",
       "status": "pending",
@@ -88,15 +86,14 @@
       "children": [
         "n2a",
         "n2b",
-        "n2c",
-        "n2d"
+        "n2c"
       ],
       "ai_generated": false,
       "metadata": {}
     },
     "n2a": {
       "id": "n2a",
-      "label": "《敬业与乐业》论证结构拆解",
+      "label": "对手初次交锋",
       "node_type": "beat",
       "description": "",
       "status": "pending",
@@ -109,7 +106,7 @@
     },
     "n2b": {
       "id": "n2b",
-      "label": "《就英法联军远征中国致巴特勒上尉的信》反讽手法",
+      "label": "关键信息泄露",
       "node_type": "beat",
       "description": "",
       "status": "pending",
@@ -122,21 +119,8 @@
     },
     "n2c": {
       "id": "n2c",
-      "label": "议论文写作训练：论点与论据",
+      "label": "盟友意外现身",
       "node_type": "beat",
-      "description": "",
-      "status": "pending",
-      "progress": 0.0,
-      "agent": "",
-      "parent_id": "n2",
-      "children": [],
-      "ai_generated": false,
-      "metadata": {}
-    },
-    "n2d": {
-      "id": "n2d",
-      "label": "视频互动：分析生活中的论证 [AI]",
-      "node_type": "missing",
       "description": "",
       "status": "pending",
       "progress": 0.0,
@@ -148,7 +132,7 @@
     },
     "n3": {
       "id": "n3",
-      "label": "第三单元：文言文与传统文化",
+      "label": "高潮与结局",
       "node_type": "scene",
       "description": "",
       "status": "pending",
@@ -158,16 +142,14 @@
       "children": [
         "n3a",
         "n3b",
-        "n3c",
-        "n3d",
-        "n3e"
+        "n3c"
       ],
       "ai_generated": false,
       "metadata": {}
     },
     "n3a": {
       "id": "n3a",
-      "label": "《岳阳楼记》重点字词与翻译",
+      "label": "最终对决准备",
       "node_type": "beat",
       "description": "",
       "status": "pending",
@@ -180,7 +162,7 @@
     },
     "n3b": {
       "id": "n3b",
-      "label": "《醉翁亭记》写景手法与情感",
+      "label": "反转与真相揭露",
       "node_type": "beat",
       "description": "",
       "status": "pending",
@@ -193,165 +175,13 @@
     },
     "n3c": {
       "id": "n3c",
-      "label": "《湖心亭看雪》白描技法",
-      "node_type": "beat",
-      "description": "",
-      "status": "pending",
-      "progress": 0.0,
-      "agent": "",
-      "parent_id": "n3",
-      "children": [],
-      "ai_generated": false,
-      "metadata": {}
-    },
-    "n3d": {
-      "id": "n3d",
-      "label": "文言文实词与虚词专项训练",
-      "node_type": "beat",
-      "description": "",
-      "status": "pending",
-      "progress": 0.0,
-      "agent": "",
-      "parent_id": "n3",
-      "children": [],
-      "ai_generated": false,
-      "metadata": {}
-    },
-    "n3e": {
-      "id": "n3e",
-      "label": "文化拓展：中国古代文人情怀 [AI]",
+      "label": "情感收尾 [AI]",
       "node_type": "missing",
       "description": "",
       "status": "pending",
       "progress": 0.0,
       "agent": "",
       "parent_id": "n3",
-      "children": [],
-      "ai_generated": false,
-      "metadata": {}
-    },
-    "n4": {
-      "id": "n4",
-      "label": "第四单元：戏剧与文学评论",
-      "node_type": "scene",
-      "description": "",
-      "status": "pending",
-      "progress": 0.0,
-      "agent": "",
-      "parent_id": "root",
-      "children": [
-        "n4a",
-        "n4b",
-        "n4c"
-      ],
-      "ai_generated": false,
-      "metadata": {}
-    },
-    "n4a": {
-      "id": "n4a",
-      "label": "《威尼斯商人》剧本片段赏析",
-      "node_type": "beat",
-      "description": "",
-      "status": "pending",
-      "progress": 0.0,
-      "agent": "",
-      "parent_id": "n4",
-      "children": [],
-      "ai_generated": false,
-      "metadata": {}
-    },
-    "n4b": {
-      "id": "n4b",
-      "label": "戏剧冲突与人物台词分析",
-      "node_type": "beat",
-      "description": "",
-      "status": "pending",
-      "progress": 0.0,
-      "agent": "",
-      "parent_id": "n4",
-      "children": [],
-      "ai_generated": false,
-      "metadata": {}
-    },
-    "n4c": {
-      "id": "n4c",
-      "label": "文学评论写作指导：观点与证据 [AI]",
-      "node_type": "missing",
-      "description": "",
-      "status": "pending",
-      "progress": 0.0,
-      "agent": "",
-      "parent_id": "n4",
-      "children": [],
-      "ai_generated": false,
-      "metadata": {}
-    },
-    "n5": {
-      "id": "n5",
-      "label": "期中复习与综合提升",
-      "node_type": "scene",
-      "description": "",
-      "status": "pending",
-      "progress": 0.0,
-      "agent": "",
-      "parent_id": "root",
-      "children": [
-        "n5a",
-        "n5b",
-        "n5c",
-        "n5d"
-      ],
-      "ai_generated": false,
-      "metadata": {}
-    },
-    "n5a": {
-      "id": "n5a",
-      "label": "基础知识梳理：字词与文学常识",
-      "node_type": "beat",
-      "description": "",
-      "status": "pending",
-      "progress": 0.0,
-      "agent": "",
-      "parent_id": "n5",
-      "children": [],
-      "ai_generated": false,
-      "metadata": {}
-    },
-    "n5b": {
-      "id": "n5b",
-      "label": "阅读答题技巧：现代文与文言文",
-      "node_type": "beat",
-      "description": "",
-      "status": "pending",
-      "progress": 0.0,
-      "agent": "",
-      "parent_id": "n5",
-      "children": [],
-      "ai_generated": false,
-      "metadata": {}
-    },
-    "n5c": {
-      "id": "n5c",
-      "label": "作文专题：立意与结构",
-      "node_type": "beat",
-      "description": "",
-      "status": "pending",
-      "progress": 0.0,
-      "agent": "",
-      "parent_id": "n5",
-      "children": [],
-      "ai_generated": false,
-      "metadata": {}
-    },
-    "n5d": {
-      "id": "n5d",
-      "label": "模拟测试与错题分析 [AI]",
-      "node_type": "missing",
-      "description": "",
-      "status": "pending",
-      "progress": 0.0,
-      "agent": "",
-      "parent_id": "n5",
       "children": [],
       "ai_generated": false,
       "metadata": {}
@@ -359,9 +189,9 @@
   },
   "counts": {
     "topic": 1,
-    "scene": 5,
-    "beat": 14,
-    "missing": 5
+    "scene": 3,
+    "beat": 7,
+    "missing": 2
   },
   "has_ai_suggestions": false
 }

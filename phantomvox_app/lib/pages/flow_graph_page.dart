@@ -847,39 +847,43 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
           ),
         // Input
         Container(
-          padding: const EdgeInsets.fromLTRB(8, 4, 4, 4),
-          decoration: const BoxDecoration(
-            border: Border(top: BorderSide(color: Color(0xFF2A2A4E))),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _chatCtrl,
-                  style: const TextStyle(color: Colors.white, fontSize: 12),
-                  decoration: const InputDecoration(
-                    hintText: 'Describe your project...',
-                    hintStyle: TextStyle(color: Colors.grey, fontSize: 12),
-                    border: InputBorder.none,
-                    isDense: true,
-                    contentPadding: EdgeInsets.symmetric(vertical: 6),
-                  ),
-                  onSubmitted: (_) => _sendChatMessage(),
+        padding: const EdgeInsets.all(8),
+        decoration: const BoxDecoration(
+          border: Border(top: BorderSide(color: Color(0xFF2A2A4E))),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _chatCtrl,
+                maxLines: 4,
+                minLines: 2,
+                style: const TextStyle(color: Colors.white, fontSize: 12),
+                decoration: const InputDecoration(
+                  hintText: 'Describe your project...\nYou can paste long text here.',
+                  hintStyle: TextStyle(color: Colors.grey, fontSize: 12),
+                  border: InputBorder.none,
+                  isDense: false,
+                  contentPadding: EdgeInsets.symmetric(vertical: 6),
                 ),
+                onSubmitted: (_) => _sendChatMessage(),
               ),
-              GestureDetector(
-                onTap: _chatLoading ? null : _sendChatMessage,
-                child: Container(
-                  width: 28, height: 28,
-                  decoration: BoxDecoration(
-                    color: _chatLoading ? Colors.grey : const Color(0xFF6C63FF),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: const Icon(Icons.send, size: 14, color: Colors.white),
+            ),
+            const SizedBox(width: 4),
+            GestureDetector(
+              onTap: _chatLoading ? null : _sendChatMessage,
+              child: Container(
+                width: 32, height: 32,
+                decoration: BoxDecoration(
+                  color: _chatLoading ? Colors.grey : const Color(0xFF6C63FF),
+                  borderRadius: BorderRadius.circular(16),
                 ),
+                child: const Icon(Icons.send, size: 16, color: Colors.white),
               ),
-            ],
-          ),
+            ),
+          ],
+        ),
         ),
       ],
     );
@@ -897,7 +901,7 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
 
     try {
       // Auto-save version before generating
-      try { await _api.post('/api/v1/flowgraph/versions/save'); } catch (_) {}
+      try { await _api.post('/api/v1/flowgraph/versions/save', body: {}); } catch (_) {}
 
       final result = await _api.post('/api/v1/flowgraph/generate',
           body: {'prompt': text});
@@ -906,25 +910,33 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
         final fg = result['flowgraph'] as Map<String, dynamic>;
         final nodes = fg['nodes'] as Map<String, dynamic>? ?? {};
         final count = nodes.length;
-        final rootLabel = (nodes[fg['root']] as Map<String, dynamic>?)?['label'] ?? '';
+        // root label
+        String rootLabel = '';
+        try {
+          final rootData = nodes[fg['root']] as Map<String, dynamic>?;
+          if (rootData != null) rootLabel = rootData['label'] as String? ?? '';
+        } catch (_) {}
+        if (rootLabel.isEmpty) rootLabel = 'generated';
 
         // Reload tree from server
         await _loadFlowGraph();
         setState(() {
           _chatMessages.add({'role': 'assistant',
-              'content': '✅ Generated "$rootLabel" — $count nodes created.'});
+              'content': '✅ "$rootLabel" — $count nodes.'});
           _chatLoading = false;
         });
       } else {
         setState(() {
+          final errMsg = result['error'] ?? result['message'] ?? 'Generation failed';
           _chatMessages.add({'role': 'assistant',
-              'content': '❌ ${result['error'] ?? 'Generation failed'}'});
+              'content': '❌ $errMsg'});
           _chatLoading = false;
         });
       }
     } catch (e) {
       setState(() {
-        _chatMessages.add({'role': 'assistant', 'content': '❌ Error: $e'});
+        _chatMessages.add({'role': 'assistant',
+            'content': '❌ Error: $e'});
         _chatLoading = false;
       });
     }
