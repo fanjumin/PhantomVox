@@ -6,11 +6,13 @@ import 'package:flutter/services.dart';
 class PhantomVoxMenuBar extends StatelessWidget implements PreferredSizeWidget {
   final int currentPageIndex;
   final ValueChanged<int> onPageSwitch;
+  final VoidCallback? onOpenSettings;
 
   const PhantomVoxMenuBar({
     super.key,
     required this.currentPageIndex,
     required this.onPageSwitch,
+    this.onOpenSettings,
   });
 
   @override
@@ -43,7 +45,7 @@ class PhantomVoxMenuBar extends StatelessWidget implements PreferredSizeWidget {
               MenuItemButton(
                 leadingIcon: const Icon(Icons.settings, size: 14),
                 child: const Text('System Info'),
-                onPressed: () => _showSnack(context, 'System info coming soon'),
+                onPressed: () => onOpenSettings?.call(),
               ),
             ],
           ),
@@ -102,7 +104,7 @@ class PhantomVoxMenuBar extends StatelessWidget implements PreferredSizeWidget {
               MenuItemButton(
                 leadingIcon: const Icon(Icons.tune, size: 14),
                 child: const Text('AI Model Settings'),
-                onPressed: () => _showSnack(context, 'Model settings page coming soon'),
+                onPressed: () => onOpenSettings?.call(),
               ),
               MenuItemButton(
                 leadingIcon: const Icon(Icons.block, size: 14),
@@ -218,7 +220,7 @@ class PhantomVoxMenuBar extends StatelessWidget implements PreferredSizeWidget {
               MenuItemButton(
                 leadingIcon: const Icon(Icons.model_training, size: 14),
                 child: const Text('Model Settings'),
-                onPressed: () => _showSnack(context, 'Model settings page coming soon'),
+                onPressed: () => onOpenSettings?.call(),
               ),
               const Divider(height: 1),
               MenuItemButton(

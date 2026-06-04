@@ -7,6 +7,7 @@ import 'pages/pro_edit_page.dart';
 import 'pages/palette_page.dart';
 import 'pages/audioforge_page.dart';
 import 'pages/effectlab_page.dart';
+import 'pages/settings_page.dart';
 import 'widgets/menu_bar.dart';
 
 void main() {
@@ -66,6 +67,12 @@ class _MainShellState extends State<MainShell> {
     'Dashboard',
   ];
 
+  void _openSettings() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const SettingsPage()),
+    );
+  }
+
   @override
   void dispose() {
     _scrollCtrl.dispose();
@@ -81,6 +88,7 @@ class _MainShellState extends State<MainShell> {
           PhantomVoxMenuBar(
             currentPageIndex: _currentIndex,
             onPageSwitch: (i) => setState(() => _currentIndex = i),
+            onOpenSettings: _openSettings,
           ),
           // Workspace navigation bar
           Container(
