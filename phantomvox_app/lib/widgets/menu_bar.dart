@@ -42,7 +42,7 @@ class PhantomVoxMenuBar extends StatelessWidget implements PreferredSizeWidget {
               MenuItemButton(
                 leadingIcon: const Icon(Icons.update, size: 14),
                 child: const Text('Check Updates'),
-                onPressed: () => _showSnack(context, 'Update check coming soon'),
+                onPressed: () => _showSnack(context, 'Check updates — version check coming with release pipeline'),
               ),
               const Divider(height: 1),
               MenuItemButton(
@@ -74,17 +74,17 @@ class PhantomVoxMenuBar extends StatelessWidget implements PreferredSizeWidget {
               MenuItemButton(
                 leadingIcon: const Icon(Icons.auto_awesome, size: 14),
                 child: const Text('Scene Detection'),
-                onPressed: () => _showSnack(context, 'Scene detection coming soon'),
+                onPressed: () => _showSnack(context, 'Scene detection uses AI Agent — coming with ML pipeline update'),
               ),
               MenuItemButton(
                 leadingIcon: const Icon(Icons.label, size: 14),
                 child: const Text('Smart Tagging'),
-                onPressed: () => _showSnack(context, 'Smart tagging coming soon'),
+                onPressed: () => _showSnack(context, 'Smart tagging uses AI Agent — coming with ML pipeline update'),
               ),
               MenuItemButton(
                 leadingIcon: const Icon(Icons.colorize, size: 14),
                 child: const Text('Color Match'),
-                onPressed: () => _showSnack(context, 'Color match coming soon'),
+                onPressed: () => _showSnack(context, 'Color match uses AI Agent — coming with ML pipeline update'),
               ),
               const Divider(height: 1),
               SubmenuButton(
@@ -92,15 +92,15 @@ class PhantomVoxMenuBar extends StatelessWidget implements PreferredSizeWidget {
                 menuChildren: [
                   MenuItemButton(
                     child: const Text('From Script'),
-                    onPressed: () => _showSnack(context, 'Script→video coming soon'),
+                    onPressed: () => _showSnack(context, 'Script→video uses Workflow engine — coming with template system'),
                   ),
                   MenuItemButton(
                     child: const Text('From Voice'),
-                    onPressed: () => _showSnack(context, 'Voice→video coming soon'),
+                    onPressed: () => _showSnack(context, 'Voice→video uses Workflow engine — coming with template system'),
                   ),
                   MenuItemButton(
                     child: const Text('From Images'),
-                    onPressed: () => _showSnack(context, 'Images→video coming soon'),
+                    onPressed: () => _showSnack(context, 'Images→video uses Workflow engine — coming with template system'),
                   ),
                 ],
                 child: const Text('One-Click Creation'),
@@ -114,7 +114,7 @@ class PhantomVoxMenuBar extends StatelessWidget implements PreferredSizeWidget {
               MenuItemButton(
                 leadingIcon: const Icon(Icons.block, size: 14),
                 child: const Text('Disable AI'),
-                onPressed: () => _showSnack(context, 'AI toggle coming soon'),
+                onPressed: () => _showSnack(context, 'AI toggle — disable AI features in settings'),
               ),
             ],
           ),
@@ -161,7 +161,7 @@ class PhantomVoxMenuBar extends StatelessWidget implements PreferredSizeWidget {
               MenuItemButton(
                 leadingIcon: const Icon(Icons.description, size: 14),
                 child: const Text('Save as Template'),
-                onPressed: () => _showSnack(context, 'Template save coming soon'),
+                onPressed: () => _showSnack(context, 'Template save — coming with template system'),
               ),
               const Divider(height: 1),
               SubmenuButton(
@@ -173,19 +173,19 @@ class PhantomVoxMenuBar extends StatelessWidget implements PreferredSizeWidget {
                   ),
                   MenuItemButton(
                     child: const Text('Media Folder...'),
-                    onPressed: () => _showSnack(context, 'Import folder coming soon'),
+                    onPressed: () => FileOperations.handleImportFolder(),
                   ),
                   MenuItemButton(
                     child: const Text('LUT / Color Preset'),
-                    onPressed: () => _showSnack(context, 'Import LUT coming soon'),
+                    onPressed: () => FileOperations.handleImportLut(),
                   ),
                   MenuItemButton(
                     child: const Text('Subtitle File...'),
-                    onPressed: () => _showSnack(context, 'Import subtitle coming soon'),
+                    onPressed: () => FileOperations.handleImportSubtitle(),
                   ),
                   MenuItemButton(
                     child: const Text('XML / EDL Timeline'),
-                    onPressed: () => _showSnack(context, 'Import timeline coming soon'),
+                    onPressed: () => FileOperations.handleImportTimeline(),
                   ),
                 ],
                 child: const Text('Import'),
@@ -199,19 +199,19 @@ class PhantomVoxMenuBar extends StatelessWidget implements PreferredSizeWidget {
                   ),
                   MenuItemButton(
                     child: const Text('Audio Only'),
-                    onPressed: () => _showSnack(context, 'Export audio coming soon'),
+                    onPressed: () => FileOperations.handleExportAudio(context),
                   ),
                   MenuItemButton(
                     child: const Text('Current Frame'),
-                    onPressed: () => _showSnack(context, 'Export frame coming soon'),
+                    onPressed: () => FileOperations.handleExportFrame(context),
                   ),
                   MenuItemButton(
                     child: const Text('Subtitles'),
-                    onPressed: () => _showSnack(context, 'Export subtitles coming soon'),
+                    onPressed: () => FileOperations.handleExportSubtitles(),
                   ),
                   MenuItemButton(
                     child: const Text('Archive Project'),
-                    onPressed: () => _showSnack(context, 'Archive coming soon'),
+                    onPressed: () => _showSnack(context, 'Archive project — coming with project management system'),
                   ),
                 ],
                 child: const Text('Export'),
@@ -220,7 +220,7 @@ class PhantomVoxMenuBar extends StatelessWidget implements PreferredSizeWidget {
               MenuItemButton(
                 leadingIcon: const Icon(Icons.settings, size: 14),
                 child: const Text('Project Settings'),
-                onPressed: () => _showSnack(context, 'Project settings coming soon'),
+                onPressed: () => onOpenSettings?.call(),
               ),
               MenuItemButton(
                 leadingIcon: const Icon(Icons.model_training, size: 14),
@@ -332,15 +332,15 @@ class PhantomVoxMenuBar extends StatelessWidget implements PreferredSizeWidget {
                 menuChildren: [
                   MenuItemButton(
                     child: const Text('Default Layout'),
-                    onPressed: () => _showSnack(context, 'Default layout'),
+                    onPressed: () => _showSnack(context, 'Default layout — layout presets coming with workspace customization'),
                   ),
                   MenuItemButton(
                     child: const Text('Compact Mode'),
-                    onPressed: () => _showSnack(context, 'Compact mode'),
+                    onPressed: () => _showSnack(context, 'Compact mode — layout presets coming with workspace customization'),
                   ),
                   MenuItemButton(
                     child: const Text('Dual Screen Mode'),
-                    onPressed: () => _showSnack(context, 'Dual screen mode'),
+                    onPressed: () => _showSnack(context, 'Dual screen mode — layout presets coming with workspace customization'),
                   ),
                 ],
                 child: const Text('Workspace Layout'),
@@ -373,29 +373,29 @@ class PhantomVoxMenuBar extends StatelessWidget implements PreferredSizeWidget {
               MenuItemButton(
                 leadingIcon: const Icon(Icons.video_library, size: 14),
                 child: const Text('Media Browser'),
-                onPressed: () => _showSnack(context, 'Media browser'),
+                onPressed: () => onPageSwitch(3), // ProEdit
               ),
               const Divider(height: 1),
               MenuItemButton(
                 leadingIcon: const Icon(Icons.mic, size: 14),
                 child: const Text('Voiceover Recording'),
-                onPressed: () => _showSnack(context, 'Voiceover recording'),
+                onPressed: () => onPageSwitch(5), // AudioForge
               ),
               MenuItemButton(
                 leadingIcon: const Icon(Icons.videocam, size: 14),
                 child: const Text('Screen Recording'),
-                onPressed: () => _showSnack(context, 'Screen recording'),
+                onPressed: () => _showSnack(context, 'Screen recording needs system integration — coming with Rust media engine'),
               ),
               const Divider(height: 1),
               MenuItemButton(
                 leadingIcon: const Icon(Icons.manage_search, size: 14),
                 child: const Text('Media Management'),
-                onPressed: () => _showSnack(context, 'Media management'),
+                onPressed: () => onPageSwitch(2), // StoryCut
               ),
               MenuItemButton(
                 leadingIcon: const Icon(Icons.analytics, size: 14),
                 child: const Text('Timeline Statistics'),
-                onPressed: () => _showSnack(context, 'Timeline statistics'),
+                onPressed: () => onPageSwitch(3), // ProEdit
               ),
             ],
           ),
@@ -421,7 +421,7 @@ class PhantomVoxMenuBar extends StatelessWidget implements PreferredSizeWidget {
               MenuItemButton(
                 leadingIcon: const Icon(Icons.auto_awesome, size: 14),
                 child: const Text('Scene Detection'),
-                onPressed: () => _showSnack(context, 'Scene detection coming soon'),
+                onPressed: () => _showSnack(context, 'Scene detection uses AI Agent — coming with ML pipeline update'),
               ),
             ],
           ),
@@ -459,7 +459,7 @@ class PhantomVoxMenuBar extends StatelessWidget implements PreferredSizeWidget {
                   const Divider(height: 1),
                   MenuItemButton(
                     child: const Text('Reset All Panels'),
-                    onPressed: () => _showSnack(context, 'Panel reset coming soon'),
+                    onPressed: () => _showSnack(context, 'Panel system — coming with UI refactor'),
                   ),
                 ],
                 child: const Text('Panel Management'),
@@ -475,23 +475,23 @@ class PhantomVoxMenuBar extends StatelessWidget implements PreferredSizeWidget {
                 leadingIcon: const Icon(Icons.menu_book, size: 14),
                 shortcut: const SingleActivator(LogicalKeyboardKey.f1),
                 child: const Text('User Manual'),
-                onPressed: () => _showSnack(context, 'User manual coming soon'),
+                onPressed: () => _showSnack(context, 'User manual — content under development'),
               ),
               MenuItemButton(
                 leadingIcon: const Icon(Icons.play_circle, size: 14),
                 child: const Text('Video Tutorials'),
-                onPressed: () => _showSnack(context, 'Tutorials coming soon'),
+                onPressed: () => _showSnack(context, 'Video tutorials — content under development'),
               ),
               const Divider(height: 1),
               MenuItemButton(
                 leadingIcon: const Icon(Icons.keyboard, size: 14),
                 child: const Text('Keyboard Shortcuts'),
-                onPressed: () => _showSnack(context, 'Shortcuts reference coming soon'),
+                onPressed: () => _showSnack(context, 'Keyboard shortcuts reference — content under development'),
               ),
               MenuItemButton(
                 leadingIcon: const Icon(Icons.bug_report, size: 14),
                 child: const Text('Report Issue'),
-                onPressed: () => _showSnack(context, 'Issue reporter coming soon'),
+                onPressed: () => _showSnack(context, 'Issue reporter — content under development'),
               ),
               const Divider(height: 1),
               MenuItemButton(
@@ -502,7 +502,7 @@ class PhantomVoxMenuBar extends StatelessWidget implements PreferredSizeWidget {
               MenuItemButton(
                 leadingIcon: const Icon(Icons.update, size: 14),
                 child: const Text('Check Updates'),
-                onPressed: () => _showSnack(context, 'Update check coming soon'),
+                onPressed: () => _showSnack(context, 'Check updates — version check coming with release pipeline'),
               ),
               MenuItemButton(
                 leadingIcon: const Icon(Icons.computer, size: 14),

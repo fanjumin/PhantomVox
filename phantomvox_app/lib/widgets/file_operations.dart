@@ -287,4 +287,74 @@ class FileOperations {
     final result = await showExportDialog(context);
     return result != null;
   }
+
+  // ── Specialized import/export ─────────────────────────
+
+  /// Import folder picker for media directories.
+  static Future<List<String>?> handleImportFolder() async {
+    final result = await FilePicker.platform.getDirectoryPath(
+      dialogTitle: 'Import Media Folder',
+    );
+    return result != null ? [result] : null;
+  }
+
+  /// Import LUT/color preset file picker.
+  static Future<List<String>?> handleImportLut() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['cube', '3dl', 'look'],
+      dialogTitle: 'Import LUT / Color Preset',
+    );
+    return result?.files.map((f) => f.path ?? '').where((p) => p.isNotEmpty).toList();
+  }
+
+  /// Import subtitle file picker.
+  static Future<List<String>?> handleImportSubtitle() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['srt', 'ass', 'ssa', 'vtt'],
+      dialogTitle: 'Import Subtitle',
+    );
+    return result?.files.map((f) => f.path ?? '').where((p) => p.isNotEmpty).toList();
+  }
+
+  /// Import XML/EDL timeline file picker.
+  static Future<List<String>?> handleImportTimeline() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['xml', 'edl', 'aaf', 'otio'],
+      dialogTitle: 'Import Timeline',
+    );
+    return result?.files.map((f) => f.path ?? '').where((p) => p.isNotEmpty).toList();
+  }
+
+  /// Export audio-only: dialog → file_picker.
+  static Future<bool> handleExportAudio(BuildContext context) async {
+    final path = await FilePicker.platform.saveFile(
+      type: FileType.custom,
+      allowedExtensions: ['wav', 'mp3', 'flac', 'aac', 'ogg'],
+      fileName: 'export.wav',
+    );
+    return path != null;
+  }
+
+  /// Export current frame: dialog → file_picker.
+  static Future<bool> handleExportFrame(BuildContext context) async {
+    final path = await FilePicker.platform.saveFile(
+      type: FileType.custom,
+      allowedExtensions: ['png', 'jpg', 'tiff', 'bmp'],
+      fileName: 'frame.png',
+    );
+    return path != null;
+  }
+
+  /// Export subtitles: file_picker.
+  static Future<bool> handleExportSubtitles() async {
+    final path = await FilePicker.platform.saveFile(
+      type: FileType.custom,
+      allowedExtensions: ['srt', 'ass', 'vtt'],
+      fileName: 'subtitles.srt',
+    );
+    return path != null;
+  }
 }
