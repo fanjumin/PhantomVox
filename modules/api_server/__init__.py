@@ -387,6 +387,7 @@ def create_app(engine=None):
                 description=description,
                 ai_generated=ai_generated,
             )
+            agent._director._save()
             return jsonify({"status": "ok", "node_id": nid})
         except ValueError as e:
             return jsonify({"error": str(e)}), 400
@@ -399,6 +400,7 @@ def create_app(engine=None):
         ok = agent._director.flowgraph.update_node(node_id, **data)
         if not ok:
             return jsonify({"error": f"Node not found: {node_id}"}), 404
+        agent._director._save()
         return jsonify({"status": "ok"})
 
     @app.route("/api/v1/flowgraph/node/<node_id>", methods=["DELETE"])
@@ -408,6 +410,7 @@ def create_app(engine=None):
         ok = agent._director.flowgraph.delete_node(node_id)
         if not ok:
             return jsonify({"error": f"Cannot delete node: {node_id}"}), 400
+        agent._director._save()
         return jsonify({"status": "ok"})
 
     @app.route("/api/v1/flowgraph/node/<node_id>/move", methods=["POST"])
@@ -419,6 +422,7 @@ def create_app(engine=None):
         ok = agent._director.flowgraph.move_node(node_id, new_parent_id)
         if not ok:
             return jsonify({"error": "Move failed: invalid parent or cycle"}), 400
+        agent._director._save()
         return jsonify({"status": "ok"})
 
     @app.route("/api/v1/flowgraph/reorder", methods=["POST"])
@@ -431,7 +435,44 @@ def create_app(engine=None):
         ok = agent._director.flowgraph.reorder_children(parent_id, child_ids)
         if not ok:
             return jsonify({"error": f"Parent not found: {parent_id}"}), 404
+        agent._director._save()
         return jsonify({"status": "ok"})
+
+    @app.route("/api/v1/flowgraph/save", methods=["POST"])
+    def flowgraph_save():
+        """Bulk save entire flow graph tree (replaces current)."""
+        from modules.agent.mindmap import FlowGraph
+        data = request.get_json(silent=True) or {}
+        agent = app.engine.get("agent")
+        try:
+            fg = FlowGraph.from_dict(data)
+            agent._director.flowgraph = fg
+            agent._director._save()
+            return jsonify({"status": "ok"})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/flowgraph/import", methods=["POST"])
+    def flowgraph_import():
+        """Import flow graph from a JSON file path."""
+        data = request.get_json(silent=True) or {}
+        path = data.get("path", "")
+        if not path:
+            return jsonify({"error": "No path provided"}), 400
+        import os
+        if not os.path.exists(path):
+            return jsonify({"error": f"File not found: {path}"}), 404
+        from modules.agent.mindmap import FlowGraph
+        agent = app.engine.get("agent")
+        try:
+            fg = FlowGraph.load_from_file(path)
+            if not fg.root:
+                return jsonify({"error": "Invalid flow graph (no root)"}), 400
+            agent._director.flowgraph = fg
+            agent._director._save()
+            return jsonify({"status": "ok"})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
 
     @app.route("/api/v1/flowgraph/expand", methods=["POST"])
     def flowgraph_expand():
@@ -442,6 +483,9 @@ def create_app(engine=None):
         result = agent.execute_agent("director", {
             "action": "expand_flowgraph",
             "node_id": node_id,
+            "label": data.get("label", ""),
+            "node_type": data.get("node_type", "topic"),
+            "description": data.get("description", ""),
         })
         return jsonify(result)
 

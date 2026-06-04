@@ -16,10 +16,11 @@ class FlowGraphPage extends StatefulWidget {
 class _FlowNode {
   final String id;
   String label;
-  String nodeType; // topic, scene, beat, missing
+  String nodeType;
   String description;
   bool aiGenerated;
   String status;
+  String? parentId;
   final List<_FlowNode> children;
 
   _FlowNode({
@@ -29,6 +30,7 @@ class _FlowNode {
     this.description = '',
     this.aiGenerated = false,
     this.status = 'pending',
+    this.parentId,
     List<_FlowNode>? children,
   }) : children = children ?? [];
 
@@ -52,6 +54,9 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
   // Bottom panel
   bool _showBottomPanel = false;
   int _bottomTab = 0; // 0=Schedule, 1=Logs
+
+  // Collapse state: node IDs whose children are hidden
+  final Set<String> _collapsedIds = {};
 
   // Schedule + Logs (kept from old version for backward compat)
   static const _scheduleTasks = [
@@ -99,6 +104,7 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
         description: n['description'] as String? ?? '',
         aiGenerated: n['ai_generated'] as bool? ?? false,
         status: n['status'] as String? ?? 'pending',
+        parentId: n['parent_id'] as String?,
       );
     }
 
@@ -189,22 +195,26 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
 
     if (type != 'ok' || labelCtrl.text.isEmpty) return;
 
+    // Add locally immediately, then sync to server in background
+    final newNode = _FlowNode(
+      id: 'n${DateTime.now().millisecondsSinceEpoch}',
+      label: labelCtrl.text,
+      nodeType: 'scene',
+      parentId: parent.id,
+    );
+    setState(() {
+      parent.children.add(newNode);
+    });
+
+    // Background sync to server (don't block UI)
     try {
       await _api.post('/api/v1/flowgraph/node', body: {
         'parent_id': parent.id,
         'label': labelCtrl.text,
         'node_type': 'scene',
       });
-      await _loadFlowGraph();
     } catch (_) {
-      // Fallback: add locally
-      setState(() {
-        parent.children.add(_FlowNode(
-          id: 'n${DateTime.now().millisecondsSinceEpoch}',
-          label: labelCtrl.text,
-          nodeType: 'scene',
-        ));
-      });
+      // Local add is enough
     }
   }
 
@@ -229,36 +239,53 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
   }
 
   Future<void> _aiExpand(String nodeId) async {
+    final node = _findNode(nodeId);
+    if (node == null) return;
+
+    // Try server AI expand with full node info
     try {
       final result = await _api.post('/api/v1/flowgraph/expand', body: {
         'node_id': nodeId,
+        'label': node.label,
+        'node_type': node.nodeType,
+        'description': node.description,
       });
       if (result['status'] == 'ok') {
-        await _loadFlowGraph();
+        final suggestions = result['suggestions'] as List? ?? [];
+        if (suggestions.isNotEmpty) {
+          setState(() {
+            for (final s in suggestions) {
+              node.children.add(_FlowNode(
+                id: s['id'] as String? ?? 'ai${DateTime.now().millisecondsSinceEpoch}',
+                label: s['label'] as String? ?? '[AI] Suggestion',
+                nodeType: s['node_type'] as String? ?? 'missing',
+                aiGenerated: true,
+              ));
+            }
+          });
+          return;
+        }
       }
-    } catch (_) {
-      // Fallback: add a mock AI suggestion
-      final node = _findNode(nodeId);
-      if (node != null) {
-        setState(() {
-          node.children.add(_FlowNode(
-            id: 'ai${DateTime.now().millisecondsSinceEpoch}',
-            label: '[AI] Suggested scene',
-            nodeType: 'missing',
-            description: 'AI generated suggestion — review and adjust',
-            aiGenerated: true,
-          ));
-        });
-      }
-    }
+    } catch (_) {}
+
+    // Fallback: local mock AI suggestion
+    setState(() {
+      node.children.add(_FlowNode(
+        id: 'ai${DateTime.now().millisecondsSinceEpoch}',
+        label: '[AI] Suggested scene',
+        nodeType: 'missing',
+        description: 'AI generated suggestion — review and adjust',
+        aiGenerated: true,
+      ));
+    });
   }
 
   Future<void> _saveFlowGraph() async {
+    if (_root == null) return;
     try {
-      await _api.post('/api/v1/flowgraph/root', body: {
-        'label': _root?.label ?? 'Untitled',
-      });
-      if (_root != null) await _saveNodeRecursive(_root!);
+      // Build the full tree dict from local data
+      final treeData = _buildTreeDict(_root!);
+      await _api.post('/api/v1/flowgraph/save', body: treeData);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Tr('Saved'), duration: const Duration(seconds: 1)),
@@ -273,17 +300,28 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
     }
   }
 
-  Future<void> _saveNodeRecursive(_FlowNode node) async {
-    for (final child in node.children) {
-      await _api.post('/api/v1/flowgraph/node', body: {
-        'parent_id': node.id,
-        'label': child.label,
-        'node_type': child.nodeType,
-        'description': child.description,
-        'ai_generated': child.aiGenerated,
-      });
-      await _saveNodeRecursive(child);
+  Map<String, dynamic> _buildTreeDict(_FlowNode node) {
+    final nodes = <String, dynamic>{};
+    void walk(_FlowNode n) {
+      nodes[n.id] = {
+        'id': n.id,
+        'label': n.label,
+        'node_type': n.nodeType,
+        'description': n.description,
+        'ai_generated': n.aiGenerated,
+        'status': n.status,
+        'parent_id': n.parentId,
+        'children': n.children.map((c) => c.id).toList(),
+        'progress': 0.0,
+        'agent': '',
+        'metadata': {},
+      };
+      for (final c in n.children) {
+        walk(c);
+      }
     }
+    walk(node);
+    return {'root': node.id, 'nodes': nodes};
   }
 
   Future<void> _updateNodeLabel(String nodeId, String newLabel) async {
@@ -386,17 +424,9 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
               ]),
             ),
           ),
-          _topBtn(i18n.tr('Save'), Icons.save, () {
-            // Re-think how saving works
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: const Tr('Flow graph is auto-synced via API — use Save to persist'),
-                  duration: const Duration(seconds: 2),
-                ),
-              );
-            }
-          }),
+          _topBtn(i18n.tr('Save'), Icons.save, () => _saveFlowGraph()),
+          const SizedBox(width: 4),
+          _topBtn(i18n.tr('Import'), Icons.file_open, () => _importFlowGraph()),
           const SizedBox(width: 4),
           _topBtn(i18n.tr('+ Node'), Icons.add, () => _addNode()),
           const SizedBox(width: 4),
@@ -455,146 +485,128 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
 
   // ══════════════ Tree view ═══════════════════════════════
 
-  Widget _buildTreeView() {
-    return Container(
-      color: const Color(0xFF111122),
-      child: _root == null ? const SizedBox.shrink() : _buildNodeTree(_root!, 0),
-    );
+  // ── Flat tree view — single ReorderableListView ────────
+
+  /// Flatten tree to a list of (node, depth) pairs (pre-order).
+  /// Skips children of collapsed nodes.
+  List<MapEntry<_FlowNode, int>> _flattenTree(_FlowNode node, int depth) {
+    final result = <MapEntry<_FlowNode, int>>[];
+    result.add(MapEntry(node, depth));
+    if (!_collapsedIds.contains(node.id)) {
+      for (final child in node.children) {
+        result.addAll(_flattenTree(child, depth + 1));
+      }
+    }
+    return result;
   }
 
-  Widget _buildNodeTree(_FlowNode node, int depth) {
-    if (node.nodeType == 'beat' && node.children.isEmpty) {
-      return _buildLeafTile(node, depth);
+  Widget _buildTreeView() {
+    if (_root == null) {
+      return const Center(child: Tr('No flow graph data'));
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildBranchTile(node, depth),
-        if (node.children.isNotEmpty)
-          ReorderableListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: node.children.length,
-            onReorder: (oldIdx, newIdx) => _reorderNode(node, oldIdx, newIdx),
-            proxyDecorator: (child, _, __) => Material(
-              color: Colors.transparent,
-              child: Opacity(opacity: 0.7, child: child),
-            ),
-            itemBuilder: (ctx, i) {
-              final child = node.children[i];
-              return _buildNodeTree(child, depth + 1);
-            },
-          ),
-      ],
-    );
-  }
+    final flatList = _flattenTree(_root!, 0);
 
-  Widget _buildBranchTile(_FlowNode node, int depth) {
-    final isSelected = _selectedNode?.id == node.id;
-    final icon = _nodeIcon(node.nodeType);
-    final color = _nodeColor(node.nodeType);
+    return Container(
+      color: const Color(0xFF111122),
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        itemCount: flatList.length,
+        separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFF2A2A4E)),
+        itemBuilder: (ctx, i) {
+          final entry = flatList[i];
+          final node = entry.key;
+          final depth = entry.value;
+          final isSelected = _selectedNode?.id == node.id;
+          final color = _nodeColor(node.nodeType);
 
-    return GestureDetector(
-      onTap: () => _selectNode(node),
-      child: Container(
-        key: ValueKey(node.id),
-        padding: EdgeInsets.only(
-          left: 12.0 + depth * 20.0,
-          right: 8,
-          top: 6,
-          bottom: 4,
-        ),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF2A2A4E) : Colors.transparent,
-          border: const Border(bottom: BorderSide(color: Color(0xFF1A1A2E), width: 0.5)),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, size: 14, color: color),
-            const SizedBox(width: 6),
-            if (node.aiGenerated)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
-                margin: const EdgeInsets.only(right: 4),
-                decoration: BoxDecoration(
-                  color: Colors.orange.shade800,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-                child: const Text('AI', style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.white)),
+          return GestureDetector(
+            onTap: () => _selectNode(node),
+            child: Container(
+              key: ValueKey('${node.id}_$i'),
+              padding: EdgeInsets.only(
+                left: 12.0 + depth * 20.0,
+                right: 8,
+                top: 8,
+                bottom: 8,
               ),
-            Expanded(
-              child: Text(
-                i18n.tr(node.label),
-                style: TextStyle(
-                  fontSize: 12,
-                  color: node.aiGenerated ? Colors.orange.shade200 : Colors.white,
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                  decoration: node.nodeType == 'missing' ? TextDecoration.lineThrough : null,
-                ),
-                overflow: TextOverflow.ellipsis,
+              decoration: BoxDecoration(
+                color: isSelected ? const Color(0xFF2A2A4E) : Colors.transparent,
+              ),
+              child: Row(
+                children: [
+                  // Collapse / expand toggle
+                  SizedBox(
+                    width: 16,
+                    child: node.children.isNotEmpty
+                        ? GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                if (_collapsedIds.contains(node.id)) {
+                                  _collapsedIds.remove(node.id);
+                                } else {
+                                  _collapsedIds.add(node.id);
+                                }
+                              });
+                            },
+                            child: Icon(
+                              _collapsedIds.contains(node.id) ? Icons.arrow_right : Icons.arrow_drop_down,
+                              size: 16, color: Colors.grey,
+                            ),
+                          )
+                        : const SizedBox(width: 16),
+                  ),
+                  Icon(_nodeIcon(node.nodeType), size: 14, color: color),
+                  const SizedBox(width: 8),
+                  if (node.aiGenerated)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                      margin: const EdgeInsets.only(right: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade800,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                      child: const Text('AI', style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.white)),
+                    ),
+                  Expanded(
+                    child: Text(
+                      node.label,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: node.aiGenerated ? Colors.orange.shade200 : Colors.white,
+                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  // Child count
+                  if (node.children.isNotEmpty)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                      margin: const EdgeInsets.only(right: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.white12,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text('${node.children.length}',
+                          style: const TextStyle(fontSize: 9, color: Colors.grey)),
+                    ),
+                  // Menu
+                  PopupMenuButton<String>(
+                    onSelected: (action) => _handleNodeAction(node, action),
+                    color: const Color(0xFF16213E),
+                    itemBuilder: (_) => [
+                      const PopupMenuItem(value: 'add', child: Tr('Add Child', style: TextStyle(color: Colors.white, fontSize: 11))),
+                      const PopupMenuItem(value: 'ai', child: Tr('AI Expand', style: TextStyle(color: Colors.white, fontSize: 11))),
+                      const PopupMenuItem(value: 'delete', child: Tr('Delete', style: TextStyle(color: Colors.red, fontSize: 11))),
+                    ],
+                    icon: const Icon(Icons.more_horiz, size: 14, color: Colors.grey),
+                  ),
+                ],
               ),
             ),
-            if (node.children.isNotEmpty)
-              Text('${node.children.length}', style: const TextStyle(fontSize: 10, color: Colors.grey)),
-            PopupMenuButton<String>(
-              onSelected: (action) => _handleNodeAction(node, action),
-              color: const Color(0xFF16213E),
-              itemBuilder: (_) => [
-                const PopupMenuItem(value: 'add', child: Tr('Add Child', style: TextStyle(color: Colors.white, fontSize: 11))),
-                const PopupMenuItem(value: 'ai', child: Tr('AI Expand', style: TextStyle(color: Colors.white, fontSize: 11))),
-                const PopupMenuItem(value: 'delete', child: Tr('Delete', style: TextStyle(color: Colors.red, fontSize: 11))),
-              ],
-              icon: const Icon(Icons.more_horiz, size: 14, color: Colors.grey),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLeafTile(_FlowNode node, int depth) {
-    final isSelected = _selectedNode?.id == node.id;
-    final color = _nodeColor(node.nodeType);
-
-    return GestureDetector(
-      onTap: () => _selectNode(node),
-      child: Container(
-        key: ValueKey(node.id),
-        padding: EdgeInsets.only(
-          left: 12.0 + depth * 20.0,
-          right: 8,
-          top: 5,
-          bottom: 4,
-        ),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF2A2A4E) : Colors.transparent,
-          border: const Border(bottom: BorderSide(color: Color(0xFF1A1A2E), width: 0.5)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 6, height: 6,
-              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              i18n.tr(node.label),
-              style: TextStyle(fontSize: 11, color: Colors.white70),
-              overflow: TextOverflow.ellipsis,
-            ),
-            const Spacer(),
-            PopupMenuButton<String>(
-              onSelected: (a) => _handleNodeAction(node, a),
-              color: const Color(0xFF16213E),
-              itemBuilder: (_) => [
-                const PopupMenuItem(value: 'add', child: Tr('Add Child', style: TextStyle(color: Colors.white, fontSize: 11))),
-                const PopupMenuItem(value: 'delete', child: Tr('Delete', style: TextStyle(color: Colors.red, fontSize: 11))),
-              ],
-              icon: const Icon(Icons.more_horiz, size: 12, color: Colors.grey),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -819,6 +831,79 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
         );
       },
     );
+  }
+
+  // ── Import ──────────────────────────────────────────────
+
+  Future<void> _importFlowGraph() async {
+    final dataDir = '/home/guxiao/projects/video_ai_agent/data';
+    final picked = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        final ctrl = TextEditingController(text: '$dataDir/');
+        return AlertDialog(
+          backgroundColor: const Color(0xFF16213E),
+          title: const Text('Import Flow Graph',
+              style: TextStyle(color: Colors.white, fontSize: 14)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Enter path to JSON file:',
+                  style: TextStyle(color: Colors.white70, fontSize: 12)),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: 300,
+                child: TextField(
+                  controller: ctrl,
+                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                  decoration: const InputDecoration(
+                    hintText: '/path/to/flowgraph.json',
+                    hintStyle: TextStyle(color: Colors.grey, fontSize: 12),
+                    border: OutlineInputBorder(),
+                    contentPadding:
+                        EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel',
+                    style: TextStyle(color: Colors.grey, fontSize: 12))),
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, ctrl.text),
+                child: const Text('Import',
+                    style:
+                        TextStyle(color: Color(0xFF6C63FF), fontSize: 12))),
+          ],
+        );
+      },
+    );
+
+    if (picked == null || picked.isEmpty) return;
+
+    try {
+      await _api.post('/api/v1/flowgraph/import', body: {'path': picked});
+      await _loadFlowGraph();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Imported successfully'),
+              duration: Duration(seconds: 2)),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text('Import failed: $e'),
+              duration: const Duration(seconds: 3)),
+        );
+      }
+    }
   }
 
   // ─── Helpers ───────────────────────────────────────────

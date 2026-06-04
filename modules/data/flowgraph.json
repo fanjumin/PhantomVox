@@ -1,0 +1,38 @@
+{
+  "root": "root",
+  "nodes": {
+    "root": {
+      "id": "root",
+      "label": "我的项目",
+      "node_type": "topic",
+      "description": "",
+      "status": "pending",
+      "progress": 0.0,
+      "agent": "",
+      "parent_id": null,
+      "children": [
+        "n1"
+      ],
+      "ai_generated": false,
+      "metadata": {}
+    },
+    "n1": {
+      "id": "n1",
+      "label": "场景1",
+      "node_type": "scene",
+      "description": "",
+      "status": "pending",
+      "progress": 0.0,
+      "agent": "",
+      "parent_id": "root",
+      "children": [],
+      "ai_generated": false,
+      "metadata": {}
+    }
+  },
+  "counts": {
+    "topic": 1,
+    "scene": 1
+  },
+  "has_ai_suggestions": false
+}

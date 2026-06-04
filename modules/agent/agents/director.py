@@ -8,6 +8,7 @@ Responsibilities:
 - Expand flow graph nodes with AI suggestions
 """
 
+import os
 from typing import Any, Dict, List, Optional
 
 from modules.agent.mindmap import FlowGraph, FlowNode, NodeType, NodeStatus
@@ -23,6 +24,21 @@ class DirectorAgent(AgentBase):
     def __init__(self, engine=None):
         self._engine = engine
         self._flowgraph: FlowGraph = FlowGraph()
+        self._flowgraph_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))),
+            'data', 'flowgraph.json',
+        )
+        # Auto-load on startup
+        loaded = FlowGraph.load_from_file(self._flowgraph_path)
+        if loaded.root:
+            self._flowgraph = loaded
+
+    def _save(self):
+        """Auto-save flowgraph to disk."""
+        try:
+            self._flowgraph.save_to_file(self._flowgraph_path)
+        except Exception:
+            pass
 
     @property
     def flowgraph(self) -> FlowGraph:
@@ -31,6 +47,7 @@ class DirectorAgent(AgentBase):
     @flowgraph.setter
     def flowgraph(self, fg: FlowGraph):
         self._flowgraph = fg
+        self._save()
 
     async def execute(self, task: Dict[str, Any]) -> Dict[str, Any]:
         action = task.get("action", "plan")
@@ -42,9 +59,14 @@ class DirectorAgent(AgentBase):
             nid = task.get("node_id", "")
             status = task.get("status", "pending")
             self._flowgraph.update_node(nid, status=NodeStatus(status))
+            self._save()
             return {"status": "ok"}
         elif action == "expand_flowgraph":
-            return self._expand_node(task.get("node_id", "root"))
+            return self._expand_node(
+                task.get("node_id", "root"),
+                label=task.get("label", ""),
+                description=task.get("description", ""),
+            )
         return {"status": "error", "message": f"Unknown action: {action}"}
 
     def reset_flowgraph(self, label: str = ""):
@@ -68,13 +90,20 @@ class DirectorAgent(AgentBase):
             "tasks": tasks,
         }
 
-    def _expand_node(self, node_id: str) -> Dict[str, Any]:
+    def _expand_node(self, node_id: str, label: str = "", description: str = "") -> Dict[str, Any]:
         """AI expand a flow graph node — generate child suggestions."""
-        from modules.agent.llm_client import LLMClient
+        from modules.agent.llm_client import chat as llm_chat
 
         node = self._flowgraph.nodes.get(node_id)
         if not node:
-            return {"status": "error", "message": f"Node not found: {node_id}"}
+            # Fallback: use label/description from frontend
+            node_label = label or node_id
+            node_desc = description or ""
+            node_type_str = "topic"
+        else:
+            node_label = node.label
+            node_desc = node.description
+            node_type_str = node.node_type.value
 
         # Build context from existing flow graph
         fg = self._flowgraph
@@ -83,25 +112,20 @@ class DirectorAgent(AgentBase):
             existing_nodes.append(f"  [{n.node_type.value}] {n.label}")
         context = "\n".join(existing_nodes)
 
-        if self._engine:
-            try:
-                cfg = self._engine.get("config")
-                profile = cfg.get_profile() if cfg else {}
-                provider = profile.get("provider", "deepseek")
-                model = profile.get("model", "deepseek-v4")
-            except Exception:
-                provider = "deepseek"
-                model = "deepseek-v4"
+        # Get config and model info
+        cfg = self._engine.get("config") if self._engine else None
+        if cfg:
+            profile = cfg.get_profile() if hasattr(cfg, 'get_profile') else {}
+            model = profile.get("model", "deepseek-v4")
         else:
-            provider = "deepseek"
             model = "deepseek-v4"
 
-        prompt = f"""You are the Director Agent for a video creation tool. The user is building a creative flow graph.
+        messages = [{"role": "user", "content": f"""You are the Director Agent for a video creation tool. The user is building a creative flow graph.
 Current flow graph:
 {context}
 
-The user wants to expand the node: "{node.label}" (type: {node.node_type.value})
-Description: {node.description}
+The user wants to expand the node: "{node_label}" (type: {node_type_str})
+Description: {node_desc}
 
 Generate 2-4 child nodes that would naturally expand this creative step.
 Each child should have:
@@ -111,15 +135,17 @@ Each child should have:
 
 Return ONLY a JSON array with no markdown:
 [{{"label": "...", "description": "...", "node_type": "..."}}]
-"""
-        result = ""
-        client = LLMClient(provider=provider, model=model)
+"""}]
+
         try:
-            import asyncio
-            response = asyncio.run(client.chat(prompt))
-            result = response.get("content", "")
+            response = llm_chat(cfg, messages, model_key=model)
         except Exception as e:
             return {"status": "error", "message": f"LLM call failed: {e}"}
+
+        if response.get("status") != "ok":
+            return {"status": "error", "message": response.get("error", "LLM call failed")}
+
+        result = response.get("reply", "")
 
         # Parse the response
         import json
@@ -135,24 +161,19 @@ Return ONLY a JSON array with no markdown:
             else:
                 return {"status": "error", "message": f"Could not parse LLM response: {result[:200]}"}
 
-        # Add nodes to flow graph
+        # Return suggestions without adding to server tree (frontend adds locally)
         added = []
         for child in children:
-            nt = NodeType(child.get("node_type", "scene"))
-            nid = fg.add_node(
-                node_id,
-                child.get("label", "Untitled"),
-                node_type=nt,
-                description=child.get("description", ""),
-                ai_generated=True,
-            )
-            added.append({"id": nid, "label": child.get("label", ""), "node_type": nt.value})
+            added.append({
+                "id": f"s{len(added)}",
+                "label": child.get("label", "Untitled"),
+                "node_type": child.get("node_type", "scene"),
+            })
 
         return {
             "status": "ok",
             "node_id": node_id,
             "suggestions": added,
-            "flowgraph": fg.to_dict(),
         }
 
     def _decompose_intent(self, intent: str) -> List[dict]:

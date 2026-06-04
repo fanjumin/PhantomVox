@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional, Dict
 from enum import Enum
 import json
+import os
 
 
 class NodeType(str, Enum):
@@ -237,6 +238,23 @@ class FlowGraph:
     @classmethod
     def from_json(cls, s: str) -> FlowGraph:
         return cls.from_dict(json.loads(s))
+
+    # ── Persistence ──────────────────────────────────────────
+
+    def save_to_file(self, path: str):
+        """Save flow graph to a JSON file."""
+        import os
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, 'w', encoding='utf-8') as f:
+            f.write(self.to_json())
+
+    @classmethod
+    def load_from_file(cls, path: str) -> FlowGraph:
+        """Load flow graph from a JSON file. Returns empty FlowGraph if not found."""
+        if not os.path.exists(path):
+            return cls()
+        with open(path, 'r', encoding='utf-8') as f:
+            return cls.from_dict(json.loads(f.read()))
 
     # ── Internals ────────────────────────────────────────────
 
