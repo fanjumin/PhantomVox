@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 import '../services/api_service.dart';
 import '../widgets/tr.dart';
 import '../../services/i18n_service.dart';
@@ -65,11 +66,15 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
   // ── Dialogs ──────────────────────────────────────
 
   Future<void> _openDialog() async {
-    final path = await _textDialog('Open Image', 'File path:',
-        '/home/guxiao/projects/video_ai_agent/data/');
-    if (path == null || path.isEmpty) return;
-    setState(() => _loading = true);
     try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        allowMultiple: false,
+      );
+      if (result == null || result.files.isEmpty) return;
+      final path = result.files.first.path;
+      if (path == null) return;
+      setState(() => _loading = true);
       final r = await _api.post('/api/v1/editor/load', body: {'path': path});
       if (r['status'] == 'ok') {
         _info = r['info'] as Map<String, dynamic>?;
@@ -84,13 +89,16 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
   }
 
   Future<void> _exportDialog() async {
-    final path = await _textDialog('Export Image', 'Save to:',
-        '/home/guxiao/projects/video_ai_agent/data/exported_image.png');
-    if (path == null || path.isEmpty) return;
     try {
+      final result = await FilePicker.platform.saveFile(
+        type: FileType.image,
+        fileName: 'exported_${DateTime.now().millisecondsSinceEpoch}.png',
+      );
+      if (result == null) return;
+      final path = result;
       final r = await _api.post('/api/v1/editor/export', body: {'path': path});
       if (r['status'] == 'ok') {
-        _showMsg('Exported to ${r['path']}');
+        _showMsg('Exported to $path');
       } else {
         _showMsg(r['error'] ?? 'Export failed');
       }
