@@ -609,7 +609,7 @@ class _HomePageState extends State<HomePage> {
       color: const Color(0xFF12121E),
       child: Row(
         children: [
-          const Text('PhantomVox v0.2.2',
+          const Text('PhantomVox v0.2.3',
               style: TextStyle(fontSize: 8, color: Colors.grey)),
           const SizedBox(width: 8),
           Container(width: 1, height: 12, color: const Color(0xFF2A2A3E)),
