@@ -545,7 +545,7 @@ class _SettingsPageState extends State<SettingsPage>
               foregroundColor: Colors.grey,
               side: BorderSide(color: Colors.grey[800]!),
             ),
-            child: const Text('Reset', style: TextStyle(fontSize: 12)),
+            child: Tr('Reset', style: TextStyle(fontSize: 12)),
           ),
           const SizedBox(width: 12),
           ElevatedButton(
@@ -554,7 +554,7 @@ class _SettingsPageState extends State<SettingsPage>
               backgroundColor: const Color(0xFF6C63FF),
               foregroundColor: Colors.white,
             ),
-            child: const Text('Apply', style: TextStyle(fontSize: 12)),
+            child: Tr('Apply', style: TextStyle(fontSize: 12)),
           ),
         ],
       ),
