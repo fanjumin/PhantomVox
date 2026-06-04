@@ -39,9 +39,9 @@ def create_app(engine=None):
     from modules.agent.panels.chat import ChatPanel, ThinkPanel, ImageGenPanel, VideoGenPanel, CodeGenPanel
 
     agent_engine = AgentEngine(engine=engine)
-    agent_engine.register_panel("chat", ChatPanel())
-    agent_engine.register_panel("think", ThinkPanel())
-    agent_engine.register_panel("image_gen", ImageGenPanel())
+    agent_engine.register_panel("chat", ChatPanel(engine=engine))
+    agent_engine.register_panel("think", ThinkPanel(engine=engine))
+    agent_engine.register_panel("image_gen", ImageGenPanel(engine=engine))
     agent_engine.register_panel("video_gen", VideoGenPanel())
     agent_engine.register_panel("code_gen", CodeGenPanel())
     engine.register("agent", agent_engine)
