@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../widgets/tr.dart';
+import '../../services/i18n_service.dart';
 
 /// EffectLab page — visual effects compositing workspace (Fusion-style)
 /// Reference: DaVinci Resolve Fusion workspace
@@ -332,7 +333,7 @@ class _EffectLabPageState extends State<EffectLabPage> {
                         TextField(
                           style: const TextStyle(fontSize: 9, color: Colors.white),
                           decoration: InputDecoration(
-                            hintText: 'Describe the effect...',
+                            hintText: i18n.tr('Describe the effect...'),
                             hintStyle: const TextStyle(fontSize: 9, color: Colors.grey),
                             filled: true, fillColor: const Color(0xFF1A1A2E),
                             border: OutlineInputBorder(

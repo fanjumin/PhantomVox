@@ -323,7 +323,7 @@ class _SettingsPageState extends State<SettingsPage>
                 obscureText: true,
                 style: const TextStyle(fontSize: 11),
                 decoration: InputDecoration(
-                  hintText: 'sk-...',
+                  hintText: i18n.tr('sk-...'),
                   hintStyle: TextStyle(color: Colors.grey[700]),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                   border: OutlineInputBorder(
@@ -528,7 +528,7 @@ class _SettingsPageState extends State<SettingsPage>
       backgroundColor: const Color(0xFF0D0D1A),
       onPressed: () {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$label coming soon'), duration: const Duration(seconds: 1)),
+          SnackBar(content: Tr('{label} coming soon', params: {'label': label}), duration: const Duration(seconds: 1)),
         );
       },
     );
@@ -619,7 +619,7 @@ class _SettingsPageState extends State<SettingsPage>
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Save failed: $e'), backgroundColor: Colors.redAccent),
+        SnackBar(content: Tr('Save failed', params: {'error': '$e'}), backgroundColor: Colors.redAccent),
       );
     }
   }

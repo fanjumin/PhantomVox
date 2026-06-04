@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../services/project_manager.dart';
 import '../../widgets/tr.dart';
+import '../../services/i18n_service.dart';
 
 
 /// Static helpers for file operations triggered from the menu bar.
@@ -37,7 +38,7 @@ class FileOperations {
                       controller: nameCtrl,
                       style: const TextStyle(fontSize: 12),
                       decoration: InputDecoration(
-                        hintText: 'My Project Name',
+                        hintText: i18n.tr('My Project Name'),
                         hintStyle: TextStyle(color: Colors.grey[700]),
                         contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                         border: OutlineInputBorder(

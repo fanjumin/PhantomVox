@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../widgets/timeline_canvas.dart';
 import '../widgets/tr.dart';
+import '../../services/i18n_service.dart';
 
 /// ProEdit page — 4-panel precision editing layout
 /// Reference: DaVinci Resolve Edit workspace
@@ -619,7 +620,7 @@ class _ProEditPageState extends State<ProEditPage> {
               children: [
                 TextField(
                   decoration: InputDecoration(
-                    hintText: 'Adjust color to warm cinematic...',
+                    hintText: i18n.tr('Adjust color to warm cinematic...'),
                     hintStyle: const TextStyle(fontSize: 10, color: Colors.grey),
                     filled: true, fillColor: const Color(0xFF1A1A2E),
                     border: OutlineInputBorder(

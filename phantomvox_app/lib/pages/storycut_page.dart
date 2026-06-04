@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../widgets/tr.dart';
+import '../../services/i18n_service.dart';
 
 /// StoryCut page — quick story editing workspace
 class StoryCutPage extends StatefulWidget {
@@ -188,7 +189,7 @@ class _StoryCutPageState extends State<StoryCutPage> {
             child: TextField(
               style: const TextStyle(fontSize: 11, color: Colors.white),
               decoration: InputDecoration(
-                hintText: 'Search clips...',
+                hintText: i18n.tr('Search clips...'),
                 hintStyle: TextStyle(fontSize: 10, color: Colors.grey[600]),
                 border: InputBorder.none,
                 prefixIcon: Icon(Icons.search, size: 14, color: Colors.grey[600]),

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../widgets/tr.dart';
+import '../../services/i18n_service.dart';
 
 /// AI Agent page — multi-agent control center with mind map
 class AgentPage extends StatefulWidget {
@@ -371,7 +372,7 @@ class _AgentPageState extends State<AgentPage>
                   controller: _chatCtrl,
                   style: const TextStyle(fontSize: 12),
                   decoration: InputDecoration(
-                    hintText: _loading ? 'Thinking...' : 'Ask AI to do anything...',
+                    hintText: _loading ? i18n.tr('Thinking...') : i18n.tr('Ask AI to do anything...'),
                     hintStyle: TextStyle(fontSize: 11, color: Colors.grey[600]),
                     filled: true,
                     fillColor: const Color(0xFF1A1A2E),
@@ -458,7 +459,7 @@ class _AgentPageState extends State<AgentPage>
             maxLines: 3,
             style: const TextStyle(fontSize: 12),
             decoration: InputDecoration(
-              hintText: 'Describe the image...',
+              hintText: i18n.tr('Describe the image...'),
               hintStyle: TextStyle(fontSize: 11, color: Colors.grey[600]),
               filled: true,
               fillColor: const Color(0xFF1A1A2E),
@@ -537,7 +538,7 @@ class _AgentPageState extends State<AgentPage>
             maxLines: 3,
             style: const TextStyle(fontSize: 12),
             decoration: InputDecoration(
-              hintText: 'Describe the video...',
+              hintText: i18n.tr('Describe the video...'),
               hintStyle: TextStyle(fontSize: 11, color: Colors.grey[600]),
               filled: true,
               fillColor: const Color(0xFF1A1A2E),
@@ -603,7 +604,7 @@ class _AgentPageState extends State<AgentPage>
             maxLines: 2,
             style: const TextStyle(fontSize: 11, fontFamily: 'monospace'),
             decoration: InputDecoration(
-              hintText: 'Describe the effect (e.g. "sepia tone", "fade transition")...',
+              hintText: i18n.tr('Describe the effect...'),
               filled: true,
               fillColor: Color(0xFF1A1A2E),
               border: OutlineInputBorder(),

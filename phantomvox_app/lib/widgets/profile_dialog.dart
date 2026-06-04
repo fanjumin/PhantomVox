@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../../widgets/tr.dart';
+import '../../services/i18n_service.dart';
 
 
 /// Local profile dialog — no cloud account, just local display name + prefs.
@@ -60,7 +61,7 @@ class _ProfileDialogState extends State<ProfileDialog> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Save failed: $e'), backgroundColor: Colors.redAccent),
+        SnackBar(content: Tr('Save failed', params: {'error': '$e'}), backgroundColor: Colors.redAccent),
       );
     }
   }
@@ -86,8 +87,8 @@ class _ProfileDialogState extends State<ProfileDialog> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Display Name',
-                          style: TextStyle(fontSize: 11, color: Colors.grey)),
+                      Tr('Display Name',
+                          style: const TextStyle(fontSize: 11, color: Colors.grey)),
                       const SizedBox(height: 4),
                       SizedBox(
                         height: 36,
@@ -95,7 +96,7 @@ class _ProfileDialogState extends State<ProfileDialog> {
                           controller: _nameCtrl,
                           style: const TextStyle(fontSize: 13),
                           decoration: InputDecoration(
-                            hintText: 'Enter your name',
+                            hintText: i18n.tr('Enter your name'),
                             hintStyle: TextStyle(color: Colors.grey[700]),
                             contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                             border: OutlineInputBorder(
@@ -121,17 +122,16 @@ class _ProfileDialogState extends State<ProfileDialog> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _infoRow('Type', 'Local (no cloud)'),
-                            _infoRow('Created',
+                            _infoRow(i18n.tr('Type'), i18n.tr('Local (no cloud)')),
+                            _infoRow(i18n.tr('Created'),
                                 _profile?['created_at']?.toString()?.split('T')[0] ?? '-'),
-                            _infoRow('Data path', '~/.phantomvox/profile.json'),
+                            _infoRow(i18n.tr('Data path'), '~/.phantomvox/profile.json'),
                           ],
                         ),
                       ),
                       const SizedBox(height: 8),
-                      Text(
-                        'Your profile is stored locally on this machine.\n'
-                        'No data leaves your computer.',
+                      Tr(
+                        'Your profile is stored locally on this machine. No data leaves your computer.',
                         style: TextStyle(color: Colors.grey[700], fontSize: 10),
                       ),
                     ],
