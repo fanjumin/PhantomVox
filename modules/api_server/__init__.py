@@ -348,8 +348,13 @@ def create_app(engine=None):
     @app.route("/api/v1/models")
     def models_list():
         cfg = app.engine.get("config")
-        category = request.args.get("category", "llm")
+        category = request.args.get("category", "all")
         tier = request.args.get("tier", 1, type=int)
+        if category == "all":
+            results = []
+            for cat in ("llm", "image", "video", "tts", "music", "restore"):
+                results.extend(cfg.get_available_models(cat, tier))
+            return jsonify({"models": results})
         return jsonify({"models": cfg.get_available_models(category, tier)})
 
     @app.route("/api/v1/models/config")
