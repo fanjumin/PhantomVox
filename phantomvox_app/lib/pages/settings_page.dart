@@ -132,11 +132,11 @@ class _SettingsPageState extends State<SettingsPage>
           indicatorColor: const Color(0xFF6C63FF),
           labelColor: Colors.white,
           unselectedLabelColor: Colors.grey,
-          tabs: const [
-            Tab(text: 'General'),
-            Tab(text: 'Project'),
-            Tab(text: 'AI Models'),
-            Tab(text: 'About'),
+          tabs: [
+            Tab(text: i18n.tr('General')),
+            Tab(text: i18n.tr('Project')),
+            Tab(text: i18n.tr('AI Models')),
+            Tab(text: i18n.tr('About')),
           ],
         ),
       ),
@@ -194,9 +194,9 @@ class _SettingsPageState extends State<SettingsPage>
               const SizedBox(width: 12),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text('Local Profile', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-                  Text('No cloud account required. Preferences are stored locally.',
+                children: [
+                  Text(i18n.tr('Local Profile'), style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                  Text(i18n.tr('No cloud account required. Preferences are stored locally.'),
                       style: TextStyle(color: Colors.grey, fontSize: 11)),
                 ],
               ),
@@ -246,7 +246,7 @@ class _SettingsPageState extends State<SettingsPage>
       const SizedBox(height: 16),
       Center(
         child: Text(
-          'Local models do not require API keys.',
+          i18n.tr('Local models do not require API keys.'),
           style: TextStyle(color: Colors.grey[600], fontSize: 11),
         ),
       ),
@@ -276,7 +276,7 @@ class _SettingsPageState extends State<SettingsPage>
         Row(
           children: [
             const SizedBox(width: 16),
-            const Text('Temperature:', style: TextStyle(fontSize: 11, color: Colors.grey)),
+            Text(i18n.tr('Temperature:'), style: TextStyle(fontSize: 11, color: Colors.grey)),
             Expanded(
               child: Slider(
                 value: _temperature,
@@ -358,29 +358,28 @@ class _SettingsPageState extends State<SettingsPage>
             children: [
               const Icon(Icons.movie_creation, size: 48, color: Color(0xFF6C63FF)),
               const SizedBox(height: 8),
-              const Text('v0.2.5',
+              Text(i18n.tr('v0.2.5'),
                   style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
               const SizedBox(height: 4),
-              const Text('Where AI Meets Creativity',
+              Text(i18n.tr('Where AI Meets Creativity'),
                   style: TextStyle(color: Colors.grey, fontSize: 13)),
               const SizedBox(height: 24),
-              _infoRow('License', 'MIT'),
-              _infoRow('Platform', 'Linux, Windows, macOS'),
-              _infoRow('Flutter SDK', '3.44.1'),
-              _infoRow('Python', '3.12'),
+              _infoRow(i18n.tr('License'), i18n.tr('MIT')),
+              _infoRow(i18n.tr('Platform'), i18n.tr('Linux, Windows, macOS')),
+              _infoRow(i18n.tr('Flutter SDK'), i18n.tr('3.44.1')),
+              _infoRow(i18n.tr('Python'), i18n.tr('3.12')),
               const SizedBox(height: 24),
               Wrap(
                 spacing: 8,
                 children: [
-                  _actionChip(Icons.update, 'Check Updates'),
-                  _actionChip(Icons.computer, 'System Info'),
-                  _actionChip(Icons.description, 'License'),
+                  _actionChip(Icons.update, i18n.tr('Check Updates')),
+                  _actionChip(Icons.computer, i18n.tr('System Info')),
+                  _actionChip(Icons.description, i18n.tr('License')),
                 ],
               ),
               const SizedBox(height: 32),
               Text(
-                'Built with Flutter + Python AI Server\n'
-                '© 2026 PhantomVox AI',
+                i18n.tr('Built with Flutter + Python AI Server.'),
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.grey[700], fontSize: 10),
               ),
@@ -430,7 +429,7 @@ class _SettingsPageState extends State<SettingsPage>
         children: [
           SizedBox(
             width: 140,
-            child: Text(label, style: const TextStyle(fontSize: 12)),
+            child: Text(i18n.tr(label), style: const TextStyle(fontSize: 12)),
           ),
           SizedBox(
             width: 280,
@@ -477,7 +476,7 @@ class _SettingsPageState extends State<SettingsPage>
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         children: [
-          SizedBox(width: 140, child: Text(label, style: const TextStyle(fontSize: 12))),
+          SizedBox(width: 140, child: Text(i18n.tr(label), style: const TextStyle(fontSize: 12))),
           ...children,
         ],
       ),
@@ -496,7 +495,7 @@ class _SettingsPageState extends State<SettingsPage>
             color: selected ? const Color(0xFF6C63FF) : Colors.grey,
           ),
           const SizedBox(width: 4),
-          Text(label, style: TextStyle(fontSize: 12, color: selected ? Colors.white : Colors.grey)),
+          Text(i18n.tr(label), style: TextStyle(fontSize: 12, color: selected ? Colors.white : Colors.grey)),
         ],
       ),
     );
@@ -524,7 +523,7 @@ class _SettingsPageState extends State<SettingsPage>
   Widget _actionChip(IconData icon, String label) {
     return ActionChip(
       avatar: Icon(icon, size: 14),
-      label: Text(label, style: const TextStyle(fontSize: 11)),
+      label: Text(i18n.tr(label), style: const TextStyle(fontSize: 11)),
       backgroundColor: const Color(0xFF0D0D1A),
       onPressed: () {
         ScaffoldMessenger.of(context).showSnackBar(

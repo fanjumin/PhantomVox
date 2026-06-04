@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../widgets/tr.dart';
+import '../services/i18n_service.dart';
 import '../widgets/tr.dart';
 
 
@@ -145,7 +146,7 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
                       )),
                     ),
                     child: Text(
-                      '${t.icon} ${t.label}',
+                      '${t.icon} ${i18n.tr(t.label)}',
                       style: TextStyle(
                         fontSize: 11,
                         color: active ? Colors.white : Colors.grey,
@@ -175,11 +176,11 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
                   ),
                 ),
                 const SizedBox(width: 6),
-                _miniBtn('▶', 'Run All'),
+                _miniBtn('▶', i18n.tr('Run All')),
                 const SizedBox(width: 4),
-                _miniBtn('⏸', 'Pause'),
+                _miniBtn('⏸', i18n.tr('Pause')),
                 const SizedBox(width: 4),
-                _miniBtn('💾', 'Save'),
+                _miniBtn('💾', i18n.tr('Save')),
               ],
             ),
           ),
@@ -190,7 +191,7 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
 
   Widget _miniBtn(String icon, String tooltip) {
     return Tooltip(
-      message: tooltip,
+      message: i18n.tr(tooltip),
       child: GestureDetector(
         onTap: () => setState(() {}),
         child: Container(
@@ -287,9 +288,9 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
             children: [
               Tr('Scheduled Tasks', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
               const Spacer(),
-              _actionChip('+ Add', Icons.add, () {}),
+              _actionChip(i18n.tr('+ Add'), Icons.add, () {}),
               const SizedBox(width: 8),
-              _actionChip('Import/Export', Icons.import_export, () {}),
+              _actionChip(i18n.tr('Import/Export'), Icons.import_export, () {}),
             ],
           ),
           const SizedBox(height: 12),
@@ -326,7 +327,7 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
 
   Widget _buildTaskRow(_ScheduledTask task) {
     final icon = task.status == _TaskStatus.active ? '🟢' : task.status == _TaskStatus.paused ? '⚪' : '🔴';
-    final st = task.status == _TaskStatus.active ? 'Active' : task.status == _TaskStatus.paused ? 'Paused' : 'Failed';
+    final st = task.status == _TaskStatus.active ? i18n.tr('Active') : task.status == _TaskStatus.paused ? i18n.tr('Paused') : i18n.tr('Failed');
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: const BoxDecoration(
@@ -361,12 +362,12 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
         children: [
           Tr('Workflow Settings', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
           const SizedBox(height: 16),
-          _settingRow('Execution Mode', 'Serial'),
-          _settingRow('Parallel Branches', 'Enabled'),
-          _settingRow('Conditional Branching', 'Enabled'),
-          _settingRow('Merge Mode', 'Auto-merge'),
-          _settingRow('Max Retries', '3'),
-          _settingRow('Timeout per node', '5 min'),
+          _settingRow(i18n.tr('Execution Mode'), i18n.tr('Serial')),
+          _settingRow(i18n.tr('Parallel Branches'), i18n.tr('Enabled')),
+          _settingRow(i18n.tr('Conditional Branching'), i18n.tr('Enabled')),
+          _settingRow(i18n.tr('Merge Mode'), i18n.tr('Auto-merge')),
+          _settingRow(i18n.tr('Max Retries'), i18n.tr('3')),
+          _settingRow(i18n.tr('Timeout per node'), i18n.tr('5 min')),
           const Spacer(),
           FilledButton.icon(
             onPressed: () {},
@@ -383,8 +384,8 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
-          SizedBox(width: 160, child: Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey))),
-          Text(value, style: const TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.w500)),
+          SizedBox(width: 160, child: Text(i18n.tr(label), style: const TextStyle(fontSize: 12, color: Colors.grey))),
+          Text(i18n.tr(value), style: const TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.w500)),
         ],
       ),
     );
@@ -402,7 +403,7 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
             children: [
               Tr('Run Logs', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
               const Spacer(),
-              _actionChip('Clear', Icons.delete_sweep, () => setState(() => _runs.clear())),
+              _actionChip(i18n.tr('Clear'), Icons.delete_sweep, () => setState(() => _runs.clear())),
             ],
           ),
           const SizedBox(height: 12),
@@ -440,7 +441,7 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
   Widget _buildLogRow(int i) {
     final r = _runs[i];
     final statusIcon = r.status == 'running' ? '🟢' : r.status == 'done' ? '✅' : '🔴';
-    final statusLabel = r.status == 'running' ? 'Running' : r.status == 'done' ? 'Done' : 'Failed';
+    final statusLabel = r.status == 'running' ? i18n.tr('Running') : r.status == 'done' ? i18n.tr('Done') : i18n.tr('Failed');
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: const BoxDecoration(
@@ -476,11 +477,11 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
             child: Row(
               children: [
                 if (r.status == 'running')
-                  _tinyBtn('View')
+                  _tinyBtn(i18n.tr('View'))
                 else if (r.status == 'done')
-                  _tinyBtn('Log')
+                  _tinyBtn(i18n.tr('Log'))
                 else
-                  _tinyBtn('Retry'),
+                  _tinyBtn(i18n.tr('Retry')),
               ],
             ),
           ),
@@ -497,14 +498,14 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
         minimumSize: Size.zero,
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       ),
-      child: Text(label, style: const TextStyle(fontSize: 10, color: Color(0xFF6C63FF))),
+      child: Text(i18n.tr(label), style: const TextStyle(fontSize: 10, color: Color(0xFF6C63FF))),
     );
   }
 
   Widget _actionChip(String label, IconData icon, VoidCallback onTap) {
     return ActionChip(
       avatar: Icon(icon, size: 14),
-      label: Text(label, style: const TextStyle(fontSize: 11)),
+      label: Text(i18n.tr(label), style: const TextStyle(fontSize: 11)),
       onPressed: onTap,
       backgroundColor: const Color(0xFF2A2A4E),
       side: BorderSide.none,

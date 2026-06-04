@@ -869,7 +869,7 @@ class _ImageProcessingDialogState extends State<_ImageProcessingDialog> {
                       children: [
                         Icon(t.icon, size: 22, color: active ? t.color : Colors.grey),
                         const SizedBox(height: 4),
-                        Text(t.label, style: TextStyle(
+                        Text(i18n.tr(t.label), style: TextStyle(
                           fontSize: 10,
                           color: active ? t.color : Colors.grey,
                           fontWeight: active ? FontWeight.w600 : FontWeight.normal,
@@ -884,7 +884,7 @@ class _ImageProcessingDialogState extends State<_ImageProcessingDialog> {
             const Divider(height: 1, color: Color(0xFF2A2A4E)),
             const SizedBox(height: 8),
             // Parameter panel
-            Text(_tools[_selectedTool].label,
+            Text(i18n.tr(_tools[_selectedTool].label),
                 style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white)),
             const SizedBox(height: 8),
             Row(
