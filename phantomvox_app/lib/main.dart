@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'widgets/tr.dart' as i18n_widget;
+import 'services/i18n_service.dart';
 import 'pages/home_page.dart';
 import 'pages/flow_graph_page.dart';
 import 'pages/agent_page.dart';
@@ -11,6 +13,8 @@ import 'pages/settings_page.dart';
 import 'widgets/menu_bar.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  i18n.init();
   runApp(const PhantomVoxApp());
 }
 
@@ -94,55 +98,58 @@ class _MainShellState extends State<MainShell> {
           Container(
             height: 32,
             color: const Color(0xFF0D0D1A),
-            child: Row(
-              children: [
-                const SizedBox(width: 12),
-                const Text('PhantomVox',
-                    style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                        letterSpacing: 1)),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: SingleChildScrollView(
-                    controller: _scrollCtrl,
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: List.generate(_labels.length, (i) {
-                        final active = i == _currentIndex;
-                        return GestureDetector(
-                          onTap: () => setState(() => _currentIndex = i),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10),
-                            height: 32,
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              border: Border(
-                                bottom: BorderSide(
-                                  color: active
-                                      ? const Color(0xFF6C63FF)
-                                      : Colors.transparent,
-                                  width: 2,
+            child: ListenableBuilder(
+              listenable: i18n,
+              builder: (_, __) => Row(
+                children: [
+                  const SizedBox(width: 12),
+                  const Text('PhantomVox',
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          letterSpacing: 1)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      controller: _scrollCtrl,
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: List.generate(_labels.length, (i) {
+                          final active = i == _currentIndex;
+                          return GestureDetector(
+                            onTap: () => setState(() => _currentIndex = i),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10),
+                              height: 32,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                border: Border(
+                                  bottom: BorderSide(
+                                    color: active
+                                        ? const Color(0xFF6C63FF)
+                                        : Colors.transparent,
+                                    width: 2,
+                                  ),
+                                ),
+                              ),
+                              child: Text(
+                                i18n.tr(_labels[i]),
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: active ? Colors.white : Colors.grey,
+                                  fontWeight: active
+                                      ? FontWeight.w600
+                                      : FontWeight.normal,
                                 ),
                               ),
                             ),
-                            child: Text(
-                              _labels[i],
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: active ? Colors.white : Colors.grey,
-                                fontWeight: active
-                                    ? FontWeight.w600
-                                    : FontWeight.normal,
-                              ),
-                            ),
-                          ),
-                        );
-                      }),
+                          );
+                        }),
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
           // Page content

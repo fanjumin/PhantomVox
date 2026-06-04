@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/api_service.dart';
+import '../services/i18n_service.dart';
+import '../widgets/tr.dart';
 
 /// PhantomVox Settings page — 4 tabs: General / Project / AI Models / About.
 /// Launched as a full-page overlay from the menu bar.
@@ -166,7 +168,10 @@ class _SettingsPageState extends State<SettingsPage>
     return _tabContent([
       _section('General Settings', [
         _dropdown('Language', _language, ['zh_CN', 'zh_TW', 'en', 'ja', 'ko', 'fr', 'de', 'it', 'es', 'pt_BR', 'ru', 'ar', 'vi', 'th', 'id'],
-            (v) => _language = v),
+            (v) {
+              _language = v;
+              i18n.setLocale(v);
+            }),
         _row('Theme', [
           _radio('Dark', _theme == 'dark', () => _theme = 'dark'),
           const SizedBox(width: 16),
