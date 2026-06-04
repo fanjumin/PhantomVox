@@ -7,6 +7,7 @@ import 'pages/pro_edit_page.dart';
 import 'pages/palette_page.dart';
 import 'pages/audioforge_page.dart';
 import 'pages/effectlab_page.dart';
+import 'widgets/menu_bar.dart';
 
 void main() {
   runApp(const PhantomVoxApp());
@@ -31,7 +32,7 @@ class PhantomVoxApp extends StatelessWidget {
   }
 }
 
-/// Main shell with scrollable workspace navigation
+/// Main shell with menu bar and scrollable workspace navigation
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
 
@@ -76,7 +77,12 @@ class _MainShellState extends State<MainShell> {
     return Scaffold(
       body: Column(
         children: [
-          // Scrollable workspace switcher bar
+          // Global menu bar
+          PhantomVoxMenuBar(
+            currentPageIndex: _currentIndex,
+            onPageSwitch: (i) => setState(() => _currentIndex = i),
+          ),
+          // Workspace navigation bar
           Container(
             height: 32,
             color: const Color(0xFF0D0D1A),
