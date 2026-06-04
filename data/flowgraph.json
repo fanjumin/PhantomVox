@@ -3,7 +3,7 @@
   "nodes": {
     "root": {
       "id": "root",
-      "label": "都市办公室爱情短剧",
+      "label": "初三语文上学期视频教学课程规划",
       "node_type": "topic",
       "description": "",
       "status": "pending",
@@ -11,19 +11,18 @@
       "agent": "",
       "parent_id": null,
       "children": [
-        "s1",
-        "s2",
-        "s3",
-        "s4",
-        "s5",
-        "s6"
+        "n1",
+        "n2",
+        "n3",
+        "n4",
+        "n5"
       ],
       "ai_generated": false,
       "metadata": {}
     },
-    "s1": {
-      "id": "s1",
-      "label": "🧩 角色设定",
+    "n1": {
+      "id": "n1",
+      "label": "第一单元：现代诗歌与小说",
       "node_type": "scene",
       "description": "",
       "status": "pending",
@@ -31,55 +30,55 @@
       "agent": "",
       "parent_id": "root",
       "children": [
-        "c1",
-        "c2",
-        "c3"
+        "n1a",
+        "n1b",
+        "n1c"
       ],
       "ai_generated": false,
       "metadata": {}
     },
-    "c1": {
-      "id": "c1",
-      "label": "女主 - 职场新人 (林小雨)",
+    "n1a": {
+      "id": "n1a",
+      "label": "《沁园春·雪》赏析：意象与情感",
       "node_type": "beat",
       "description": "",
       "status": "pending",
       "progress": 0.0,
       "agent": "",
-      "parent_id": "s1",
+      "parent_id": "n1",
       "children": [],
       "ai_generated": false,
       "metadata": {}
     },
-    "c2": {
-      "id": "c2",
-      "label": "男主 - 冷酷总监 (陆明)",
+    "n1b": {
+      "id": "n1b",
+      "label": "《我爱这土地》精读：象征手法",
       "node_type": "beat",
       "description": "",
       "status": "pending",
       "progress": 0.0,
       "agent": "",
-      "parent_id": "s1",
+      "parent_id": "n1",
       "children": [],
       "ai_generated": false,
       "metadata": {}
     },
-    "c3": {
-      "id": "c3",
-      "label": "配角团 (闺蜜/情敌/上司)",
-      "node_type": "beat",
+    "n1c": {
+      "id": "n1c",
+      "label": "小说单元导入：如何分析人物形象 [AI]",
+      "node_type": "missing",
       "description": "",
       "status": "pending",
       "progress": 0.0,
       "agent": "",
-      "parent_id": "s1",
+      "parent_id": "n1",
       "children": [],
       "ai_generated": false,
       "metadata": {}
     },
-    "s2": {
-      "id": "s2",
-      "label": "📖 主线大纲",
+    "n2": {
+      "id": "n2",
+      "label": "第二单元：议论文与论证方法",
       "node_type": "scene",
       "description": "",
       "status": "pending",
@@ -87,199 +86,69 @@
       "agent": "",
       "parent_id": "root",
       "children": [
-        "p1",
-        "p2",
-        "p3",
-        "p4"
+        "n2a",
+        "n2b",
+        "n2c",
+        "n2d"
       ],
       "ai_generated": false,
       "metadata": {}
     },
-    "p1": {
-      "id": "p1",
-      "label": "序幕 - 相遇",
+    "n2a": {
+      "id": "n2a",
+      "label": "《敬业与乐业》论证结构拆解",
       "node_type": "beat",
       "description": "",
       "status": "pending",
       "progress": 0.0,
       "agent": "",
-      "parent_id": "s2",
-      "children": [
-        "p1a",
-        "p1b",
-        "p1c"
-      ],
-      "ai_generated": false,
-      "metadata": {}
-    },
-    "p1a": {
-      "id": "p1a",
-      "label": "意外接触",
-      "node_type": "missing",
-      "description": "",
-      "status": "pending",
-      "progress": 0.0,
-      "agent": "",
-      "parent_id": "p1",
+      "parent_id": "n2",
       "children": [],
       "ai_generated": false,
       "metadata": {}
     },
-    "p1b": {
-      "id": "p1b",
-      "label": "误会摩擦",
-      "node_type": "missing",
-      "description": "",
-      "status": "pending",
-      "progress": 0.0,
-      "agent": "",
-      "parent_id": "p1",
-      "children": [],
-      "ai_generated": false,
-      "metadata": {}
-    },
-    "p1c": {
-      "id": "p1c",
-      "label": "发现闪光点",
-      "node_type": "missing",
-      "description": "",
-      "status": "pending",
-      "progress": 0.0,
-      "agent": "",
-      "parent_id": "p1",
-      "children": [],
-      "ai_generated": false,
-      "metadata": {}
-    },
-    "p2": {
-      "id": "p2",
-      "label": "发展 - 暧昧",
+    "n2b": {
+      "id": "n2b",
+      "label": "《就英法联军远征中国致巴特勒上尉的信》反讽手法",
       "node_type": "beat",
       "description": "",
       "status": "pending",
       "progress": 0.0,
       "agent": "",
-      "parent_id": "s2",
-      "children": [
-        "p2a",
-        "p2b"
-      ],
-      "ai_generated": false,
-      "metadata": {}
-    },
-    "p2a": {
-      "id": "p2a",
-      "label": "加班独处",
-      "node_type": "missing",
-      "description": "",
-      "status": "pending",
-      "progress": 0.0,
-      "agent": "",
-      "parent_id": "p2",
+      "parent_id": "n2",
       "children": [],
       "ai_generated": false,
       "metadata": {}
     },
-    "p2b": {
-      "id": "p2b",
-      "label": "共同攻克项目难题",
-      "node_type": "missing",
-      "description": "",
-      "status": "pending",
-      "progress": 0.0,
-      "agent": "",
-      "parent_id": "p2",
-      "children": [],
-      "ai_generated": false,
-      "metadata": {}
-    },
-    "p3": {
-      "id": "p3",
-      "label": "冲突 - 考验",
+    "n2c": {
+      "id": "n2c",
+      "label": "议论文写作训练：论点与论据",
       "node_type": "beat",
       "description": "",
       "status": "pending",
       "progress": 0.0,
       "agent": "",
-      "parent_id": "s2",
-      "children": [
-        "p3a",
-        "p3b"
-      ],
+      "parent_id": "n2",
+      "children": [],
       "ai_generated": false,
       "metadata": {}
     },
-    "p3a": {
-      "id": "p3a",
-      "label": "第三者介入/误会",
+    "n2d": {
+      "id": "n2d",
+      "label": "视频互动：分析生活中的论证 [AI]",
       "node_type": "missing",
       "description": "",
       "status": "pending",
       "progress": 0.0,
       "agent": "",
-      "parent_id": "p3",
+      "parent_id": "n2",
       "children": [],
       "ai_generated": false,
       "metadata": {}
     },
-    "p3b": {
-      "id": "p3b",
-      "label": "职场危机牵连感情",
-      "node_type": "missing",
-      "description": "",
-      "status": "pending",
-      "progress": 0.0,
-      "agent": "",
-      "parent_id": "p3",
-      "children": [],
-      "ai_generated": false,
-      "metadata": {}
-    },
-    "p4": {
-      "id": "p4",
-      "label": "高潮 - 双向奔赴",
-      "node_type": "beat",
-      "description": "",
-      "status": "pending",
-      "progress": 0.0,
-      "agent": "",
-      "parent_id": "s2",
-      "children": [
-        "p4a",
-        "p4b"
-      ],
-      "ai_generated": false,
-      "metadata": {}
-    },
-    "p4a": {
-      "id": "p4a",
-      "label": "误会解开",
-      "node_type": "missing",
-      "description": "",
-      "status": "pending",
-      "progress": 0.0,
-      "agent": "",
-      "parent_id": "p4",
-      "children": [],
-      "ai_generated": false,
-      "metadata": {}
-    },
-    "p4b": {
-      "id": "p4b",
-      "label": "告白/圆满结局",
-      "node_type": "missing",
-      "description": "",
-      "status": "pending",
-      "progress": 0.0,
-      "agent": "",
-      "parent_id": "p4",
-      "children": [],
-      "ai_generated": false,
-      "metadata": {}
-    },
-    "s3": {
-      "id": "s3",
-      "label": "📝 第1集 - 初见",
+    "n3": {
+      "id": "n3",
+      "label": "第三单元：文言文与传统文化",
       "node_type": "scene",
       "description": "",
       "status": "pending",
@@ -287,55 +156,83 @@
       "agent": "",
       "parent_id": "root",
       "children": [
-        "e1s1",
-        "e1s2",
-        "e1s3"
+        "n3a",
+        "n3b",
+        "n3c",
+        "n3d",
+        "n3e"
       ],
       "ai_generated": false,
       "metadata": {}
     },
-    "e1s1": {
-      "id": "e1s1",
-      "label": "场景: 入职第一天迟到",
+    "n3a": {
+      "id": "n3a",
+      "label": "《岳阳楼记》重点字词与翻译",
       "node_type": "beat",
       "description": "",
       "status": "pending",
       "progress": 0.0,
       "agent": "",
-      "parent_id": "s3",
+      "parent_id": "n3",
       "children": [],
       "ai_generated": false,
       "metadata": {}
     },
-    "e1s2": {
-      "id": "e1s2",
-      "label": "场景: 电梯尴尬相遇",
+    "n3b": {
+      "id": "n3b",
+      "label": "《醉翁亭记》写景手法与情感",
       "node_type": "beat",
       "description": "",
       "status": "pending",
       "progress": 0.0,
       "agent": "",
-      "parent_id": "s3",
+      "parent_id": "n3",
       "children": [],
       "ai_generated": false,
       "metadata": {}
     },
-    "e1s3": {
-      "id": "e1s3",
-      "label": "场景: 会上被点名批评",
+    "n3c": {
+      "id": "n3c",
+      "label": "《湖心亭看雪》白描技法",
       "node_type": "beat",
       "description": "",
       "status": "pending",
       "progress": 0.0,
       "agent": "",
-      "parent_id": "s3",
+      "parent_id": "n3",
       "children": [],
       "ai_generated": false,
       "metadata": {}
     },
-    "s4": {
-      "id": "s4",
-      "label": "📝 第2集 - 摩擦",
+    "n3d": {
+      "id": "n3d",
+      "label": "文言文实词与虚词专项训练",
+      "node_type": "beat",
+      "description": "",
+      "status": "pending",
+      "progress": 0.0,
+      "agent": "",
+      "parent_id": "n3",
+      "children": [],
+      "ai_generated": false,
+      "metadata": {}
+    },
+    "n3e": {
+      "id": "n3e",
+      "label": "文化拓展：中国古代文人情怀 [AI]",
+      "node_type": "missing",
+      "description": "",
+      "status": "pending",
+      "progress": 0.0,
+      "agent": "",
+      "parent_id": "n3",
+      "children": [],
+      "ai_generated": false,
+      "metadata": {}
+    },
+    "n4": {
+      "id": "n4",
+      "label": "第四单元：戏剧与文学评论",
       "node_type": "scene",
       "description": "",
       "status": "pending",
@@ -343,55 +240,55 @@
       "agent": "",
       "parent_id": "root",
       "children": [
-        "e2s1",
-        "e2s2",
-        "e2s3"
+        "n4a",
+        "n4b",
+        "n4c"
       ],
       "ai_generated": false,
       "metadata": {}
     },
-    "e2s1": {
-      "id": "e2s1",
-      "label": "场景: 针锋相对的项目分工",
+    "n4a": {
+      "id": "n4a",
+      "label": "《威尼斯商人》剧本片段赏析",
       "node_type": "beat",
       "description": "",
       "status": "pending",
       "progress": 0.0,
       "agent": "",
-      "parent_id": "s4",
+      "parent_id": "n4",
       "children": [],
       "ai_generated": false,
       "metadata": {}
     },
-    "e2s2": {
-      "id": "e2s2",
-      "label": "场景: 被迫一起加班",
+    "n4b": {
+      "id": "n4b",
+      "label": "戏剧冲突与人物台词分析",
       "node_type": "beat",
       "description": "",
       "status": "pending",
       "progress": 0.0,
       "agent": "",
-      "parent_id": "s4",
+      "parent_id": "n4",
       "children": [],
       "ai_generated": false,
       "metadata": {}
     },
-    "e2s3": {
-      "id": "e2s3",
-      "label": "场景: 她意外的创意打动了他",
-      "node_type": "beat",
+    "n4c": {
+      "id": "n4c",
+      "label": "文学评论写作指导：观点与证据 [AI]",
+      "node_type": "missing",
       "description": "",
       "status": "pending",
       "progress": 0.0,
       "agent": "",
-      "parent_id": "s4",
+      "parent_id": "n4",
       "children": [],
       "ai_generated": false,
       "metadata": {}
     },
-    "s5": {
-      "id": "s5",
-      "label": "📝 第3集 - 暧昧 [AI建议]",
+    "n5": {
+      "id": "n5",
+      "label": "期中复习与综合提升",
       "node_type": "scene",
       "description": "",
       "status": "pending",
@@ -399,104 +296,62 @@
       "agent": "",
       "parent_id": "root",
       "children": [
-        "e3s1",
-        "e3s2",
-        "e3s3"
-      ],
-      "ai_generated": true,
-      "metadata": {}
-    },
-    "e3s1": {
-      "id": "e3s1",
-      "label": "场景: 深夜公司的独处时光",
-      "node_type": "missing",
-      "description": "",
-      "status": "pending",
-      "progress": 0.0,
-      "agent": "",
-      "parent_id": "s5",
-      "children": [],
-      "ai_generated": false,
-      "metadata": {}
-    },
-    "e3s2": {
-      "id": "e3s2",
-      "label": "场景: 他说漏嘴的关心",
-      "node_type": "missing",
-      "description": "",
-      "status": "pending",
-      "progress": 0.0,
-      "agent": "",
-      "parent_id": "s5",
-      "children": [],
-      "ai_generated": false,
-      "metadata": {}
-    },
-    "e3s3": {
-      "id": "e3s3",
-      "label": "场景: 同事眼中的「好般配」",
-      "node_type": "missing",
-      "description": "",
-      "status": "pending",
-      "progress": 0.0,
-      "agent": "",
-      "parent_id": "s5",
-      "children": [],
-      "ai_generated": false,
-      "metadata": {}
-    },
-    "s6": {
-      "id": "s6",
-      "label": "🎥 关键镜头清单",
-      "node_type": "scene",
-      "description": "",
-      "status": "pending",
-      "progress": 0.0,
-      "agent": "",
-      "parent_id": "root",
-      "children": [
-        "shot1",
-        "shot2",
-        "shot3"
+        "n5a",
+        "n5b",
+        "n5c",
+        "n5d"
       ],
       "ai_generated": false,
       "metadata": {}
     },
-    "shot1": {
-      "id": "shot1",
-      "label": "镜头: 女主看表跑进大楼 (仰拍)",
+    "n5a": {
+      "id": "n5a",
+      "label": "基础知识梳理：字词与文学常识",
       "node_type": "beat",
       "description": "",
       "status": "pending",
       "progress": 0.0,
       "agent": "",
-      "parent_id": "s6",
+      "parent_id": "n5",
       "children": [],
       "ai_generated": false,
       "metadata": {}
     },
-    "shot2": {
-      "id": "shot2",
-      "label": "镜头: 两杯咖啡的对比 (特写)",
+    "n5b": {
+      "id": "n5b",
+      "label": "阅读答题技巧：现代文与文言文",
       "node_type": "beat",
       "description": "",
       "status": "pending",
       "progress": 0.0,
       "agent": "",
-      "parent_id": "s6",
+      "parent_id": "n5",
       "children": [],
       "ai_generated": false,
       "metadata": {}
     },
-    "shot3": {
-      "id": "shot3",
-      "label": "镜头: 夕阳下两人的剪影 (全景)",
+    "n5c": {
+      "id": "n5c",
+      "label": "作文专题：立意与结构",
       "node_type": "beat",
       "description": "",
       "status": "pending",
       "progress": 0.0,
       "agent": "",
-      "parent_id": "s6",
+      "parent_id": "n5",
+      "children": [],
+      "ai_generated": false,
+      "metadata": {}
+    },
+    "n5d": {
+      "id": "n5d",
+      "label": "模拟测试与错题分析 [AI]",
+      "node_type": "missing",
+      "description": "",
+      "status": "pending",
+      "progress": 0.0,
+      "agent": "",
+      "parent_id": "n5",
       "children": [],
       "ai_generated": false,
       "metadata": {}
@@ -504,9 +359,9 @@
   },
   "counts": {
     "topic": 1,
-    "scene": 6,
-    "beat": 16,
-    "missing": 12
+    "scene": 5,
+    "beat": 14,
+    "missing": 5
   },
-  "has_ai_suggestions": true
+  "has_ai_suggestions": false
 }

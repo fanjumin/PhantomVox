@@ -488,6 +488,194 @@ def create_app(engine=None):
         except Exception as e:
             return jsonify({"error": str(e)}), 400
 
+    @app.route("/api/v1/flowgraph/delete", methods=["POST"])
+    def flowgraph_delete():
+        """Delete / reset current flow graph."""
+        from modules.agent.mindmap import FlowGraph
+        agent = app.engine.get("agent")
+        fresh = FlowGraph()
+        agent._director.flowgraph = fresh
+        agent._director._save()
+        return jsonify({"status": "ok"})
+
+    # ── Version management ──────────────────────────────────
+
+    VERSIONS_DIR = os.path.join(PROJECT_ROOT, "data", "versions")
+    os.makedirs(VERSIONS_DIR, exist_ok=True)
+
+    @app.route("/api/v1/flowgraph/versions", methods=["GET"])
+    def flowgraph_versions():
+        """List version snapshots (sorted newest first)."""
+        versions = []
+        if not os.path.isdir(VERSIONS_DIR):
+            return jsonify({"versions": []})
+        for fname in sorted(os.listdir(VERSIONS_DIR), reverse=True):
+            if not fname.endswith(".json"):
+                continue
+            path = os.path.join(VERSIONS_DIR, fname)
+            try:
+                mtime = os.path.getmtime(path)
+                size = os.path.getsize(path)
+                # Read title from first few bytes
+                with open(path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                root_node = data.get("nodes", {}).get(data.get("root", ""), {})
+                title = root_node.get("label", "Untitled")
+                count = len(data.get("nodes", {}))
+                versions.append({
+                    "file": fname,
+                    "title": title,
+                    "node_count": count,
+                    "time": mtime,
+                    "size": size,
+                })
+            except Exception:
+                continue
+        return jsonify({"versions": versions})
+
+    @app.route("/api/v1/flowgraph/versions/save", methods=["POST"])
+    def flowgraph_version_save():
+        """Save current flow graph as a version snapshot."""
+        import re
+        from datetime import datetime
+        agent = app.engine.get("agent")
+        fg = agent._director.flowgraph
+        root_label = fg.nodes.get(fg.root, {}).label if fg.nodes.get(fg.root) else "Untitled"
+        slug = re.sub(r"[^\w\u4e00-\u9fff]+", "_", root_label)[:30]
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        fname = f"{ts}_{slug}.json"
+        path = os.path.join(VERSIONS_DIR, fname)
+        fg.save_to_file(path)
+        return jsonify({"status": "ok", "file": fname})
+
+    @app.route("/api/v1/flowgraph/versions/restore", methods=["POST"])
+    def flowgraph_version_restore():
+        """Restore a version snapshot by filename."""
+        data = request.get_json(silent=True) or {}
+        fname = data.get("file", "")
+        if not fname:
+            return jsonify({"error": "No file specified"}), 400
+        path = os.path.join(VERSIONS_DIR, fname)
+        if not os.path.exists(path):
+            return jsonify({"error": f"Version not found: {fname}"}), 404
+        from modules.agent.mindmap import FlowGraph
+        fg = FlowGraph.load_from_file(path)
+        if not fg.root:
+            return jsonify({"error": "Invalid version (no root)"}), 400
+        agent = app.engine.get("agent")
+        agent._director.flowgraph = fg
+        agent._director._save()
+        return jsonify({"status": "ok"})
+
+    # ── AI Generate full tree ───────────────────────────────
+
+    @app.route("/api/v1/flowgraph/generate", methods=["POST"])
+    def flowgraph_generate():
+        """Generate a complete flow graph from a natural language prompt."""
+        from modules.agent.llm_client import chat as llm_chat
+
+        data = request.get_json(silent=True) or {}
+        prompt = data.get("prompt", "")
+        if not prompt:
+            return jsonify({"error": "No prompt provided"}), 400
+
+        config_mgr = app.engine.get("config")
+        if not config_mgr:
+            return jsonify({"error": "Config manager not available"}), 500
+
+        profile = config_mgr.get_profile() if hasattr(config_mgr, "get_profile") else {}
+        model = profile.get("model", "deepseek-v4")
+
+        system_msg = """You are a creative flow graph generator. Generate a complete tree structure for a creative project.
+
+Node types:
+- topic (root, one only)
+- scene (major section / episode)
+- beat (specific moment / shot)
+- missing (gap that needs filling, mark with [AI])
+
+Output ONLY a JSON object with this exact structure (no markdown, no explanation):
+```json
+{
+  "root": "root",
+  "nodes": {
+    "root": {"id": "root", "label": "Project title", "node_type": "topic", "children": ["n1","n2"], "parent_id": null},
+    "n1": {"id": "n1", "label": "Scene name", "node_type": "scene", "children": ["n1a","n1b"], "parent_id": "root"},
+    "n1a": {"id": "n1a", "label": "Beat description", "node_type": "beat", "children": [], "parent_id": "n1"},
+    "n1b": {"id": "n1b", "label": "Missing piece [AI]", "node_type": "missing", "children": [], "parent_id": "n1"},
+    "n2": {"id": "n2", "label": "Scene name", "node_type": "scene", "children": [], "parent_id": "root"}
+  }
+}```
+
+Rules:
+- root must have parent_id: null
+- Each node's id must be unique
+- Every node referenced in "children" must exist
+- Every node (except root) must have a valid parent_id
+- parent_id must match the actual parent, root's children have parent_id "root"
+- 2-3 levels of depth is ideal
+- 15-40 nodes total is good
+- Node IDs: "root", "n1", "n2", ... "n1a", "n1b", ...
+- Labels in Chinese
+- Use "missing" nodes for gaps, opportunities, or AI-suggested additions"""
+
+        messages = [
+            {"role": "system", "content": system_msg},
+            {"role": "user", "content": f"Generate a complete creative flow graph for: {prompt}"},
+        ]
+
+        # Retry once on parse failure
+        last_error = None
+        for attempt in range(2):
+            try:
+                response = llm_chat(config_mgr, messages, model_key=model,
+                                    temperature=0.7, max_tokens=4096)
+                if response.get("status") != "ok":
+                    last_error = response.get("error", "LLM call failed")
+                    continue
+                result = response.get("reply", "")
+
+                # Strip markdown fences if present
+                if "```json" in result:
+                    result = result.split("```json")[1].split("```")[0].strip()
+                elif "```" in result:
+                    result = result.split("```")[1].split("```")[0].strip()
+
+                tree = json.loads(result.strip())
+
+                # Validate
+                if "nodes" not in tree or "root" not in tree:
+                    last_error = "Missing nodes or root in response"
+                    continue
+
+                root_id = tree["root"]
+                if root_id not in tree["nodes"]:
+                    last_error = f"Root '{root_id}' not in nodes"
+                    continue
+
+                # Build FlowGraph and replace current
+                from modules.agent.mindmap import FlowGraph
+                fg = FlowGraph.from_dict(tree)
+                if not fg.root:
+                    last_error = "Empty flow graph after parsing"
+                    continue
+
+                agent = app.engine.get("agent")
+                agent._director.flowgraph = fg
+                agent._director._save()
+
+                # Return the new tree data for frontend
+                return jsonify({"status": "ok", "flowgraph": fg.to_dict()})
+
+            except json.JSONDecodeError as e:
+                last_error = f"JSON parse error: {e}"
+                continue
+            except Exception as e:
+                last_error = f"Error: {e}"
+                continue
+
+        return jsonify({"error": last_error or "Failed to generate flow graph"}), 500
+
     @app.route("/api/v1/flowgraph/expand", methods=["POST"])
     def flowgraph_expand():
         """AI expand a node — Director generates child suggestions."""

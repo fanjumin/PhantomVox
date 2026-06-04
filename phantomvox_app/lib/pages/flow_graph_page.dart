@@ -53,22 +53,19 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
 
   // Bottom panel
   bool _showBottomPanel = false;
-  int _bottomTab = 0; // 0=Schedule, 1=Logs
+  int _bottomTab = 0; // 0=Chat, 1=Versions
+
+  // Chat state
+  final List<Map<String, String>> _chatMessages = [];
+  final TextEditingController _chatCtrl = TextEditingController();
+  bool _chatLoading = false;
+
+  // Versions state
+  List<Map<String, dynamic>> _versions = [];
+  bool _versionsLoading = false;
 
   // Collapse state: node IDs whose children are hidden
   final Set<String> _collapsedIds = {};
-
-  // Schedule + Logs (kept from old version for backward compat)
-  static const _scheduleTasks = [
-    {'name': 'Daily Report', 'schedule': 'Every day 08:00', 'status': '🟢'},
-    {'name': 'Archive Backup', 'schedule': 'Every Monday', 'status': '⚪'},
-    {'name': 'Video Transcode', 'schedule': 'Manual only', 'status': '🔴'},
-  ];
-  static const _runLogs = [
-    {'id': '#1423', 'progress': 0.68, 'status': 'running', 'duration': '2m34s'},
-    {'id': '#1422', 'progress': 1.0, 'status': 'done', 'duration': '1m12s'},
-    {'id': '#1421', 'progress': 0.45, 'status': 'failed', 'duration': '3m01s'},
-  ];
 
   @override
   void initState() {
@@ -85,7 +82,10 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
       // Default demo data if server not reachable
       _root = _defaultDemo();
     }
-    setState(() => _loading = false);
+    setState(() {
+      _loading = false;
+      _collapsedIds.clear(); // Reset collapse state on reload
+    });
   }
 
   _FlowNode _parseNodes(Map<String, dynamic> data) {
@@ -430,6 +430,8 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
           const SizedBox(width: 4),
           _topBtn(i18n.tr('Export'), Icons.save_alt, () => _exportFlowGraph()),
           const SizedBox(width: 4),
+          _topBtn(i18n.tr('Delete'), Icons.delete, () => _deleteFlowGraph()),
+          const SizedBox(width: 4),
           _topBtn(i18n.tr('+ Node'), Icons.add, () => _addNode()),
           const SizedBox(width: 4),
           _topBtn(i18n.tr('AI'), Icons.auto_awesome,
@@ -762,14 +764,16 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
         children: [
           Row(
             children: [
-              _bottomTabBtn('Schedule', 0),
-              _bottomTabBtn('Logs', 1),
+              _bottomTabBtn('Chat', 0),
+              _bottomTabBtn('Versions', 1),
               const Spacer(),
               _bottomTabBtn('×', -1),
             ],
           ),
           const Divider(height: 1, color: Color(0xFF2A2A4E)),
-          Expanded(child: _bottomTab == 0 ? _buildScheduleView() : _buildLogsView()),
+          Expanded(
+            child: _bottomTab == 0 ? _buildChatView() : _buildVersionsView(),
+          ),
         ],
       ),
     );
@@ -778,13 +782,14 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
   Widget _bottomTabBtn(String label, int idx) {
     final active = idx == _bottomTab;
     return GestureDetector(
-      onTap: () => setState(() {
+      onTap: () {
         if (idx == -1) {
-          _showBottomPanel = false;
+          setState(() => _showBottomPanel = false);
         } else {
-          _bottomTab = idx;
+          setState(() => _bottomTab = idx);
+          if (idx == 1) _loadVersions();
         }
-      }),
+      },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
@@ -800,39 +805,271 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
     );
   }
 
-  Widget _buildScheduleView() {
+  // ── Chat tab ──────────────────────────────────────────
+
+  Widget _buildChatView() {
+    return Column(
+      children: [
+        // Messages
+        Expanded(
+          child: _chatMessages.isEmpty
+            ? Center(
+                child: Text('Describe what you want to create.\ne.g. "都市办公室爱情短剧"',
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+              )
+            : ListView.builder(
+                padding: const EdgeInsets.all(8),
+                itemCount: _chatMessages.length,
+                itemBuilder: (_, i) {
+                  final msg = _chatMessages[i];
+                  final isUser = msg['role'] == 'user';
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Row(
+                      mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+                      children: [
+                        Flexible(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: isUser ? const Color(0xFF6C63FF) : const Color(0xFF2A2A4E),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(msg['content'] ?? '',
+                                style: const TextStyle(fontSize: 11, color: Colors.white)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+        ),
+        if (_chatLoading)
+          const Padding(
+            padding: EdgeInsets.all(4),
+            child: SizedBox(width: 12, height: 12,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF6C63FF))),
+          ),
+        // Input
+        Container(
+          padding: const EdgeInsets.fromLTRB(8, 4, 4, 4),
+          decoration: const BoxDecoration(
+            border: Border(top: BorderSide(color: Color(0xFF2A2A4E))),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _chatCtrl,
+                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                  decoration: const InputDecoration(
+                    hintText: 'Describe your project...',
+                    hintStyle: TextStyle(color: Colors.grey, fontSize: 12),
+                    border: InputBorder.none,
+                    isDense: true,
+                    contentPadding: EdgeInsets.symmetric(vertical: 6),
+                  ),
+                  onSubmitted: (_) => _sendChatMessage(),
+                ),
+              ),
+              GestureDetector(
+                onTap: _chatLoading ? null : _sendChatMessage,
+                child: Container(
+                  width: 28, height: 28,
+                  decoration: BoxDecoration(
+                    color: _chatLoading ? Colors.grey : const Color(0xFF6C63FF),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(Icons.send, size: 14, color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _sendChatMessage() async {
+    final text = _chatCtrl.text.trim();
+    if (text.isEmpty || _chatLoading) return;
+    _chatCtrl.clear();
+
+    setState(() {
+      _chatMessages.add({'role': 'user', 'content': text});
+      _chatLoading = true;
+    });
+
+    try {
+      // Auto-save version before generating
+      try { await _api.post('/api/v1/flowgraph/versions/save'); } catch (_) {}
+
+      final result = await _api.post('/api/v1/flowgraph/generate',
+          body: {'prompt': text});
+
+      if (result['status'] == 'ok' && result['flowgraph'] != null) {
+        final fg = result['flowgraph'] as Map<String, dynamic>;
+        final nodes = fg['nodes'] as Map<String, dynamic>? ?? {};
+        final count = nodes.length;
+        final rootLabel = (nodes[fg['root']] as Map<String, dynamic>?)?['label'] ?? '';
+
+        // Reload tree from server
+        await _loadFlowGraph();
+        setState(() {
+          _chatMessages.add({'role': 'assistant',
+              'content': '✅ Generated "$rootLabel" — $count nodes created.'});
+          _chatLoading = false;
+        });
+      } else {
+        setState(() {
+          _chatMessages.add({'role': 'assistant',
+              'content': '❌ ${result['error'] ?? 'Generation failed'}'});
+          _chatLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _chatMessages.add({'role': 'assistant', 'content': '❌ Error: $e'});
+        _chatLoading = false;
+      });
+    }
+  }
+
+  // ── Versions tab ──────────────────────────────────────
+
+  Future<void> _loadVersions() async {
+    setState(() => _versionsLoading = true);
+    try {
+      final result = await _api.get('/api/v1/flowgraph/versions');
+      _versions = (result['versions'] as List? ?? [])
+          .cast<Map<String, dynamic>>();
+    } catch (_) {
+      _versions = [];
+    }
+    if (mounted) setState(() => _versionsLoading = false);
+  }
+
+  Widget _buildVersionsView() {
+    if (_versionsLoading) {
+      return const Center(
+        child: SizedBox(width: 16, height: 16,
+          child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF6C63FF))),
+      );
+    }
+    if (_versions.isEmpty) {
+      return const Center(
+        child: Text('No saved versions yet. Chat generates auto-snapshots.',
+            style: TextStyle(fontSize: 11, color: Colors.grey)),
+      );
+    }
     return ListView.builder(
-      itemCount: _scheduleTasks.length,
+      padding: const EdgeInsets.all(8),
+      itemCount: _versions.length,
       itemBuilder: (_, i) {
-        final t = _scheduleTasks[i];
-        return ListTile(
-          dense: true,
-          leading: Text(t['status']!, style: const TextStyle(fontSize: 12)),
-          title: Text(t['name']!, style: const TextStyle(fontSize: 11, color: Colors.white)),
-          subtitle: Text(t['schedule']!, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+        final v = _versions[i];
+        final time = DateTime.fromMillisecondsSinceEpoch(
+            ((v['time'] as num) * 1000).toInt());
+        final timeStr = '${time.month.toString().padLeft(2, '0')}-'
+            '${time.day.toString().padLeft(2, '0')} '
+            '${time.hour.toString().padLeft(2, '0')}:'
+            '${time.minute.toString().padLeft(2, '0')}';
+        return Container(
+          margin: const EdgeInsets.only(bottom: 4),
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1A1A2E),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(v['title'] ?? 'Untitled',
+                        style: const TextStyle(fontSize: 11, color: Colors.white)),
+                    const SizedBox(height: 2),
+                    Text('$timeStr · ${v['node_count']} nodes',
+                        style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                  ],
+                ),
+              ),
+              GestureDetector(
+                onTap: () => _restoreVersion(v['file'] as String),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF6C63FF),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                  child: const Text('Restore',
+                      style: TextStyle(fontSize: 10, color: Colors.white)),
+                ),
+              ),
+            ],
+          ),
         );
       },
     );
   }
 
-  Widget _buildLogsView() {
-    return ListView.builder(
-      itemCount: _runLogs.length,
-      itemBuilder: (_, i) {
-        final r = _runLogs[i];
-        final icon = r['status'] == 'running' ? '🟢' : r['status'] == 'done' ? '✅' : '🔴';
-        return ListTile(
-          dense: true,
-          leading: Text(icon, style: const TextStyle(fontSize: 12)),
-          title: Text('${r['id']}  ${r['duration']}', style: const TextStyle(fontSize: 11, color: Colors.white)),
-          subtitle: LinearProgressIndicator(
-            value: r['progress'] as double,
-            backgroundColor: const Color(0xFF2A2A4E),
-            valueColor: AlwaysStoppedAnimation(r['status'] == 'failed' ? Colors.red : const Color(0xFF6C63FF)),
-          ),
+  Future<void> _restoreVersion(String file) async {
+    try {
+      await _api.post('/api/v1/flowgraph/versions/restore', body: {'file': file});
+      await _loadFlowGraph();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Version restored'), duration: Duration(seconds: 2)),
         );
-      },
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Restore failed: $e'), duration: Duration(seconds: 3)),
+        );
+      }
+    }
+  }
+
+  // ── Delete ─────────────────────────────────────────────
+
+  Future<void> _deleteFlowGraph() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF16213E),
+        title: const Text('Delete Flow Graph?',
+            style: TextStyle(color: Colors.white, fontSize: 14)),
+        content: const Text('This will clear all nodes. Are you sure?',
+            style: TextStyle(color: Colors.white70, fontSize: 12)),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey, fontSize: 12))),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Delete', style: TextStyle(color: Colors.red, fontSize: 12))),
+        ],
+      ),
     );
+    if (confirm != true) return;
+
+    try {
+      await _api.post('/api/v1/flowgraph/delete');
+      await _loadFlowGraph();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Flow graph cleared'), duration: Duration(seconds: 2)),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Delete failed: $e'), duration: Duration(seconds: 3)),
+        );
+      }
+    }
   }
 
   // ── Import ──────────────────────────────────────────────
