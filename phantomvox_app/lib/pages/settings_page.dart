@@ -35,6 +35,9 @@ class _SettingsPageState extends State<SettingsPage>
   final Map<String, String> _apiKeys = {};
   double _temperature = 0.7;
 
+  // Persistent TextEditingControllers for API key fields
+  final Map<String, TextEditingController> _keyControllers = {};
+
   @override
   void initState() {
     super.initState();
@@ -45,6 +48,9 @@ class _SettingsPageState extends State<SettingsPage>
   @override
   void dispose() {
     _tabCtrl.dispose();
+    for (final c in _keyControllers.values) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -71,10 +77,16 @@ class _SettingsPageState extends State<SettingsPage>
 
         // Set selected models from config
         _selectedModels['llm'] = _deepGet(config, 'llm', 'model') as String? ?? '';
-        _selectedModels['image'] = _deepGet(config, 'image', 'model') as String? ?? '';
-        _selectedModels['video'] = _deepGet(config, 'video', 'model') as String? ?? '';
+        _selectedModels['image'] = _deepGet(config, 'image', 'engine') as String? ?? '';
+        _selectedModels['video'] = _deepGet(config, 'video', 'engine') as String? ?? '';
         _selectedModels['tts'] = _deepGet(config, 'audio', 'tts', 'engine') as String? ?? '';
         _selectedModels['music'] = _deepGet(config, 'audio', 'music', 'engine') as String? ?? '';
+
+        // Create persistent controllers for API key fields
+        final keyProviders = ['openai', 'anthropic', 'deepseek', 'google', 'zhipu', 'alibaba', 'baidu'];
+        for (final p in keyProviders) {
+          _keyControllers.putIfAbsent(p, () => TextEditingController(text: _apiKeys[p] ?? ''));
+        }
       });
     } catch (e) {
       if (!mounted) return;
@@ -320,7 +332,7 @@ class _SettingsPageState extends State<SettingsPage>
                   filled: true,
                   fillColor: const Color(0xFF0D0D1A),
                 ),
-                controller: TextEditingController(text: _apiKeys[provider] ?? ''),
+                controller: _keyControllers[provider]!,
                 onChanged: (v) => _apiKeys[provider] = v,
               ),
             ),
@@ -341,7 +353,7 @@ class _SettingsPageState extends State<SettingsPage>
             children: [
               const Icon(Icons.movie_creation, size: 48, color: Color(0xFF6C63FF)),
               const SizedBox(height: 8),
-              const Text('v0.2.4',
+              const Text('v0.2.5',
                   style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
               const SizedBox(height: 4),
               const Text('Where AI Meets Creativity',
