@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../widgets/tr.dart';
+import '../services/i18n_service.dart';
 
 /// AudioForge page — professional audio mixing workspace + AI audio workshop
 /// Reference: DaVinci Resolve Fairlight workspace
@@ -207,7 +208,7 @@ class _AudioForgePageState extends State<AudioForgePage> {
   Widget _meterBtn(IconData icon, String label) {
     return TextButton.icon(
       icon: Icon(icon, size: 11, color: Colors.grey),
-      label: Text(label, style: const TextStyle(fontSize: 8, color: Colors.grey)),
+      label: Text(i18n.tr(label), style: const TextStyle(fontSize: 8, color: Colors.grey)),
       onPressed: () {},
       style: TextButton.styleFrom(
         padding: const EdgeInsets.symmetric(horizontal: 3),
@@ -244,8 +245,8 @@ class _AudioForgePageState extends State<AudioForgePage> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(key, style: const TextStyle(fontSize: 6, color: Colors.grey)),
-          Text(value, style: const TextStyle(fontSize: 7, color: Colors.white70)),
+          Text(i18n.tr(key), style: const TextStyle(fontSize: 6, color: Colors.grey)),
+          Text(i18n.tr(value), style: const TextStyle(fontSize: 7, color: Colors.white70)),
         ],
       ),
     );
@@ -258,7 +259,7 @@ class _AudioForgePageState extends State<AudioForgePage> {
         color: active ? const Color(0xFF699EFF) : const Color(0xFF1A1A2E),
         borderRadius: BorderRadius.circular(2),
       ),
-      child: Text(label, style: TextStyle(fontSize: 7, color: active ? Colors.white : Colors.grey)),
+      child: Text(i18n.tr(label), style: TextStyle(fontSize: 7, color: active ? Colors.white : Colors.grey)),
     );
   }
 
@@ -389,7 +390,7 @@ class _AudioForgePageState extends State<AudioForgePage> {
         color: const Color(0xFF1A1A2E),
         borderRadius: BorderRadius.circular(2),
       ),
-      child: Center(child: Text(label, style: TextStyle(fontSize: 7, color: activeColor.withValues(alpha: 0.5)))),
+      child: Center(child: Text(i18n.tr(label), style: TextStyle(fontSize: 7, color: activeColor.withValues(alpha: 0.5)))),
     );
   }
 
@@ -469,7 +470,7 @@ class _AudioForgePageState extends State<AudioForgePage> {
         ),
         child: Column(
           children: [
-            Text(id, style: TextStyle(fontSize: 8, fontWeight: FontWeight.w600, color: Colors.white70)),
+            Text(i18n.tr(id), style: TextStyle(fontSize: 8, fontWeight: FontWeight.w600, color: Colors.white70)),
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 2),
               padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
@@ -477,7 +478,7 @@ class _AudioForgePageState extends State<AudioForgePage> {
                 color: const Color(0xFF0F0F1A),
                 borderRadius: BorderRadius.circular(2),
               ),
-              child: Text(plugin, style: const TextStyle(fontSize: 6, color: Colors.grey)),
+              child: Text(i18n.tr(plugin), style: const TextStyle(fontSize: 6, color: Colors.grey)),
             ),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -550,7 +551,7 @@ class _AudioForgePageState extends State<AudioForgePage> {
         ),
         child: Column(
           children: [
-            Text(name, style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w600, color: Colors.orangeAccent)),
+            Text(i18n.tr(name), style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w600, color: Colors.orangeAccent)),
             _slotDot('FX', false),
             _slotDot('EQ', false),
             const Spacer(),
@@ -567,7 +568,7 @@ class _AudioForgePageState extends State<AudioForgePage> {
                 ],
               ),
             ),
-            Text(name, style: const TextStyle(fontSize: 7, color: Colors.orangeAccent)),
+            Text(i18n.tr(name), style: const TextStyle(fontSize: 7, color: Colors.orangeAccent)),
           ],
         ),
       ),
@@ -582,7 +583,7 @@ class _AudioForgePageState extends State<AudioForgePage> {
         color: active ? const Color(0xFF699EFF) : const Color(0xFF2A2A3E),
         borderRadius: BorderRadius.circular(1),
       ),
-      child: Center(child: Text(label, style: TextStyle(fontSize: 5, color: active ? Colors.white : Colors.grey))),
+      child: Center(child: Text(i18n.tr(label), style: TextStyle(fontSize: 5, color: active ? Colors.white : Colors.grey))),
     );
   }
 
@@ -593,7 +594,7 @@ class _AudioForgePageState extends State<AudioForgePage> {
         color: const Color(0xFF1A1A2E),
         borderRadius: BorderRadius.circular(1),
       ),
-      child: Center(child: Text(label, style: TextStyle(fontSize: 5, color: color.withValues(alpha: 0.5)))),
+      child: Center(child: Text(i18n.tr(label), style: TextStyle(fontSize: 5, color: color.withValues(alpha: 0.5)))),
     );
   }
 
@@ -740,9 +741,9 @@ class _AudioForgePageState extends State<AudioForgePage> {
                         const SizedBox(width: 4),
                         // Results
                         if (_ttsResult != null)
-                          Text('TTS: OK', style: TextStyle(fontSize: 8, color: Colors.green)),
+                          Tr('TTS: OK', style: TextStyle(fontSize: 8, color: Colors.green)),
                         if (_musicResult != null)
-                          Text('Music: OK', style: TextStyle(fontSize: 8, color: Colors.purple)),
+                          Tr('Music: OK', style: TextStyle(fontSize: 8, color: Colors.purple)),
                       ],
                     ),
                   ],
@@ -767,7 +768,7 @@ class _AudioForgePageState extends State<AudioForgePage> {
         children: [
           Icon(icon, size: 10, color: Colors.grey),
           const SizedBox(width: 3),
-          Text(label, style: const TextStyle(fontSize: 8, color: Colors.grey)),
+          Text(i18n.tr(label), style: const TextStyle(fontSize: 8, color: Colors.grey)),
         ],
       ),
     );
@@ -794,7 +795,7 @@ class _AudioForgePageState extends State<AudioForgePage> {
       padding: const EdgeInsets.only(left: 6),
       color: const Color(0xFF0D0D1A),
       alignment: Alignment.centerLeft,
-      child: Text(title, style: const TextStyle(fontSize: 9, color: Colors.grey, fontWeight: FontWeight.w600)),
+      child: Text(i18n.tr(title), style: const TextStyle(fontSize: 9, color: Colors.grey, fontWeight: FontWeight.w600)),
     );
   }
 }

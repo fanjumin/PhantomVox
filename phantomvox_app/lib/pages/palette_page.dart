@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import '../widgets/tr.dart';
+import '../services/i18n_service.dart';
 
 /// Palette page — precision color grading workspace
 /// Reference: DaVinci Resolve Color workspace
@@ -95,7 +96,7 @@ class _PalettePageState extends State<PalettePage> {
     final color = accent ? const Color(0xFF699EFF) : Colors.grey;
     return TextButton.icon(
       icon: Icon(icon, size: 12, color: color),
-      label: Text(label, style: TextStyle(fontSize: 9, color: color)),
+      label: Text(i18n.tr(label), style: TextStyle(fontSize: 9, color: color)),
       onPressed: () {},
       style: TextButton.styleFrom(
         padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -108,14 +109,14 @@ class _PalettePageState extends State<PalettePage> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(label, style: const TextStyle(fontSize: 9, color: Colors.grey)),
+        Text(i18n.tr(label), style: const TextStyle(fontSize: 9, color: Colors.grey)),
         const Icon(Icons.arrow_drop_down, size: 14, color: Colors.grey),
       ],
     );
   }
 
   Widget _tbLabel(String text) {
-    return Text(text, style: const TextStyle(fontSize: 9, color: Colors.grey));
+    return Text(i18n.tr(text), style: const TextStyle(fontSize: 9, color: Colors.grey));
   }
 
   // ── LEFT_GALLERY (180px) ──────────────────────────────
@@ -164,8 +165,7 @@ class _PalettePageState extends State<PalettePage> {
                     alignment: Alignment.bottomCenter,
                     child: Padding(
                       padding: const EdgeInsets.all(2),
-                      child: Text('#1.19.1',
-                          style: TextStyle(fontSize: 7, color: selected ? const Color(0xFF699EFF) : Colors.grey.shade600)),
+                      child: Tr('#1.19.1', style: TextStyle(fontSize: 7, color: selected ? const Color(0xFF699EFF) : Colors.grey.shade600)),
                     ),
                   ),
                 );
@@ -185,7 +185,7 @@ class _PalettePageState extends State<PalettePage> {
         children: [
           Icon(icon, size: 12, color: selected ? const Color(0xFF699EFF) : Colors.grey),
           const SizedBox(width: 5),
-          Text(name, style: TextStyle(
+          Text(i18n.tr(name), style: TextStyle(
             fontSize: 10, color: selected ? Colors.white : Colors.grey,
             fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
           )),
@@ -361,7 +361,7 @@ class _PalettePageState extends State<PalettePage> {
   }
 
   Widget _groupLabel(String text, Color color) {
-    return Text(text, style: TextStyle(fontSize: 8, color: color, fontWeight: FontWeight.w600));
+    return Text(i18n.tr(text), style: TextStyle(fontSize: 8, color: color, fontWeight: FontWeight.w600));
   }
 
   Widget _nodeBtn(String label, Color color, {bool small = false}) {
@@ -372,7 +372,7 @@ class _PalettePageState extends State<PalettePage> {
         border: Border.all(color: color, width: 0.5),
         borderRadius: BorderRadius.circular(3),
       ),
-      child: Text(label, style: TextStyle(
+      child: Text(i18n.tr(label), style: TextStyle(
         fontSize: small ? 7 : 8, color: color,
         fontWeight: FontWeight.w500,
       )),
@@ -391,8 +391,7 @@ class _PalettePageState extends State<PalettePage> {
           const Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('\u2190 All Clips',
-                  style: TextStyle(fontSize: 8, color: Colors.grey)),
+              Tr('\u2190 All Clips', style: TextStyle(fontSize: 8, color: Colors.grey)),
               Tr('Blackmagic RAW', style: TextStyle(fontSize: 7, color: Colors.grey)),
             ],
           ),
@@ -548,7 +547,7 @@ class _PalettePageState extends State<PalettePage> {
           ),
         ),
         const SizedBox(height: 4),
-        Text(label, style: const TextStyle(fontSize: 8, color: Colors.grey)),
+        Text(i18n.tr(label), style: const TextStyle(fontSize: 8, color: Colors.grey)),
         Text(value.toStringAsFixed(2),
             style: TextStyle(fontSize: 8, color: color, fontFamily: 'monospace')),
       ],
@@ -560,7 +559,7 @@ class _PalettePageState extends State<PalettePage> {
       children: [
         SizedBox(
           width: 56,
-          child: Text(label, style: const TextStyle(fontSize: 9, color: Colors.grey)),
+          child: Text(i18n.tr(label), style: const TextStyle(fontSize: 9, color: Colors.grey)),
         ),
         Expanded(
           child: SliderTheme(
@@ -643,7 +642,7 @@ class _PalettePageState extends State<PalettePage> {
         color: active ? const Color(0xFF699EFF) : const Color(0xFF1A1A2E),
         borderRadius: BorderRadius.circular(4),
       ),
-      child: Text(label, style: TextStyle(fontSize: 9, color: active ? Colors.white : Colors.grey)),
+      child: Text(i18n.tr(label), style: TextStyle(fontSize: 9, color: active ? Colors.white : Colors.grey)),
     );
   }
 
@@ -717,7 +716,7 @@ class _PalettePageState extends State<PalettePage> {
       padding: const EdgeInsets.only(left: 8),
       color: const Color(0xFF0D0D1A),
       alignment: Alignment.centerLeft,
-      child: Text(title, style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.w600)),
+      child: Text(i18n.tr(title), style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.w600)),
     );
   }
 

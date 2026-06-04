@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../../widgets/tr.dart';
+import '../widgets/tr.dart';
+import '../services/i18n_service.dart';
 
 
 /// Dashboard — PhantomVox AI launch page
@@ -62,11 +64,9 @@ class _HomePageState extends State<HomePage> {
         children: [
           const Icon(Icons.cloud_off, size: 64, color: Colors.grey),
           const SizedBox(height: 16),
-          const Text('AI Server not running',
-              style: TextStyle(fontSize: 18, color: Colors.grey)),
+          Tr('AI Server not running', style: TextStyle(fontSize: 18, color: Colors.grey)),
           const SizedBox(height: 8),
-          const Text('Start: python3 -m modules.api_server',
-              style: TextStyle(fontSize: 12, color: Colors.grey)),
+          Tr('Start: python3 -m modules.api_server', style: TextStyle(fontSize: 12, color: Colors.grey)),
           const SizedBox(height: 24),
           FilledButton.icon(
             onPressed: () {
@@ -110,8 +110,7 @@ class _HomePageState extends State<HomePage> {
       color: const Color(0xFF12121E),
       child: Row(
         children: [
-          const Text('PhantomVox',
-              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: Color(0xFF699EFF))),
+          Tr('PhantomVox', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: Color(0xFF699EFF))),
           const SizedBox(width: 12),
           _iconBtn(Icons.arrow_back_ios, 14),
           _iconBtn(Icons.arrow_forward_ios, 14),
@@ -128,8 +127,7 @@ class _HomePageState extends State<HomePage> {
                 children: [
                   Icon(Icons.search, size: 14, color: Colors.grey),
                   SizedBox(width: 4),
-                  Text('Search projects...',
-                      style: TextStyle(fontSize: 11, color: Colors.grey)),
+                  Tr('Search projects...', style: TextStyle(fontSize: 11, color: Colors.grey)),
                 ],
               ),
             ),
@@ -149,11 +147,9 @@ class _HomePageState extends State<HomePage> {
                   shape: BoxShape.circle, color: Colors.grey,
                 )),
                 const SizedBox(width: 4),
-                const Text('Not signed in',
-                    style: TextStyle(fontSize: 9, color: Colors.grey)),
+                Tr('Not signed in', style: TextStyle(fontSize: 9, color: Colors.grey)),
                 const SizedBox(width: 4),
-                Text('Sign In',
-                    style: TextStyle(fontSize: 9, color: const Color(0xFF699EFF), fontWeight: FontWeight.w600)),
+                Tr('Sign In', style: TextStyle(fontSize: 9, color: const Color(0xFF699EFF), fontWeight: FontWeight.w600)),
               ],
             ),
           ),
@@ -197,7 +193,7 @@ class _HomePageState extends State<HomePage> {
         color: const Color(0xFF1A1A2E),
         borderRadius: BorderRadius.circular(3),
       ),
-      child: Text(locale,
+      child: Text(i18n.tr(locale),
           style: const TextStyle(fontSize: 8, color: Colors.grey)),
     );
   }
@@ -222,11 +218,9 @@ class _HomePageState extends State<HomePage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('PhantomVox AI',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: Colors.white)),
+            Tr('PhantomVox AI', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: Colors.white)),
             const SizedBox(height: 4),
-            Text('AI-powered creative studio',
-                style: TextStyle(fontSize: 11, color: Colors.grey[400])),
+            Tr('AI-powered creative studio', style: TextStyle(fontSize: 11, color: Colors.grey[400])),
             const SizedBox(height: 12),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -258,7 +252,7 @@ class _HomePageState extends State<HomePage> {
         children: [
           Icon(icon, size: 14),
           const SizedBox(width: 4),
-          Text(label, style: const TextStyle(fontSize: 10)),
+          Text(i18n.tr(label), style: const TextStyle(fontSize: 10)),
         ],
       ),
     );
@@ -282,11 +276,9 @@ class _HomePageState extends State<HomePage> {
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
             child: Row(
               children: [
-                const Text('Recent Projects',
-                    style: TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.w600)),
+                Tr('Recent Projects', style: TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.w600)),
                 const Spacer(),
-                Text('View All',
-                    style: TextStyle(fontSize: 9, color: const Color(0xFF699EFF))),
+                Tr('View All', style: TextStyle(fontSize: 9, color: const Color(0xFF699EFF))),
               ],
             ),
           ),
@@ -334,10 +326,10 @@ class _HomePageState extends State<HomePage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(name, style: const TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.w600)),
+                Text(i18n.tr(name), style: const TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 2),
-                Text(assets, style: const TextStyle(fontSize: 8, color: Colors.grey)),
-                Text(time, style: const TextStyle(fontSize: 7, color: Colors.grey)),
+                Text(i18n.tr(assets), style: const TextStyle(fontSize: 8, color: Colors.grey)),
+                Text(i18n.tr(time), style: const TextStyle(fontSize: 7, color: Colors.grey)),
               ],
             ),
           ),
@@ -361,8 +353,7 @@ class _HomePageState extends State<HomePage> {
           children: [
             Icon(Icons.add, size: 20, color: Color(0xFF699EFF)),
             SizedBox(height: 4),
-            Text('New Project',
-                style: TextStyle(fontSize: 8, color: Color(0xFF699EFF))),
+            Tr('New Project', style: TextStyle(fontSize: 8, color: Color(0xFF699EFF))),
           ],
         ),
       ),
@@ -398,8 +389,7 @@ class _HomePageState extends State<HomePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Hardware Report',
-                  style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.w600)),
+              Tr('Hardware Report', style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.w600)),
               const SizedBox(height: 8),
               _sysRow('CPU', '${hw?['cpu'] ?? '-'} (T1)'),
               _sysRow('RAM', '${hw?['ram_gb'] ?? '?'} GB (T1)'),
@@ -408,8 +398,7 @@ class _HomePageState extends State<HomePage> {
               const SizedBox(height: 4),
               Row(
                 children: [
-                  const Text('Max Tier: T1 (CPU Mode)',
-                      style: TextStyle(fontSize: 9, color: Colors.grey)),
+                  Tr('Max Tier: T1 (CPU Mode)', style: TextStyle(fontSize: 9, color: Colors.grey)),
                   const Spacer(),
                   Text('${6}/${12}',
                       style: TextStyle(fontSize: 8, color: Colors.grey[600])),
@@ -438,8 +427,7 @@ class _HomePageState extends State<HomePage> {
               const SizedBox(height: 8),
               TextButton(
                 onPressed: () {},
-                child: const Text('View Full Report',
-                    style: TextStyle(fontSize: 9, color: Color(0xFF699EFF))),
+                child: Tr('View Full Report', style: TextStyle(fontSize: 9, color: Color(0xFF699EFF))),
               ),
             ],
           ),
@@ -474,9 +462,9 @@ class _HomePageState extends State<HomePage> {
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
         children: [
-          SizedBox(width: 40, child: Text(label,
+          SizedBox(width: 40, child: Text(i18n.tr(label),
               style: const TextStyle(fontSize: 9, color: Colors.grey))),
-          Text(value, style: const TextStyle(fontSize: 9, color: Colors.white70)),
+          Text(i18n.tr(value), style: const TextStyle(fontSize: 9, color: Colors.white70)),
         ],
       ),
     );
@@ -488,9 +476,9 @@ class _HomePageState extends State<HomePage> {
         Icon(Icons.check_circle, size: 10, color: ok ? Colors.green : Colors.red),
         const SizedBox(width: 6),
         Expanded(
-          child: Text(name, style: const TextStyle(fontSize: 9, color: Colors.grey)),
+          child: Text(i18n.tr(name), style: const TextStyle(fontSize: 9, color: Colors.grey)),
         ),
-        Text(status, style: TextStyle(fontSize: 8, color: ok ? Colors.green : Colors.red)),
+        Text(i18n.tr(status), style: TextStyle(fontSize: 8, color: ok ? Colors.green : Colors.red)),
       ],
     );
   }
@@ -537,8 +525,7 @@ class _HomePageState extends State<HomePage> {
                       ),
                       child: const Row(
                         children: [
-                          Text('What do you want to create...',
-                              style: TextStyle(fontSize: 9, color: Colors.grey)),
+                          Tr('What do you want to create...', style: TextStyle(fontSize: 9, color: Colors.grey)),
                         ],
                       ),
                     ),
@@ -577,8 +564,8 @@ class _HomePageState extends State<HomePage> {
         children: [
           Icon(icon, size: 18, color: color),
           const SizedBox(height: 4),
-          Text(title, style: TextStyle(fontSize: 9, color: color, fontWeight: FontWeight.w600)),
-          Text(subtitle, style: const TextStyle(fontSize: 7, color: Colors.grey)),
+          Text(i18n.tr(title), style: TextStyle(fontSize: 9, color: color, fontWeight: FontWeight.w600)),
+          Text(i18n.tr(subtitle), style: const TextStyle(fontSize: 7, color: Colors.grey)),
         ],
       ),
     );
@@ -596,7 +583,7 @@ class _HomePageState extends State<HomePage> {
                 style: const TextStyle(fontSize: 8, color: Colors.grey),
                 overflow: TextOverflow.ellipsis),
           ),
-          Text(time, style: TextStyle(fontSize: 7, color: Colors.grey[600])),
+          Text(i18n.tr(time), style: TextStyle(fontSize: 7, color: Colors.grey[600])),
         ],
       ),
     );
@@ -611,29 +598,24 @@ class _HomePageState extends State<HomePage> {
       color: const Color(0xFF12121E),
       child: Row(
         children: [
-          const Text('PhantomVox v0.2.5',
-              style: TextStyle(fontSize: 8, color: Colors.grey)),
+          Tr('PhantomVox v0.2.5', style: TextStyle(fontSize: 8, color: Colors.grey)),
           const SizedBox(width: 8),
           Container(width: 1, height: 12, color: const Color(0xFF2A2A3E)),
           const SizedBox(width: 8),
-          const Text('FFmpeg 7.1',
-              style: TextStyle(fontSize: 8, color: Colors.grey)),
+          Tr('FFmpeg 7.1', style: TextStyle(fontSize: 8, color: Colors.grey)),
           const SizedBox(width: 8),
           Container(width: 1, height: 12, color: const Color(0xFF2A2A3E)),
           const SizedBox(width: 8),
-          const Text('Python 3.12',
-              style: TextStyle(fontSize: 8, color: Colors.grey)),
+          Tr('Python 3.12', style: TextStyle(fontSize: 8, color: Colors.grey)),
           const Spacer(),
           TextButton(
             onPressed: () {},
-            child: const Text('Check Update',
-                style: TextStyle(fontSize: 8, color: Color(0xFF699EFF))),
+            child: Tr('Check Update', style: TextStyle(fontSize: 8, color: Color(0xFF699EFF))),
           ),
           const SizedBox(width: 8),
           TextButton(
             onPressed: () {},
-            child: const Text('Help F1',
-                style: TextStyle(fontSize: 8, color: Colors.grey)),
+            child: Tr('Help F1', style: TextStyle(fontSize: 8, color: Colors.grey)),
           ),
         ],
       ),

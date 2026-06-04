@@ -3,6 +3,7 @@ import '../services/api_service.dart';
 import '../widgets/timeline_canvas.dart';
 import '../widgets/tr.dart';
 import '../../services/i18n_service.dart';
+import '../services/i18n_service.dart';
 
 /// ProEdit page — 4-panel precision editing layout
 /// Reference: DaVinci Resolve Edit workspace
@@ -167,7 +168,7 @@ class _ProEditPageState extends State<ProEditPage> {
       padding: const EdgeInsets.symmetric(horizontal: 3),
       child: TextButton.icon(
         icon: Icon(icon, size: 14, color: color),
-        label: Text(label, style: TextStyle(fontSize: 10, color: color)),
+        label: Text(i18n.tr(label), style: TextStyle(fontSize: 10, color: color)),
         onPressed: () {},
         style: TextButton.styleFrom(
           padding: const EdgeInsets.symmetric(horizontal: 6),
@@ -180,7 +181,7 @@ class _ProEditPageState extends State<ProEditPage> {
   Widget _tbChip(IconData icon, String label) {
     return ActionChip(
       avatar: Icon(icon, size: 13),
-      label: Text(label, style: const TextStyle(fontSize: 10)),
+      label: Text(i18n.tr(label), style: const TextStyle(fontSize: 10)),
       onPressed: null,
       padding: const EdgeInsets.symmetric(horizontal: 4),
       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -189,7 +190,7 @@ class _ProEditPageState extends State<ProEditPage> {
   }
 
   Widget _tbLabel(String text) {
-    return Text(text, style: const TextStyle(fontSize: 10, color: Colors.grey));
+    return Text(i18n.tr(text), style: const TextStyle(fontSize: 10, color: Colors.grey));
   }
 
   // ── LEFT_SIDEBAR (200px) ──────────────────────────────
@@ -237,7 +238,7 @@ class _ProEditPageState extends State<ProEditPage> {
         children: [
           Icon(icon, size: 13, color: selected ? const Color(0xFF699EFF) : Colors.grey),
           const SizedBox(width: 6),
-          Text(name, style: TextStyle(
+          Text(i18n.tr(name), style: TextStyle(
             fontSize: 11,
             color: selected ? Colors.white : Colors.grey,
             fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
@@ -267,7 +268,7 @@ class _ProEditPageState extends State<ProEditPage> {
 
   Widget _toolFolder(String name, List<(String, IconData)> items) {
     return ExpansionTile(
-      title: Text(name, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+      title: Text(i18n.tr(name), style: const TextStyle(fontSize: 10, color: Colors.grey)),
       childrenPadding: EdgeInsets.zero,
       tilePadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
       dense: true,
@@ -411,7 +412,7 @@ class _ProEditPageState extends State<ProEditPage> {
             // Header
             Container(
               padding: const EdgeInsets.symmetric(vertical: 3),
-              child: Text(name, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: Colors.white70)),
+              child: Text(i18n.tr(name), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: Colors.white70)),
             ),
             // FX buttons
             Row(
@@ -473,7 +474,7 @@ class _ProEditPageState extends State<ProEditPage> {
             // Label
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 2),
-              child: Text(id, style: const TextStyle(fontSize: 9, color: Colors.grey)),
+              child: Text(i18n.tr(id), style: const TextStyle(fontSize: 9, color: Colors.grey)),
             ),
           ],
         ),
@@ -494,7 +495,7 @@ class _ProEditPageState extends State<ProEditPage> {
           children: [
             Container(
               padding: const EdgeInsets.symmetric(vertical: 3),
-              child: Text(name, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: Colors.orangeAccent)),
+              child: Text(i18n.tr(name), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: Colors.orangeAccent)),
             ),
             _fxDot('FX', false),
             const SizedBox(height: 2),
@@ -521,7 +522,7 @@ class _ProEditPageState extends State<ProEditPage> {
             ),
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 2),
-              child: Text(name, style: const TextStyle(fontSize: 9, color: Colors.orangeAccent)),
+              child: Text(i18n.tr(name), style: const TextStyle(fontSize: 9, color: Colors.orangeAccent)),
             ),
           ],
         ),
@@ -536,7 +537,7 @@ class _ProEditPageState extends State<ProEditPage> {
         color: active ? const Color(0xFF699EFF) : const Color(0xFF2A2A3E),
         borderRadius: BorderRadius.circular(2),
       ),
-      child: Center(child: Text(label, style: TextStyle(fontSize: 6, color: active ? Colors.white : Colors.grey))),
+      child: Center(child: Text(i18n.tr(label), style: TextStyle(fontSize: 6, color: active ? Colors.white : Colors.grey))),
     );
   }
 
@@ -661,10 +662,10 @@ class _ProEditPageState extends State<ProEditPage> {
               children: [
                 Icon(isOpen ? Icons.expand_less : Icons.expand_more, size: 14, color: Colors.grey),
                 const SizedBox(width: 4),
-                Text(title, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.grey)),
+                Text(i18n.tr(title), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.grey)),
                 const Spacer(),
                 if (title == 'Transform')
-                  Text('✕', style: TextStyle(fontSize: 8, color: Colors.grey.shade600)),
+                  Tr('✕', style: TextStyle(fontSize: 8, color: Colors.grey.shade600)),
               ],
             ),
           ),
@@ -682,7 +683,7 @@ class _ProEditPageState extends State<ProEditPage> {
         children: [
           SizedBox(
             width: 80,
-            child: Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+            child: Text(i18n.tr(label), style: const TextStyle(fontSize: 10, color: Colors.grey)),
           ),
           if (numInput)
             Expanded(
@@ -743,7 +744,7 @@ class _ProEditPageState extends State<ProEditPage> {
                         color: const Color(0xFF1A1A2E),
                         borderRadius: BorderRadius.circular(2),
                       ),
-                      child: Text(value, style: const TextStyle(fontSize: 10, fontFamily: 'monospace', color: Colors.white)),
+                      child: Text(i18n.tr(value), style: const TextStyle(fontSize: 10, fontFamily: 'monospace', color: Colors.white)),
                     ),
                   ),
                 ],
@@ -756,7 +757,7 @@ class _ProEditPageState extends State<ProEditPage> {
                 color: const Color(0xFF1A1A2E),
                 borderRadius: BorderRadius.circular(2),
               ),
-              child: Text(value, style: const TextStyle(fontSize: 10, fontFamily: 'monospace', color: Colors.white)),
+              child: Text(i18n.tr(value), style: const TextStyle(fontSize: 10, fontFamily: 'monospace', color: Colors.white)),
             ),
         ],
       ),
@@ -780,7 +781,7 @@ class _ProEditPageState extends State<ProEditPage> {
   Widget _flipBtn(IconData icon, String label) {
     return OutlinedButton.icon(
       icon: Icon(icon, size: 12),
-      label: Text(label, style: const TextStyle(fontSize: 10)),
+      label: Text(i18n.tr(label), style: const TextStyle(fontSize: 10)),
       onPressed: () {},
       style: OutlinedButton.styleFrom(
         padding: const EdgeInsets.symmetric(horizontal: 6),
@@ -799,7 +800,7 @@ class _ProEditPageState extends State<ProEditPage> {
         children: [
           Icon(icon, size: 13, color: Colors.grey),
           const SizedBox(width: 6),
-          Text(title, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600)),
+          Text(i18n.tr(title), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600)),
         ],
       ),
     );

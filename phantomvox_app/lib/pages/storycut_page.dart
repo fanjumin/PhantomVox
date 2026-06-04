@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../widgets/tr.dart';
 import '../../services/i18n_service.dart';
+import '../services/i18n_service.dart';
 
 /// StoryCut page — quick story editing workspace
 class StoryCutPage extends StatefulWidget {
@@ -429,7 +430,7 @@ class _StoryCutPageState extends State<StoryCutPage> {
           children: [
             Icon(icon, size: 12, color: color),
             const SizedBox(width: 4),
-            Text(label,
+            Text(i18n.tr(label),
                 style: TextStyle(fontSize: 10, color: color, fontWeight: FontWeight.w500)),
           ],
         ),
@@ -442,7 +443,7 @@ class _StoryCutPageState extends State<StoryCutPage> {
   Widget _toolbarBtn(String label) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: Text(label,
+      child: Text(i18n.tr(label),
           style: const TextStyle(fontSize: 10, color: Colors.grey)),
     );
   }
@@ -457,7 +458,7 @@ class _StoryCutPageState extends State<StoryCutPage> {
             Icon(icon, size: 14, color: Colors.grey),
             if (label.isNotEmpty) ...[
               const SizedBox(width: 3),
-              Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+              Text(i18n.tr(label), style: const TextStyle(fontSize: 10, color: Colors.grey)),
             ],
           ],
         ),
@@ -491,7 +492,7 @@ class _StoryCutPageState extends State<StoryCutPage> {
             color: color,
           ),
           const SizedBox(width: 4),
-          Text(label,
+          Text(i18n.tr(label),
               style: const TextStyle(fontSize: 10, color: Colors.grey, fontFamily: 'monospace')),
         ],
       ),
@@ -507,7 +508,7 @@ class _StoryCutPageState extends State<StoryCutPage> {
         border: Border.all(color: color.withOpacity(0.6)),
       ),
       alignment: Alignment.center,
-      child: Text(label,
+      child: Text(i18n.tr(label),
           style: const TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.w500)),
     );
   }
@@ -519,7 +520,7 @@ class _StoryCutPageState extends State<StoryCutPage> {
         color: active ? const Color(0xFF6C63FF) : const Color(0xFF2A2A3E),
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Text(label,
+      child: Text(i18n.tr(label),
           style: TextStyle(fontSize: 9, color: active ? Colors.white : Colors.grey)),
     );
   }
@@ -554,7 +555,7 @@ class _StoryCutPageState extends State<StoryCutPage> {
       children: [
         Row(
           children: [
-            Text(label,
+            Text(i18n.tr(label),
                 style: const TextStyle(fontSize: 9, color: Colors.grey, fontFamily: 'monospace')),
             const SizedBox(width: 4),
             Expanded(

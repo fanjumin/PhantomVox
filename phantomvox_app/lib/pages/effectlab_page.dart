@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../widgets/tr.dart';
 import '../../services/i18n_service.dart';
+import '../services/i18n_service.dart';
 
 /// EffectLab page — visual effects compositing workspace (Fusion-style)
 /// Reference: DaVinci Resolve Fusion workspace
@@ -91,7 +92,7 @@ class _EffectLabPageState extends State<EffectLabPage> {
     final color = accent ? const Color(0xFF699EFF) : Colors.grey;
     return TextButton.icon(
       icon: Icon(icon, size: 11, color: color),
-      label: Text(label, style: TextStyle(fontSize: 8, color: color)),
+      label: Text(i18n.tr(label), style: TextStyle(fontSize: 8, color: color)),
       onPressed: () {},
       style: TextButton.styleFrom(
         padding: const EdgeInsets.symmetric(horizontal: 3),
@@ -101,7 +102,7 @@ class _EffectLabPageState extends State<EffectLabPage> {
   }
 
   Widget _tbLabel(String text) {
-    return Text(text, style: const TextStyle(fontSize: 8, color: Colors.grey));
+    return Text(i18n.tr(text), style: const TextStyle(fontSize: 8, color: Colors.grey));
   }
 
   // ── LEFT_PREVIEW (180px) ──────────────────────────────
@@ -408,7 +409,7 @@ class _EffectLabPageState extends State<EffectLabPage> {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       child: Row(
         children: [
-          SizedBox(width: 80, child: Text(label, style: const TextStyle(fontSize: 8, color: Colors.grey))),
+          SizedBox(width: 80, child: Text(i18n.tr(label), style: const TextStyle(fontSize: 8, color: Colors.grey))),
           Expanded(
             child: Container(
               height: 18,
@@ -420,7 +421,7 @@ class _EffectLabPageState extends State<EffectLabPage> {
               child: Row(
                 children: [
                   if (dropdown) const Icon(Icons.arrow_drop_down, size: 12, color: Colors.grey),
-                  Text(value, style: const TextStyle(fontSize: 8, color: Colors.white, fontFamily: 'monospace')),
+                  Text(i18n.tr(value), style: const TextStyle(fontSize: 8, color: Colors.white, fontFamily: 'monospace')),
                 ],
               ),
             ),
@@ -441,7 +442,7 @@ class _EffectLabPageState extends State<EffectLabPage> {
             size: 12, color: checked ? const Color(0xFF699EFF) : Colors.grey,
           ),
           const SizedBox(width: 4),
-          Text(label, style: const TextStyle(fontSize: 8, color: Colors.white70)),
+          Text(i18n.tr(label), style: const TextStyle(fontSize: 8, color: Colors.white70)),
         ],
       ),
     );
@@ -456,7 +457,7 @@ class _EffectLabPageState extends State<EffectLabPage> {
           color: selected ? const Color(0xFF699EFF) : const Color(0xFF1A1A2E),
           borderRadius: BorderRadius.circular(3),
         ),
-        child: Text(label, style: TextStyle(fontSize: 7, color: selected ? Colors.white : Colors.grey)),
+        child: Text(i18n.tr(label), style: TextStyle(fontSize: 7, color: selected ? Colors.white : Colors.grey)),
       ),
     );
   }
@@ -471,7 +472,7 @@ class _EffectLabPageState extends State<EffectLabPage> {
             children: [
               const Icon(Icons.expand_less, size: 12, color: Colors.grey),
               const SizedBox(width: 4),
-              Text(title, style: const TextStyle(fontSize: 8, color: Colors.grey, fontWeight: FontWeight.w600)),
+              Text(i18n.tr(title), style: const TextStyle(fontSize: 8, color: Colors.grey, fontWeight: FontWeight.w600)),
               const Spacer(),
             ],
           ),
@@ -485,7 +486,7 @@ class _EffectLabPageState extends State<EffectLabPage> {
   Widget _insLabel(String text) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 2),
-      child: Text(text, style: const TextStyle(fontSize: 7, color: Colors.grey)),
+      child: Text(i18n.tr(text), style: const TextStyle(fontSize: 7, color: Colors.grey)),
     );
   }
 
@@ -497,7 +498,7 @@ class _EffectLabPageState extends State<EffectLabPage> {
         color: const Color(0xFF1A1A2E),
         borderRadius: BorderRadius.circular(2),
       ),
-      child: Text(value, style: const TextStyle(fontSize: 7, color: Colors.white70, fontFamily: 'monospace')),
+      child: Text(i18n.tr(value), style: const TextStyle(fontSize: 7, color: Colors.white70, fontFamily: 'monospace')),
     );
   }
 
@@ -530,7 +531,7 @@ class _EffectLabPageState extends State<EffectLabPage> {
                       width: 1,
                       color: Colors.red,
                       child: const Center(
-                        child: Text('43.0', style: TextStyle(fontSize: 6, color: Colors.red)),
+                        child: Tr('43.0', style: TextStyle(fontSize: 6, color: Colors.red)),
                       ),
                     ),
                   ),
@@ -598,8 +599,7 @@ class _EffectLabPageState extends State<EffectLabPage> {
                 children: const [
                   Icon(Icons.mouse, size: 8, color: Colors.grey),
                   SizedBox(width: 3),
-                  Text('right-click: AI | Edit | Replace | Delete',
-                      style: TextStyle(fontSize: 6, color: Colors.grey)),
+                  Tr('right-click: AI | Edit | Replace | Delete', style: TextStyle(fontSize: 6, color: Colors.grey)),
                 ],
               ),
             ),
@@ -629,7 +629,7 @@ class _EffectLabPageState extends State<EffectLabPage> {
             children: [
               Icon(Icons.lens, size: 6, color: color),
               const SizedBox(width: 3),
-              Text(label, style: TextStyle(
+              Text(i18n.tr(label), style: TextStyle(
                 fontSize: 8,
                 color: selected ? Colors.white : color,
                 fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
