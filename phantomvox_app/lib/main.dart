@@ -3,6 +3,7 @@ import 'widgets/tr.dart' as i18n_widget;
 import 'services/i18n_service.dart';
 import 'pages/home_page.dart';
 import 'pages/flow_graph_page.dart';
+import 'pages/image_editor_page.dart';
 import 'pages/agent_page.dart';
 import 'pages/storycut_page.dart';
 import 'pages/pro_edit_page.dart';
@@ -51,6 +52,7 @@ class _MainShellState extends State<MainShell> {
 
   final _pages = const [
     FlowGraphPage(),
+    ImageEditorPage(),
     AgentPage(),
     StoryCutPage(),
     ProEditPage(),
@@ -62,6 +64,7 @@ class _MainShellState extends State<MainShell> {
 
   final _labels = [
     'Flow Graph',
+    'Image Studio',
     'AI Agent',
     'StoryCut',
     'ProEdit',

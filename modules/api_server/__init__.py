@@ -343,6 +343,191 @@ def create_app(engine=None):
         agent = app.engine.get("agent")
         return jsonify({"workflows": agent.list_workflows()})
 
+    # ── Image Editor ─────────────────────────────────────
+
+    def _get_img_editor():
+        """Get or create ImageEditorEngine instance."""
+        if not hasattr(app, '_img_editor'):
+            from modules.image_editor import ImageEditorEngine
+            hw = app.engine.get("hardware") if hasattr(app.engine, 'get') else None
+            app._img_editor = ImageEditorEngine(hardware=hw)
+        return app._img_editor
+
+    @app.route("/api/v1/editor/capabilities")
+    def editor_capabilities():
+        editor = _get_img_editor()
+        return jsonify(editor.get_capabilities())
+
+    @app.route("/api/v1/editor/load", methods=["POST"])
+    def editor_load():
+        """Load an image from file path. Returns base64 preview + info."""
+        data = request.get_json(silent=True) or {}
+        path = data.get("path", "")
+        if not path or not os.path.exists(path):
+            return jsonify({"error": "File not found"}), 404
+        editor = _get_img_editor()
+        try:
+            info = editor.load(path)
+            b64 = editor.to_base64()
+            return jsonify({"status": "ok", "info": info, "base64": b64})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/crop", methods=["POST"])
+    def editor_crop():
+        data = request.get_json(silent=True) or {}
+        editor = _get_img_editor()
+        try:
+            info = editor.crop(data["x"], data["y"], data["w"], data["h"])
+            return jsonify({"status": "ok", "info": info, "base64": editor.to_base64()})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/resize", methods=["POST"])
+    def editor_resize():
+        data = request.get_json(silent=True) or {}
+        editor = _get_img_editor()
+        try:
+            info = editor.resize(data["width"], data["height"],
+                                 data.get("keep_aspect", False))
+            return jsonify({"status": "ok", "info": info, "base64": editor.to_base64()})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/rotate", methods=["POST"])
+    def editor_rotate():
+        data = request.get_json(silent=True) or {}
+        editor = _get_img_editor()
+        try:
+            info = editor.rotate(data.get("angle", 90), data.get("expand", True))
+            return jsonify({"status": "ok", "info": info, "base64": editor.to_base64()})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/flip", methods=["POST"])
+    def editor_flip():
+        data = request.get_json(silent=True) or {}
+        editor = _get_img_editor()
+        try:
+            info = editor.flip(data.get("direction", "horizontal"))
+            return jsonify({"status": "ok", "info": info, "base64": editor.to_base64()})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/adjust", methods=["POST"])
+    def editor_adjust():
+        """Adjust brightness/contrast/saturation/sharpness. All are optional factors (0-2)."""
+        data = request.get_json(silent=True) or {}
+        editor = _get_img_editor()
+        try:
+            if "brightness" in data:
+                editor.adjust_brightness(data["brightness"])
+            if "contrast" in data:
+                editor.adjust_contrast(data["contrast"])
+            if "saturation" in data:
+                editor.adjust_saturation(data["saturation"])
+            if "sharpness" in data:
+                editor.adjust_sharpness(data["sharpness"])
+            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64()})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/filter", methods=["POST"])
+    def editor_filter():
+        """Apply preset filter: grayscale, sepia, blur, invert."""
+        data = request.get_json(silent=True) or {}
+        editor = _get_img_editor()
+        try:
+            editor.apply_filter(data.get("filter", "grayscale"))
+            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64()})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/text", methods=["POST"])
+    def editor_text():
+        """Add text overlay. Required: text. Optional: x, y, font_size, color (RGB), opacity."""
+        data = request.get_json(silent=True) or {}
+        editor = _get_img_editor()
+        try:
+            editor.add_text(
+                data["text"],
+                x=data.get("x", 10),
+                y=data.get("y", 10),
+                font_size=data.get("font_size", 24),
+                color=tuple(data.get("color", [255, 255, 255])),
+                opacity=data.get("opacity", 1.0),
+            )
+            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64()})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/watermark", methods=["POST"])
+    def editor_watermark():
+        """Add image watermark. watermark_path required. Optional: position, opacity, scale."""
+        data = request.get_json(silent=True) or {}
+        editor = _get_img_editor()
+        wm_path = data.get("watermark_path", "")
+        if not wm_path or not os.path.exists(wm_path):
+            return jsonify({"error": "Watermark file not found"}), 404
+        try:
+            with open(wm_path, "rb") as f:
+                editor.add_watermark(
+                    f.read(),
+                    position=data.get("position", "bottom_right"),
+                    opacity=data.get("opacity", 0.5),
+                    scale=data.get("scale", 0.2),
+                )
+            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64()})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/blur-region", methods=["POST"])
+    def editor_blur_region():
+        """Blur a rectangular region. Required: x, y, w, h. Optional: radius."""
+        data = request.get_json(silent=True) or {}
+        editor = _get_img_editor()
+        try:
+            editor.blur_region(data["x"], data["y"], data["w"], data["h"],
+                               data.get("radius", 20))
+            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64()})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/denoise", methods=["POST"])
+    def editor_denoise():
+        """Denoise image. Optional: strength (1-5, default 3)."""
+        data = request.get_json(silent=True) or {}
+        editor = _get_img_editor()
+        try:
+            editor.denoise(data.get("strength", 3))
+            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64()})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/remove-bg", methods=["POST"])
+    def editor_remove_bg():
+        """Remove image background (local rembg)."""
+        editor = _get_img_editor()
+        try:
+            editor.remove_background()
+            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64()})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/export", methods=["POST"])
+    def editor_export():
+        """Export current image to a file path."""
+        data = request.get_json(silent=True) or {}
+        path = data.get("path", "")
+        if not path:
+            return jsonify({"error": "No path provided"}), 400
+        editor = _get_img_editor()
+        try:
+            abs_path = editor.export(path, fmt=data.get("fmt"), quality=data.get("quality", 95))
+            return jsonify({"status": "ok", "path": abs_path})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
     # ── Flow Graph (Creative Flow Tree) ────────────────
 
     @app.route("/api/v1/flowgraph")

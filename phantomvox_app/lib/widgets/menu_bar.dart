@@ -71,7 +71,7 @@ class PhantomVoxMenuBar extends StatelessWidget implements PreferredSizeWidget {
                   shift: true,
                 ),
                 child: const Tr('AI Agent Panel'),
-                onPressed: () => onPageSwitch(1),
+                onPressed: () => onPageSwitch(2),
               ),
               const Divider(height: 1),
               MenuItemButton(
@@ -376,13 +376,13 @@ class PhantomVoxMenuBar extends StatelessWidget implements PreferredSizeWidget {
               MenuItemButton(
                 leadingIcon: const Icon(Icons.video_library, size: 14),
                 child: const Tr('Media Browser'),
-                onPressed: () => onPageSwitch(3), // ProEdit
+                onPressed: () => onPageSwitch(4), // ProEdit
               ),
               const Divider(height: 1),
               MenuItemButton(
                 leadingIcon: const Icon(Icons.mic, size: 14),
                 child: const Tr('Voiceover Recording'),
-                onPressed: () => onPageSwitch(5), // AudioForge
+                onPressed: () => onPageSwitch(6), // AudioForge
               ),
               MenuItemButton(
                 leadingIcon: const Icon(Icons.videocam, size: 14),
@@ -393,12 +393,12 @@ class PhantomVoxMenuBar extends StatelessWidget implements PreferredSizeWidget {
               MenuItemButton(
                 leadingIcon: const Icon(Icons.manage_search, size: 14),
                 child: const Tr('Media Management'),
-                onPressed: () => onPageSwitch(2), // StoryCut
+                onPressed: () => onPageSwitch(3), // StoryCut
               ),
               MenuItemButton(
                 leadingIcon: const Icon(Icons.analytics, size: 14),
                 child: const Tr('Timeline Statistics'),
-                onPressed: () => onPageSwitch(3), // ProEdit
+                onPressed: () => onPageSwitch(4), // ProEdit
               ),
             ],
           ),
@@ -411,14 +411,14 @@ class PhantomVoxMenuBar extends StatelessWidget implements PreferredSizeWidget {
                 leadingIcon: const Icon(Icons.colorize, size: 14),
                 child: const Tr('Color Match'),
                 onPressed: () {
-                  onPageSwitch(4); // Go to Palette page
+                  onPageSwitch(5); // Go to Palette page
                 },
               ),
               MenuItemButton(
                 leadingIcon: const Icon(Icons.audio_file, size: 14),
                 child: const Tr('Audio Analysis'),
                 onPressed: () {
-                  onPageSwitch(5); // Go to AudioForge page
+                  onPageSwitch(6); // Go to AudioForge page
                 },
               ),
               MenuItemButton(
@@ -437,16 +437,17 @@ class PhantomVoxMenuBar extends StatelessWidget implements PreferredSizeWidget {
                 leadingIcon: const Icon(Icons.swap_horiz, size: 14),
                 menuChildren: [
                   _pageItem('Flow Graph', 0, LogicalKeyboardKey.digit7, currentPageIndex, onPageSwitch),
-                  _pageItem('AI Agent', 1, LogicalKeyboardKey.digit6, currentPageIndex, onPageSwitch),
-                  _pageItem('StoryCut', 2, LogicalKeyboardKey.digit1, currentPageIndex, onPageSwitch),
-                  _pageItem('ProEdit', 3, LogicalKeyboardKey.digit2, currentPageIndex, onPageSwitch),
-                  _pageItem('Palette', 4, LogicalKeyboardKey.digit3, currentPageIndex, onPageSwitch),
-                  _pageItem('AudioForge', 5, LogicalKeyboardKey.digit4, currentPageIndex, onPageSwitch),
-                  _pageItem('EffectLab', 6, LogicalKeyboardKey.digit5, currentPageIndex, onPageSwitch),
+                  _pageItem('Image Studio', 1, LogicalKeyboardKey.digit8, currentPageIndex, onPageSwitch),
+                  _pageItem('AI Agent', 2, LogicalKeyboardKey.digit6, currentPageIndex, onPageSwitch),
+                  _pageItem('StoryCut', 3, LogicalKeyboardKey.digit1, currentPageIndex, onPageSwitch),
+                  _pageItem('ProEdit', 4, LogicalKeyboardKey.digit2, currentPageIndex, onPageSwitch),
+                  _pageItem('Palette', 5, LogicalKeyboardKey.digit3, currentPageIndex, onPageSwitch),
+                  _pageItem('AudioForge', 6, LogicalKeyboardKey.digit4, currentPageIndex, onPageSwitch),
+                  _pageItem('EffectLab', 7, LogicalKeyboardKey.digit5, currentPageIndex, onPageSwitch),
                   const Divider(height: 1),
                   MenuItemButton(
                     child: const Tr('Dashboard'),
-                    onPressed: () => onPageSwitch(7),
+                    onPressed: () => onPageSwitch(8),
                   ),
                 ],
                 child: const Tr('Workspace Switch'),
