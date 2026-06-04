@@ -569,6 +569,141 @@ def create_app(engine=None):
         except Exception as e:
             return jsonify({"error": str(e)}), 400
 
+    @app.route("/api/v1/editor/smart-sharpen", methods=["POST"])
+    def editor_smart_sharpen():
+        """Unsharp mask sharpening. amount: 0-3 (default 1.0)."""
+        data = request.get_json(silent=True) or {}
+        editor = _get_img_editor()
+        try:
+            editor.smart_sharpen(
+                amount=data.get("amount", 1.0),
+                radius=data.get("radius", 3),
+            )
+            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64(),
+                            "history": editor.get_history_state()})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/clahe", methods=["POST"])
+    def editor_clahe():
+        """CLAHE contrast enhancement. clip_limit: 1-5 (default 2.0)."""
+        data = request.get_json(silent=True) or {}
+        editor = _get_img_editor()
+        try:
+            editor.clahe_enhance(
+                clip_limit=data.get("clip_limit", 2.0),
+            )
+            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64(),
+                            "history": editor.get_history_state()})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/auto-wb", methods=["POST"])
+    def editor_auto_wb():
+        """Auto white balance. strength: 0-2 (default 1.0)."""
+        data = request.get_json(silent=True) or {}
+        editor = _get_img_editor()
+        try:
+            editor.auto_white_balance(strength=data.get("strength", 1.0))
+            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64(),
+                            "history": editor.get_history_state()})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/upscale", methods=["POST"])
+    def editor_upscale():
+        """Super resolution upscale. scale: 2 or 4."""
+        data = request.get_json(silent=True) or {}
+        editor = _get_img_editor()
+        try:
+            editor.super_resolve(
+                scale=data.get("scale", 2),
+                sharpen_amount=data.get("sharpen", 0.5),
+            )
+            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64(),
+                            "history": editor.get_history_state()})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/inpaint-erase", methods=["POST"])
+    def editor_inpaint_erase():
+        """AI erase / inpainting from brush points.
+        Required: points [[x,y],...]. Optional: brush_size, method.
+        """
+        data = request.get_json(silent=True) or {}
+        editor = _get_img_editor()
+        points = data.get("points", [])
+        if not points or len(points) < 1:
+            return jsonify({"error": "Need at least 1 point"}), 400
+        try:
+            editor.inpaint_from_points(
+                points,
+                brush_size=data.get("brush_size", 20),
+                method=data.get("method", "telea"),
+            )
+            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64(),
+                            "history": editor.get_history_state()})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/lineart", methods=["POST"])
+    def editor_lineart():
+        """Extract line art. method: canny, sobel, laplacian."""
+        data = request.get_json(silent=True) or {}
+        editor = _get_img_editor()
+        try:
+            editor.extract_lineart(
+                method=data.get("method", "canny"),
+                invert=data.get("invert", True),
+            )
+            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64(),
+                            "history": editor.get_history_state()})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/hdr", methods=["POST"])
+    def editor_hdr():
+        """HDR tone mapping effect."""
+        data = request.get_json(silent=True) or {}
+        editor = _get_img_editor()
+        try:
+            editor.hdr_tone(
+                gamma=data.get("gamma", 1.0),
+            )
+            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64(),
+                            "history": editor.get_history_state()})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/ai-enhance", methods=["POST"])
+    def editor_ai_enhance():
+        """AI-powered image enhancement pipeline.
+        mode: general, portrait, old_photo. strength: 0-2.
+        """
+        data = request.get_json(silent=True) or {}
+        editor = _get_img_editor()
+        try:
+            editor.ai_enhance_image(
+                mode=data.get("mode", "general"),
+                strength=data.get("strength", 1.0),
+            )
+            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64(),
+                            "history": editor.get_history_state()})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/ai-restore", methods=["POST"])
+    def editor_ai_restore():
+        """AI face restoration."""
+        data = request.get_json(silent=True) or {}
+        editor = _get_img_editor()
+        try:
+            editor.ai_restore_faces(strength=data.get("strength", 1.0))
+            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64(),
+                            "history": editor.get_history_state()})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
     @app.route("/api/v1/editor/draw", methods=["POST"])
     def editor_draw():
         """Draw freehand brush stroke. Required: points [[x,y],...]. Optional: color, size, opacity."""

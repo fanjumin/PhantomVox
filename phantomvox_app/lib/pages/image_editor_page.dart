@@ -38,6 +38,7 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
   // Zoom
   double _zoomLevel = 1.0;
   Offset _panOffset = Offset.zero;
+  Offset _panStartOffset = Offset.zero;
 
   // Adjust sliders
   double _brightness = 1.0, _contrast = 1.0, _saturation = 1.0;
@@ -45,7 +46,7 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
   Map<String, dynamic> _caps = {};
 
   // ── Text tool state ──────────────────────────────
-  double? _textX, _textY;
+  Rect? _textBoxRect;           // click-drag text box (image coords)
   final TextEditingController _textCtrl = TextEditingController();
   double _textSize = 32;
   Color _textColor = Colors.white;
@@ -234,7 +235,7 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
       _toolMode = ToolMode.none;
       _selX = _selY = _selW = _selH = null;
       _dragHandle = null;
-      _textX = _textY = null;
+      _textBoxRect = null;
       _currentStroke = [];
       _brushStrokes = [];
       _isDrawing = false;
@@ -304,7 +305,7 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
     _exitToolMode();
     setState(() {
       _toolMode = ToolMode.text;
-      _textX = _textY = null;
+      _textBoxRect = null;
     });
   }
 
@@ -339,26 +340,39 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
     });
   }
 
-  // ── Text: click on canvas ───────────────────────
-  void _onTextCanvasTap(Offset localPos) {
+  // ── Text: drag to create text box ──────────────
+  void _onTextDragStart(DragStartDetails d) {
     if (_toolMode != ToolMode.text) return;
-    final pos = _screenToImage(localPos);
+    final pos = _screenToImage(d.localPosition);
     if (pos == null) return;
     setState(() {
-      _textX = pos.dx;
-      _textY = pos.dy;
+      _textBoxRect = Rect.fromPoints(pos, pos);
     });
   }
 
+  void _onTextDragUpdate(DragUpdateDetails d) {
+    if (_toolMode != ToolMode.text || _textBoxRect == null) return;
+    final pos = _screenToImage(d.localPosition);
+    if (pos == null) return;
+    setState(() {
+      _textBoxRect = Rect.fromPoints(_textBoxRect!.topLeft, pos);
+    });
+  }
+
+  void _onTextDragEnd(DragEndDetails d) {
+    if (_toolMode != ToolMode.text || _textBoxRect == null) return;
+    // Keep the last box position for text placement
+  }
+
   void _applyText() {
-    if (_textX == null || _textY == null || _textCtrl.text.trim().isEmpty) {
-      _showMsg('Click on the image first, then type your text.');
+    if (_textBoxRect == null || _textCtrl.text.trim().isEmpty) {
+      _showMsg('Drag a text box on the image first, then type your text.');
       return;
     }
     final body = <String, dynamic>{
       'text': _textCtrl.text.trim(),
-      'x': _textX!.round(),
-      'y': _textY!.round(),
+      'x': _textBoxRect!.left.round(),
+      'y': _textBoxRect!.top.round(),
       'font_size': _textSize.round(),
       'color': [_textColor.red, _textColor.green, _textColor.blue],
       'stroke_width': _enableStroke ? _strokeWidth.round() : 0,
@@ -375,7 +389,7 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
     }
     _callEdit('/api/v1/editor/text', body);
     setState(() {
-      _textX = _textY = null;
+      _textBoxRect = null;
       _textCtrl.clear();
     });
   }
@@ -579,7 +593,7 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
   }
 
   Offset? _textLayoutPos() {
-    if (_textX == null || _displaySize == null || _info == null) return null;
+    if (_textBoxRect == null || _displaySize == null || _info == null) return null;
     final imgW = (_info!['width'] as num).toDouble();
     final imgH = (_info!['height'] as num).toDouble();
     final ds = _displaySize!;
@@ -589,7 +603,29 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
     final drawH = imgH * scale;
     final ox = (ds.width - drawW) / 2;
     final oy = (ds.height - drawH) / 2;
-    return Offset(ox + _textX! * scale, oy + _textY! * scale);
+    // Return top-left of text box in layout coords
+    return Offset(
+      ox + _textBoxRect!.left * scale,
+      oy + _textBoxRect!.top * scale,
+    );
+  }
+
+  /// Text box rect in layout coordinates
+  Rect? _textBoxLayoutRect() {
+    if (_textBoxRect == null || _displaySize == null || _info == null) return null;
+    final imgW = (_info!['width'] as num).toDouble();
+    final imgH = (_info!['height'] as num).toDouble();
+    final ds = _displaySize!;
+    final scale = (ds.width / imgW) < (ds.height / imgH)
+        ? ds.width / imgW : ds.height / imgH;
+    final ox = (ds.width - imgW * scale) / 2;
+    final oy = (ds.height - imgH * scale) / 2;
+    return Rect.fromLTWH(
+      ox + _textBoxRect!.left * scale,
+      oy + _textBoxRect!.top * scale,
+      _textBoxRect!.width * scale,
+      _textBoxRect!.height * scale,
+    );
   }
 
   Rect? _shapeLayoutRect() {
@@ -608,6 +644,59 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
     double x2 = ox + _shapeEnd!.dx * scale;
     double y2 = oy + _shapeEnd!.dy * scale;
     return Rect.fromLTRB(x1, y1, x2, y2);
+  }
+
+  // ── Upscale dialog ────────────────────────────
+
+  void _showUpscaleDialog() {
+    int selectedScale = 2;
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: const Color(0xFF16213E),
+          title: const Text('AI Upscale', style: TextStyle(color: Colors.white, fontSize: 14)),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Text('Increase image resolution:',
+                style: TextStyle(color: Colors.grey, fontSize: 11)),
+            const SizedBox(height: 8),
+            Wrap(spacing: 8, children: [
+              _scaleBtn(ctx, '2x', 2, selectedScale, setDialogState),
+              _scaleBtn(ctx, '4x', 4, selectedScale, setDialogState),
+            ]),
+            const SizedBox(height: 8),
+            const Text('Note: 4x produces larger file but may be blurry.\nAI model can be added for better results.',
+                style: TextStyle(color: Colors.grey, fontSize: 9)),
+          ]),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel', style: TextStyle(color: Colors.grey, fontSize: 12))),
+            TextButton(onPressed: () {
+              Navigator.pop(ctx);
+              _callEdit('/api/v1/editor/upscale', {'scale': selectedScale, 'sharpen': 0.5});
+            }, child: const Text('Upscale', style: TextStyle(color: Color(0xFF6C63FF), fontSize: 12))),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _scaleBtn(BuildContext ctx, String label, int scale, int selected, StateSetter setState) {
+    final active = scale == selected;
+    return GestureDetector(
+      onTap: () => setState(() => selected = scale),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        decoration: BoxDecoration(
+          color: active ? const Color(0xFF3A3A7E) : const Color(0xFF2A2A4E),
+          borderRadius: BorderRadius.circular(6),
+          border: active ? Border.all(color: const Color(0xFF6C63FF), width: 1.5) : null,
+        ),
+        child: Text(label, style: TextStyle(
+            fontSize: 16, fontWeight: FontWeight.bold,
+            color: active ? const Color(0xFF6C63FF) : Colors.white60)),
+      ),
+    );
   }
 
   // ── Quick actions ──────────────────────────────
@@ -645,7 +734,7 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
           ],
         ],
       ),
-      body: _imageBytes == null ? _buildEmptyState() : _buildEditorBody(),
+      body: _buildEditorBody(),
     );
   }
 
@@ -687,27 +776,18 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
     );
   }
 
-  Widget _buildEmptyState() {
-    return Center(
-      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        const Icon(Icons.image, size: 64, color: Color(0xFF3A3A5E)),
-        const SizedBox(height: 12),
-        Text('Click Open to load an image',
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
-      ]),
-    );
-  }
-
   Widget _buildEditorBody() {
     return Column(
       children: [
         Expanded(
           child: Row(
             children: [
-              // ── LEFT TOOLBAR ──
+              // ── LEFT TOOLBAR (2 columns) ──
               _buildLeftToolbar(),
               // ── CANVAS ──
-              Expanded(child: _buildCanvas()),
+              Expanded(
+                child: _imageBytes == null ? _buildEmptyCanvas() : _buildCanvas(),
+              ),
               // ── RIGHT SIDEBAR ──
               _buildRightSidebar(),
             ],
@@ -719,65 +799,85 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
     );
   }
 
-  // ════════════ LEFT TOOLBAR ═══════════════════════
+  Widget _buildEmptyCanvas() {
+    return Center(
+      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        const Icon(Icons.image, size: 64, color: Color(0xFF3A3A5E)),
+        const SizedBox(height: 12),
+        Text('Click Open to load an image',
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+      ]),
+    );
+  }
+
+  // ════════════ LEFT TOOLBAR (2-column grid) ═══════
 
   Widget _buildLeftToolbar() {
     return Container(
-      width: 52,
+      width: 98,
       color: const Color(0xFF1A1A2E),
       child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Column(children: [
-          _toolIcon(Icons.crop, 'Crop', ToolMode.crop, _enterCrop),
-          _toolIcon(Icons.text_fields, 'Text', ToolMode.text, _enterText),
-          _toolIcon(Icons.brush, 'Brush', ToolMode.brush, _enterBrush),
-          _toolIcon(Icons.auto_fix_high, 'Eraser', ToolMode.eraser, _enterEraser),
-          _toolIcon(Icons.category, 'Shape', ToolMode.shape, _enterShape),
-          _divider(),
-          _toolIcon(Icons.photo_size_select_large, 'Resize', ToolMode.resize, _enterResize),
-          _toolIcon(Icons.rotate_right, 'Rotate', ToolMode.rotate, _enterRotate),
-          _toolIcon(Icons.tune, 'Adjust', ToolMode.adjust, _enterAdjust),
-          _divider(),
-          _toolIcon(Icons.filter_b_and_w, 'Gray', null, () => _quickFilter('grayscale')),
-          _toolIcon(Icons.color_lens, 'Sepia', null, () => _quickFilter('sepia')),
-          _toolIcon(Icons.blur_on, 'Blur', null, () => _quickFilter('blur')),
-          _toolIcon(Icons.invert_colors, 'Invert', null, () => _quickFilter('invert')),
-          _divider(),
-          _toolIcon(Icons.noise_control_off, 'Denoise', null,
-              () => _callEdit('/api/v1/editor/denoise', {'strength': 3})),
-          if (_caps['remove_bg'] == true)
-            _toolIcon(Icons.image_not_supported, 'Rm BG', null,
-                () => _callEdit('/api/v1/editor/remove-bg', {})),
-        ]),
+        padding: const EdgeInsets.all(3),
+        child: Wrap(
+          spacing: 2, runSpacing: 2,
+          children: [
+            // Transform tools
+            _smallIcon(Icons.crop, 'Crop', ToolMode.crop, _enterCrop),
+            _smallIcon(Icons.text_fields, 'Text', ToolMode.text, _enterText),
+            _smallIcon(Icons.brush, 'Brush', ToolMode.brush, _enterBrush),
+            _smallIcon(Icons.auto_fix_high, 'Erase', ToolMode.eraser, _enterEraser),
+            _smallIcon(Icons.category, 'Shape', ToolMode.shape, _enterShape),
+            _smallIcon(Icons.photo_size_select_large, 'Size', ToolMode.resize, _enterResize),
+            _smallIcon(Icons.rotate_right, 'Rotate', ToolMode.rotate, _enterRotate),
+            _smallIcon(Icons.tune, 'Adjst', ToolMode.adjust, _enterAdjust),
+            // Effects
+            _smallIcon(Icons.filter_b_and_w, 'Gray', null, () => _quickFilter('grayscale')),
+            _smallIcon(Icons.color_lens, 'Sepia', null, () => _quickFilter('sepia')),
+            _smallIcon(Icons.blur_on, 'Blur', null, () => _quickFilter('blur')),
+            _smallIcon(Icons.invert_colors, 'Invert', null, () => _quickFilter('invert')),
+            // Enhance
+            _smallIcon(Icons.noise_control_off, 'Denoise', null,
+                () => _callEdit('/api/v1/editor/denoise', {'strength': 3})),
+            _smallIcon(Icons.blur_circular, 'Sharpen', null,
+                () => _callEdit('/api/v1/editor/smart-sharpen', {'amount': 1.0})),
+            _smallIcon(Icons.contrast, 'Cnrst', null,
+                () => _callEdit('/api/v1/editor/clahe', {'clip_limit': 2.0})),
+            _smallIcon(Icons.wb_sunny, 'AutoWB', null,
+                () => _callEdit('/api/v1/editor/auto-wb', {'strength': 1.0})),
+            if (_caps['remove_bg'] == true)
+              _smallIcon(Icons.image_not_supported, 'RmBG', null,
+                  () => _callEdit('/api/v1/editor/remove-bg', {})),
+            // AI tools
+            _smallIcon(Icons.auto_fix_high, 'AI✧', null,
+                () => _callEdit('/api/v1/editor/ai-enhance', {'mode': 'general', 'strength': 1.0})),
+            _smallIcon(Icons.face, 'Face', null,
+                () => _callEdit('/api/v1/editor/ai-restore', {'strength': 1.0})),
+            _smallIcon(Icons.zoom_in, 'UpSc', null, () => _showUpscaleDialog()),
+            _smallIcon(Icons.auto_fix_high, 'Line', null,
+                () => _callEdit('/api/v1/editor/lineart', {'method': 'canny'})),
+            _smallIcon(Icons.brightness_high, 'HDR', null,
+                () => _callEdit('/api/v1/editor/hdr', {'gamma': 1.0})),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _divider() {
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 4),
-      width: 32, height: 1, color: const Color(0xFF3A3A5E),
-    );
-  }
-
-  Widget _toolIcon(IconData icon, String label, ToolMode? mode, VoidCallback onTap) {
+  Widget _smallIcon(IconData icon, String label, ToolMode? mode, VoidCallback onTap) {
     final active = mode != null && _toolMode == mode;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 2),
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          width: 44, height: 38,
-          decoration: BoxDecoration(
-            color: active ? const Color(0xFF3A3A7E) : Colors.transparent,
-            borderRadius: BorderRadius.circular(4),
-            border: active ? Border.all(color: const Color(0xFF6C63FF), width: 1) : null,
-          ),
-          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(icon, size: 16, color: active ? const Color(0xFF6C63FF) : Colors.white60),
-            Text(label, style: TextStyle(fontSize: 7, color: active ? Colors.white : Colors.white38)),
-          ]),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 44, height: 36,
+        decoration: BoxDecoration(
+          color: active ? const Color(0xFF3A3A7E) : const Color(0xFF1E1E36),
+          borderRadius: BorderRadius.circular(4),
+          border: active ? Border.all(color: const Color(0xFF6C63FF), width: 1) : null,
         ),
+        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Icon(icon, size: 14, color: active ? const Color(0xFF6C63FF) : Colors.white54),
+          Text(label, style: TextStyle(fontSize: 7, color: active ? Colors.white : Colors.white54)),
+        ]),
       ),
     );
   }
@@ -785,34 +885,26 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
   // ════════════ CANVAS ═══════════════════════════
 
   Widget _buildCanvas() {
-    return LayoutBuilder(
-      builder: (ctx, constraints) {
-        _displaySize = constraints.biggest;
-        return Stack(
-          children: [
-            // Image with zoom + pan (scroll wheel for zoom, drag to pan when no tool active)
-            Positioned.fill(
-              child: Listener(
-                onPointerSignal: (event) {
-                  // Scroll wheel zoom
-                  if (event is PointerScrollEvent) {
-                    setState(() {
-                      if (event.scrollDelta.dy < 0) {
-                        _zoomLevel = (_zoomLevel * 1.15).clamp(0.1, 5.0);
-                      } else {
-                        _zoomLevel = (_zoomLevel / 1.15).clamp(0.1, 5.0);
-                      }
-                    });
-                  }
-                },
-                child: GestureDetector(
-                  // Only allow pan (hand) when no tool is active
-                  onPanStart: _toolMode == ToolMode.none
-                      ? (d) => _panOffset = d.localPosition - _panOffset
-                      : null,
-                  onPanUpdate: _toolMode == ToolMode.none
-                      ? (d) => setState(() => _panOffset += d.delta)
-                      : null,
+    return ClipRect(
+      child: LayoutBuilder(
+        builder: (ctx, constraints) {
+          _displaySize = constraints.biggest;
+          return Stack(
+            children: [
+              // Image with zoom + pan
+              Positioned.fill(
+                child: Listener(
+                  onPointerSignal: (event) {
+                    if (event is PointerScrollEvent) {
+                      setState(() {
+                        if (event.scrollDelta.dy < 0) {
+                          _zoomLevel = (_zoomLevel * 1.15).clamp(0.1, 5.0);
+                        } else {
+                          _zoomLevel = (_zoomLevel / 1.15).clamp(0.1, 5.0);
+                        }
+                      });
+                    }
+                  },
                   child: Transform(
                     transform: Matrix4.identity()
                       ..translate(_panOffset.dx, _panOffset.dy)
@@ -822,111 +914,137 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
                       child: FittedBox(
                         key: _imgKey,
                         fit: BoxFit.contain,
-                        child: GestureDetector(
-                          onPanStart: (d) {
-                            if (_toolMode == ToolMode.crop) _onCropPanStart(d);
-                            else if (_toolMode == ToolMode.brush || _toolMode == ToolMode.eraser) _onBrushStart(d);
-                            else if (_toolMode == ToolMode.shape) _onShapeStart(d);
-                            else if (_toolMode == ToolMode.text && _textX == null) _onTextCanvasTap(d.localPosition);
-                          },
-                          onPanUpdate: (d) {
-                            if (_toolMode == ToolMode.crop) _onCropPanUpdate(d);
-                            else if (_toolMode == ToolMode.brush || _toolMode == ToolMode.eraser) _onBrushUpdate(d);
-                            else if (_toolMode == ToolMode.shape) _onShapeUpdate(d);
-                          },
-                          onPanEnd: (d) {
-                            if (_toolMode == ToolMode.crop) _onCropPanEnd(d);
-                            else if (_toolMode == ToolMode.brush || _toolMode == ToolMode.eraser) _onBrushEnd(d);
-                            else if (_toolMode == ToolMode.shape) _onShapeEnd(d);
-                          },
-                          onTapDown: _toolMode == ToolMode.text && _textX != null
-                              ? (d) => _onTextCanvasTap(d.localPosition)
-                              : null,
-                          child: Image.memory(_imageBytes!),
-                        ),
+                        child: Image.memory(_imageBytes!),
                       ),
                     ),
                   ),
                 ),
               ),
-            ),
 
-            // ── Crop overlay ──
-            if (_toolMode == ToolMode.crop)
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: CustomPaint(
-                    painter: _CropOverlayPainter(
-                      selection: _selectionLayoutRect(),
-                      imageSize: _displaySize ?? Size.zero,
-                    ),
-                  ),
-                ),
-              ),
-
-            // ── Text crosshair ──
-            if (_toolMode == ToolMode.text && _textX != null)
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: CustomPaint(
-                    painter: _TextCrosshairPainter(position: _textLayoutPos()),
-                  ),
-                ),
-              ),
-
-            // ── Brush stroke preview ──
-            if ((_toolMode == ToolMode.brush || _toolMode == ToolMode.eraser) && _currentStroke.isNotEmpty)
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: CustomPaint(
-                    painter: _BrushPreviewPainter(
-                      stroke: _currentStroke,
-                      color: _toolMode == ToolMode.brush ? _brushColor : Colors.white,
-                      size: _toolMode == ToolMode.brush ? _brushSize : _eraserSize,
-                      imageInfo: _info,
-                      displaySize: _displaySize ?? Size.zero,
-                    ),
-                  ),
-                ),
-              ),
-
-            // ── Shape preview ──
-            if (_toolMode == ToolMode.shape && _shapeStart != null && _shapeEnd != null)
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: CustomPaint(
-                    painter: _ShapePreviewPainter(
-                      rect: _shapeLayoutRect(),
-                      shapeType: _shapeType,
-                      fillColor: _shapeFill ? _shapeFillColor : null,
-                      strokeColor: _shapeStrokeColor,
-                      strokeWidth: _shapeStrokeWidth,
-                    ),
-                  ),
-                ),
-              ),
-
-            // ── Keyboard listener ──
-            if (_toolMode == ToolMode.crop)
-              Positioned.fill(
-                child: KeyboardListener(
-                  focusNode: FocusNode()..requestFocus(),
-                  autofocus: true,
-                  onKeyEvent: (event) {
-                    if (event is KeyDownEvent) {
-                      if (event.logicalKey == LogicalKeyboardKey.enter) {
-                        _applyCrop();
-                      } else if (event.logicalKey == LogicalKeyboardKey.escape) {
-                        _exitToolMode();
+              // ── Unified gesture layer — handles ALL interactions ──
+              if (_imageBytes != null)
+                Positioned.fill(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.translucent,
+                    onPanStart: (d) {
+                      if (_toolMode == ToolMode.none) {
+                        // Pan canvas
+                        _panStartOffset = d.localPosition;
+                      } else if (_toolMode == ToolMode.crop) {
+                        _onCropPanStart(d);
+                      } else if (_toolMode == ToolMode.brush || _toolMode == ToolMode.eraser) {
+                        _onBrushStart(d);
+                      } else if (_toolMode == ToolMode.shape) {
+                        _onShapeStart(d);
+                      } else if (_toolMode == ToolMode.text) {
+                        _onTextDragStart(d);
                       }
-                    }
-                  },
-                  child: const SizedBox.expand(),
+                    },
+                    onPanUpdate: (d) {
+                      if (_toolMode == ToolMode.none) {
+                        setState(() => _panOffset += d.delta);
+                      } else if (_toolMode == ToolMode.crop) {
+                        _onCropPanUpdate(d);
+                      } else if (_toolMode == ToolMode.brush || _toolMode == ToolMode.eraser) {
+                        _onBrushUpdate(d);
+                      } else if (_toolMode == ToolMode.shape) {
+                        _onShapeUpdate(d);
+                      } else if (_toolMode == ToolMode.text) {
+                        _onTextDragUpdate(d);
+                      }
+                    },
+                    onPanEnd: (d) {
+                      if (_toolMode == ToolMode.crop) {
+                        _onCropPanEnd(d);
+                      } else if (_toolMode == ToolMode.brush || _toolMode == ToolMode.eraser) {
+                        _onBrushEnd(d);
+                      } else if (_toolMode == ToolMode.shape) {
+                        _onShapeEnd(d);
+                      } else if (_toolMode == ToolMode.text) {
+                        _onTextDragEnd(d);
+                      }
+                    },
+                    child: const SizedBox.expand(),
+                  ),
                 ),
-              ),
-          ],
-        );
-      },
+
+              // ── Crop overlay ──
+              if (_toolMode == ToolMode.crop)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: CustomPaint(
+                      painter: _CropOverlayPainter(
+                        selection: _selectionLayoutRect(),
+                        imageSize: _displaySize ?? Size.zero,
+                      ),
+                    ),
+                  ),
+                ),
+
+              // ── Text box overlay ──
+              if (_toolMode == ToolMode.text && _textBoxRect != null)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: CustomPaint(
+                      painter: _TextBoxPainter(rect: _textBoxLayoutRect()),
+                    ),
+                  ),
+                ),
+
+              // ── Brush stroke preview ──
+              if ((_toolMode == ToolMode.brush || _toolMode == ToolMode.eraser) && _currentStroke.isNotEmpty)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: CustomPaint(
+                      painter: _BrushPreviewPainter(
+                        stroke: _currentStroke,
+                        color: _toolMode == ToolMode.brush ? _brushColor : Colors.white,
+                        size: _toolMode == ToolMode.brush ? _brushSize : _eraserSize,
+                        imageInfo: _info,
+                        displaySize: _displaySize ?? Size.zero,
+                      ),
+                    ),
+                  ),
+                ),
+
+              // ── Shape preview ──
+              if (_toolMode == ToolMode.shape && _shapeStart != null && _shapeEnd != null)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: CustomPaint(
+                      painter: _ShapePreviewPainter(
+                        rect: _shapeLayoutRect(),
+                        shapeType: _shapeType,
+                        fillColor: _shapeFill ? _shapeFillColor : null,
+                        strokeColor: _shapeStrokeColor,
+                        strokeWidth: _shapeStrokeWidth,
+                      ),
+                    ),
+                  ),
+                ),
+
+              // ── Keyboard listener (crop Enter/Esc) ──
+              if (_toolMode == ToolMode.crop)
+                Positioned.fill(
+                  child: KeyboardListener(
+                    focusNode: FocusNode()..requestFocus(),
+                    autofocus: true,
+                    onKeyEvent: (event) {
+                      if (event is KeyDownEvent) {
+                        if (event.logicalKey == LogicalKeyboardKey.enter) {
+                          _applyCrop();
+                        } else if (event.logicalKey == LogicalKeyboardKey.escape) {
+                          _exitToolMode();
+                        }
+                      }
+                    },
+                    child: const SizedBox.expand(),
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
     );
   }
 
@@ -1060,7 +1178,7 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
         maxLines: 3, minLines: 1,
         style: const TextStyle(color: Colors.white, fontSize: 11),
         decoration: InputDecoration(
-          hintText: _textX == null ? 'Click image first' : 'Type text...',
+          hintText: _textBoxRect == null ? 'Drag box first' : 'Type text...',
           hintStyle: const TextStyle(color: Colors.grey, fontSize: 11),
           filled: true, fillColor: const Color(0xFF2A2A4E),
           contentPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
@@ -1070,9 +1188,9 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
           ),
         ),
       ),
-      if (_textX != null) ...[
+      if (_textBoxRect != null) ...[
         const SizedBox(height: 4),
-        _infoRow('Position', 'x:${_textX!.round()} y:${_textY!.round()}'),
+        _infoRow('Position', 'x:${_textBoxRect!.left.round()} y:${_textBoxRect!.top.round()} w:${_textBoxRect!.width.round()} h:${_textBoxRect!.height.round()}'),
       ],
       const SizedBox(height: 6),
       _sideLabel('Font Size'),
@@ -1198,7 +1316,8 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
         : '';
     final historyLabel = _canUndo || _canRedo ? 'Undo/Redo avail' : '';
     String hint = '';
-    if (_toolMode == ToolMode.text && _textX == null) hint = 'Click image to place text';
+    if (_toolMode == ToolMode.text && _textBoxRect == null) hint = 'Drag text box on image';
+    else if (_toolMode == ToolMode.text) hint = 'Type text in sidebar, then Apply';
     else if (_toolMode == ToolMode.brush) hint = 'Drag to draw';
     else if (_toolMode == ToolMode.eraser) hint = 'Drag to erase';
     else if (_toolMode == ToolMode.shape) hint = 'Drag for shape';
@@ -1452,27 +1571,44 @@ class _CropOverlayPainter extends CustomPainter {
 }
 
 // ═════════════════════════════════════════════════════
-// Text crosshair painter
+// Text box overlay painter
 // ═════════════════════════════════════════════════════
 
-class _TextCrosshairPainter extends CustomPainter {
-  final Offset? position;
-  _TextCrosshairPainter({required this.position});
+class _TextBoxPainter extends CustomPainter {
+  final Rect? rect;
+  _TextBoxPainter({required this.rect});
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (position == null) return;
-    final cross = Paint()..color = const Color(0xFF6C63FF)..strokeWidth = 1.5;
-    const len = 12.0;
-    final p = position!;
-    canvas.drawLine(Offset(p.dx - len, p.dy), Offset(p.dx + len, p.dy), cross);
-    canvas.drawLine(Offset(p.dx, p.dy - len), Offset(p.dx, p.dy + len), cross);
-    canvas.drawCircle(p, 3, Paint()..color = const Color(0x806C63FF));
+    if (rect == null) return;
+    // Dotted border
+    final border = Paint()
+      ..color = const Color(0xFF6C63FF)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+    canvas.drawRect(rect!, border);
+    // Corner indicators
+    const dotSize = 3.0;
+    final dot = Paint()..color = const Color(0xFF6C63FF);
+    for (final corner in [
+      rect!.topLeft, rect!.topRight,
+      rect!.bottomLeft, rect!.bottomRight,
+    ]) {
+      canvas.drawCircle(corner, dotSize, dot);
+    }
+    // Label
+    final tp = TextPainter(
+      text: const TextSpan(
+        text: 'T',
+        style: TextStyle(color: Color(0xFF6C63FF), fontSize: 10),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(canvas, Offset(rect!.left + 2, rect!.top - 14));
   }
 
   @override
-  bool shouldRepaint(covariant _TextCrosshairPainter old) =>
-      old.position != position;
+  bool shouldRepaint(covariant _TextBoxPainter old) => old.rect != rect;
 }
 
 // ═════════════════════════════════════════════════════

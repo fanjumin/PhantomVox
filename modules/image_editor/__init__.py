@@ -12,6 +12,8 @@ from typing import Optional
 
 from . import tools
 from .providers import detect_capabilities, remove_background
+from . import cv_tools
+from . import ai_providers
 
 __all__ = [
     "tools",
@@ -224,4 +226,86 @@ class ImageEditorEngine:
         return self.info()
 
     def get_capabilities(self) -> dict:
-        return self.capabilities
+        caps = dict(self.capabilities)
+        caps.update(ai_providers.get_ai_capabilities())
+        return caps
+
+    # ═══════════════════════════════════════════════════
+    # OpenCV Tools
+    # ═══════════════════════════════════════════════════
+
+    def smart_denoise(self, strength=10, template_size=7, search_size=21):
+        self._save_snapshot()
+        self._current_image = cv_tools.smart_denoise(
+            self._current_image, strength, template_size, search_size)
+        return self.info()
+
+    def smart_sharpen(self, amount=1.0, radius=3, threshold=10):
+        self._save_snapshot()
+        self._current_image = cv_tools.smart_sharpen(
+            self._current_image, amount, radius, threshold)
+        return self.info()
+
+    def clahe_enhance(self, clip_limit=2.0, tile_size=8):
+        self._save_snapshot()
+        self._current_image = cv_tools.clahe_enhance(
+            self._current_image, clip_limit, tile_size)
+        return self.info()
+
+    def auto_white_balance(self, strength=1.0):
+        self._save_snapshot()
+        self._current_image = cv_tools.auto_white_balance(
+            self._current_image, strength)
+        return self.info()
+
+    def inpaint_erase(self, mask_b64, radius=5, method="telea"):
+        """Erase using mask image (base64)."""
+        self._save_snapshot()
+        import io, base64
+        mask_bytes = base64.b64decode(mask_b64)
+        mask_img = tools.open_image(mask_bytes)
+        self._current_image = cv_tools.inpaint_erase(
+            self._current_image, mask_img, method, radius)
+        return self.info()
+
+    def inpaint_from_points(self, points, brush_size=20, method="telea"):
+        """Erase using brush stroke points."""
+        self._save_snapshot()
+        pts = [(int(p[0]), int(p[1])) for p in points]
+        self._current_image = cv_tools.inpaint_from_points(
+            self._current_image, pts, brush_size, method)
+        return self.info()
+
+    def super_resolve(self, scale=2, sharpen_amount=0.5):
+        """Upscale image (变清晰 / super resolution)."""
+        self._save_snapshot()
+        self._current_image = cv_tools.super_resolve(
+            self._current_image, scale, sharpen_amount)
+        return self.info()
+
+    def extract_lineart(self, method="canny", threshold1=50,
+                        threshold2=150, invert=True):
+        self._save_snapshot()
+        self._current_image = cv_tools.extract_lineart(
+            self._current_image, method, threshold1, threshold2, invert)
+        return self.info()
+
+    def hdr_tone(self, gamma=1.0, contrast=0.0, saturation=1.0):
+        self._save_snapshot()
+        self._current_image = cv_tools.hdr_tone(
+            self._current_image, gamma, contrast, saturation)
+        return self.info()
+
+    def ai_enhance_image(self, mode="general", strength=1.0):
+        """AI-powered image enhancement pipeline."""
+        self._save_snapshot()
+        self._current_image = ai_providers.ai_enhance_image(
+            self._current_image, mode, strength)
+        return self.info()
+
+    def ai_restore_faces(self, strength=1.0):
+        """AI face restoration."""
+        self._save_snapshot()
+        self._current_image = ai_providers.ai_restore_faces(
+            self._current_image, strength)
+        return self.info()
