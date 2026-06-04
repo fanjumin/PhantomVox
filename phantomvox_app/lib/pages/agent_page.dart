@@ -680,7 +680,7 @@ class _AgentPageState extends State<AgentPage>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(_selectedAgent!,
+                  Text(i18n.tr(_selectedAgent!),
                       style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 4),
                   Tr('Status: Active | Tasks: 3 | Progress: 60%', style: TextStyle(fontSize: 10, color: Colors.grey)),
@@ -726,7 +726,7 @@ class _AgentPageState extends State<AgentPage>
                 size: 20,
                 color: active ? const Color(0xFF6C63FF) : Colors.grey),
             const SizedBox(height: 4),
-            Text(name,
+            Text(i18n.tr(name),
                 style: TextStyle(
                   fontSize: 10,
                   fontWeight: active ? FontWeight.w600 : FontWeight.normal,
