@@ -9,10 +9,10 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  [PhantomVox LOGO]  Flow Graph │ AI Agent │ StoryCut │ ProEdit │ Palette │ AudioForge │ EffectLab │
+│  [PhantomVox LOGO]  Flow Graph │ Image Studio │ AI Agent │ StoryCut │ ProEdit │ Palette │ AudioForge │ EffectLab │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
-│  七个独立工作区 ─── 借鉴达芬奇核心理念，PhantomVox 自有命名体系                   │
+│  八个独立工作区 ─── 借鉴达芬奇核心理念，PhantomVox 自有命名体系                   │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -20,6 +20,7 @@
 | 原达芬奇名 | PhantomVox 名 | 理念 |
 |-----------|-------------|------|
 | (无) | **Flow Graph** | 创作流图谱 — 工作流编排 |
+| (无) | **Image Studio** | 图像处理工坊 — AI 图像编辑 |
 | (无) | **AI Agent** | 智能体控制中心 |
 | Cut | **StoryCut** | 故事剪辑，强调叙事 |
 | Edit | **ProEdit** | 专业编辑，保持通用辨识度 |
@@ -31,100 +32,235 @@
 
 ## 二、Flow Graph 页面 — 创作流图谱
 
-> **全新页面** — 将 AI Agent 中的思维导图功能独立为完整的创作流图谱页面，增加定时任务与工作流编排能力。
+> **已完成模块** — 将 AI Agent 中的思维导图功能独立为完整的创作流图谱页面，采用树形结构（非 DAG），支持聊天驱动生成、版本管理和 AI 扩展。
 
 ### 定位
 
-Flow Graph（创作流图谱）是 PhantomVox 的**工作流编排中心**。用户在这里通过可视化 DAG（有向无环图）编排 AI 创作流程，设置定时任务自动执行，管理复杂工作流的调度与监控。
+Flow Graph（创作流图谱）是 PhantomVox 的**创作流编排中心**。用户通过自然语言聊天驱动生成完整创作树，手动调整节点结构，管理版本快照。与达芬奇不同，PhantomVox 的 Flow Graph 是**树形（Tree）而非 DAG** — 更适合创意分叉与方案对比。
 
-### 布局结构
+### 页面结构
 
 ```
-+---------------------------------------------------------------------------------------------------+
-| TOP_BAR (32px) -- 全局风格统一                                                                       |
-| [Flow Graph]  [创作流] [定时任务] [工作流设置] [运行日志]                                            |
-|                                                                                                   |
-| 项目: [当前项目名]  状态: [空闲 / 运行中 / 已完成]   [全部执行] [暂停] [保存为模板]                      |
-+---------------------------------------------------------------------------------------------------+
-|                                                                                                   |
-| 创作流图谱 -- 核心区域 (flex, 占页面70%)                                                              |
-|                                                                                                   |
-|              +--------------------+                                                                 |
-|              |  制作产品宣传片      | <- 根节点, 紫色高亮                                              |
-|              |  目标: 45秒        |                                                                 |
-|              +--------+----------+                                                                 |
-|                       |                                                                             |
-|     +--------+--------+--------+-----------+                                                       |
-|     |        |        |        |           |                                                       |
-|  +--+---+ +--+---+ +--+---+ +----+---+ +----+----+                                                |
-|  |语音克隆| |音乐生成| |素材准备| |视频生成 | |代码生成  |                                               |
-|  |50%   | |30%   | |80%   | |0%    | |0%     |                                               |
-|  +--+---+ +--+---+ +--+---+ +----+---+ +----+----+                                                |
-|     |        |        |        |           |                                                       |
-|     v        v        v        v           v                                                        |
-|  +--+---+ +--+---+ +--+---+ +----+---+ +----+----+                                                |
-|  |旁白   | |爵士   | |文生   | |AI    | |自定义 |                                                |
-|  |生成   | |风格   | |背景   | |宣传片 | |转场   |                                                |
-|  |完成 | |进行 | |完成 | |排队 | |排队  |                                                |
-|  +------+ +------+ +------+ +--------+ +--------+                                                |
-|                                                                                                   |
-|  节点拖拽 | 缩放 | 右键菜单 | 连线自动路由                                                          |
-|                                                                                                   |
-+---------------------------------------------------------------------------------------------------+
-| 底部面板 (flex, 30%)                                                                              |
-| +---------------------------+-------------------------------------------------------------------+ |
-| | 定时任务                  | 工作流监控                                                          | |
-| |                          |                                                                   | |
-| | 任务名   | 类型  | 状态   | 运行ID | 进度  | 状态    | 耗时    | 操作                          | |
-| | ---------+-------+-------| -------+-------+---------+---------+----------                    | |
-| | 日报生成  | 每日  | 运行中 | #1423  | 68%   | 运行中  | 2m34s   | [查看]                      | |
-| | 素材归档  | 每周  | 暂停   | #1422  | 100%  | 已完成  | 1m12s   | [日志]                      | |
-| | 视频转码  | 手动  | 失败   | #1421  | 45%   | 失败    | 3m01s   | [重试]                      | |
-| |                          |                                                                   | |
-| | [+添加定时任务] [导入/导出]  | [+新建工作流] [暂停全部] [清空日志]                              | |
-| +---------------------------+-------------------------------------------------------------------+
-+---------------------------------------------------------------------------------------------------+
+┌───────────────────────────────────────────────────────────────────────────┐
+│  TOP_BAR: [Flow Graph]  [▼ 项目切换]  [+ Node]  [- 删除]  [AI ✧]  [导入] [导出] [版本v] │
+├───────────────────────────────────────────────────────────────────────────┤
+│                                                                           │
+│  创作流图谱 — 核心树形区域                                                   │
+│                                                                           │
+│  + 制作产品宣传片 (topic)    ← 根节点, 紫色高亮                               │
+│  │                                                                         │
+│  ├── 📝 语音克隆 (scene)     — AI 生成 3个子节点                              │
+│  │   ├── 🎤 旁白生成 (beat)                                                   │
+│  │   └── 🗣 配音选择 (beat)                                                   │
+│  │                                                                         │
+│  ├── 🎵 音乐生成 (scene)                                                    │
+│  │   ├── 🎼 爵士风格 (beat)                                                  │
+│  │   │   └── 🎹 钢琴即兴前奏 (sub_beat)  ← 4级树深度                          │
+│  │   └── 🎧 背景音乐 (beat)                                                  │
+│  │                                                                         │
+│  ├── 🎬 素材准备 (scene)                                                    │
+│  │   └── 🖼 文生背景 (beat)                                                 │
+│  │                                                                         │
+│  ├── 🎥 视频生成 (scene)                                                    │
+│  │   └── 🎞 AI 宣传片 (beat)                                                │
+│  │                                                                         │
+│  └── 💻 代码生成 (scene)                                                    │
+│      └── 🔧 自定义转场 (beat)                                               │
+│                                                                           │
+│  ▶/▼ 折叠 | 点击节点展开详情 | 拖拽排序 | [AI] 标记为AI建议                     │
+│  [橙色 AI 标签] = LLM 生成但未经验证的节点                                    │
+├───────────────────────────────────────────────────────────────────────────┤
+│  Chat / Versions 底部面板                                                    │
+│  ┌─ 💬 Chat ────────────────────────────────────────────────────────────┐ │
+│  │  用户: 制作一个产品宣传片，需要语音、音乐、视频三个部分                        │ │
+│  │  AI: 已为您生成策划树，共3个场景8个子节点                                  │ │
+│  │  [输入框...                                    ] [发送]                │ │
+│  ├─ 📋 Versions ────────────────────────────────────────────────────────┤ │
+│  │  v1 2026-06-04 14:30  "制作产品宣传片"                  [恢复] [删除]    │ │
+│  │  v2 2026-06-04 14:35  "加入动画特效"                    [恢复] [删除]    │ │
+│  │  v3 2026-06-04 14:40  "当前版本" ◄                     [恢复] [删除]    │ │
+│  └───────────────────────────────────────────────────────────────────────┘ │
+└───────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 创作流图谱 (核心)
+### 核心功能
 
-| 特性 | 说明 |
+| 功能 | 说明 |
 |------|------|
-| **可视化 DAG 编辑** | 节点拖拽、缩放、连线自动路由 |
-| **一键执行** | 单节点或全流程执行 |
-| **实时状态** | 每个节点显示进度圆环、运行状态 |
-| **可回溯** | 右键任意节点 -> 回退/编辑参数 |
-| **可分支** | 一个节点展开多个方案对比 |
-| **保存为模板** | 将当前图谱保存为可复用的工作流模板 |
+| **聊天驱动生成** | 自然语言 → LLM 自动生成 3-4 层完整树（topic→scene→beat→sub_beat），替换当前工作流 |
+| **AI 扩展** | 选中节点 → 点击 AI → LLM 生成 2-4 个子节点建议 |
+| **折叠树** | ▶/▼ 切换子节点可见性，40+ 节点也轻松管理 |
+| **版本快照** | 每次聊天生成自动保存上一个状态 → Versions 标签页列出所有快照 → 一键恢复 |
+| **导入/导出** | 保存任意 .json，加载已有 .json 文件 |
+| **删除** | 删除选中节点；工具栏 [-] 删除整棵树 |
+| **持久化** | 自动保存至 `data/flowgraph.json`，重启不丢失 |
+| **4 级节点类型** | topic → scene → beat → sub_beat（AI 建议缺失节点标记为橙色 [AI]） |
+| **节点拖拽排序** | 长按节点拖拽调整兄弟节点顺序 |
 
-### 定时任务
+### 已实现 API 端点
 
-| 任务类型 | 调度方式 | 说明 |
-|---------|---------|------|
-| **每日任务** | Cron 表达式 / 时间选择器 | 每天固定时间自动执行 |
-| **每周任务** | 星期几 + 时间 | 每周某天执行 |
-| **文件监控** | 目录变化触发 | 检测到新文件自动启动工作流 |
-| **手动触发** | 按钮/API | 用户手动启动 |
-
-### 工作流编排
-
-| 编排模式 | 说明 |
-|---------|------|
-| **串行执行** | 节点按顺序逐个执行，前一个完成后自动开始下一个 |
-| **并行分支** | 多个分支同时执行，互不依赖 |
-| **条件分支** | 根据前序节点输出结果决定后续路径 |
-| **汇聚合并** | 多个分支结果汇总后进入下一阶段 |
+| 端点 | 说明 | 状态 |
+|------|------|------|
+| `POST /api/v1/flowgraph/root` | 获取根节点 | ✅ |
+| `POST /api/v1/flowgraph/node` | CRUD 节点 | ✅ |
+| `POST /api/v1/flowgraph/reorder` | 排序节点 | ✅ |
+| `POST /api/v1/flowgraph/save` | 保存到文件 | ✅ |
+| `POST /api/v1/flowgraph/import` | 导入 .json | ✅ |
+| `POST /api/v1/flowgraph/export` | 导出 .json | ✅ |
+| `POST /api/v1/flowgraph/delete` | 清空树 | ✅ |
+| `POST /api/v1/flowgraph/generate` | LLM 生成完整树 | ✅ (DeepSeek) |
+| `POST /api/v1/flowgraph/expand` | AI 扩展子节点 | ✅ (DeepSeek) |
+| `POST /api/v1/flowgraph/versions` | 版本列表 | ✅ |
+| `POST /api/v1/flowgraph/versions/save` | 保存版本快照 | ✅ |
+| `POST /api/v1/flowgraph/versions/restore` | 恢复版本 | ✅ |
+| `POST /api/v1/flowgraph/flow` | 获取完整流状态 | ✅ |
 
 ### 独创功能标识
--  整个页面都是独创（达芬奇没有创作流图谱）
--  可视化 DAG 工作流编排（核心差异化）
--  定时任务系统 -- 自动执行 AI 工作流
--  条件/并行/串行混合编排模式
+
+- 整个页面都是独创（达芬奇没有创作流图谱）
+- **树形结构**（Tree）而非 DAG — 更适合创意分叉与方案对比
+- **自然语言→完整树** — 用户只需描述需求，AI 自动生成 3-4 层策划树
+- **版本管理** — 对话驱动的版本快照系统，支持一键恢复
+- **AI 扩展** — 选中节点 → AI 生成子节点建议（不同方案分支）
 
 ---
 
+## 三、Image Studio 页面 — 图像处理工坊
 
-## 三、AI Agent 页面 — 智能体控制中心
+> ✅ **v0.3.5 已完整实现** — 全功能图像编辑器，集成 OpenCV 图像处理套件和 AI 增强管线。对标主流 AI 图像编辑器（百度智能看图/Canva/Photopea）的核心功能。
+
+### 定位
+
+Image Studio（图像处理工坊）是 PhantomVox 的**图像编辑与修复中心**。用户在这里完成图像裁剪/缩放/旋转、滤镜、文本标注、画笔绘制、AI 修复增强等操作。区别于其他工作区，Image Studio 是独立于音视频编辑的纯图像处理模块。
+
+### 页面布局
+
+```
+┌───────────────────────────────────┬──────────────────────────────┬──────────────────────────┐
+│  左侧工具栏 (98px, 2列)          │  中央画布                   │  右侧属性面板 (240px)     │
+│                                  │                              │                          │
+│  ┌────┐ ┌────┐                  │  ┌────────────────────────┐  │  ┌─ 工具属性 ──────────┐ │
+│  │Crop│ │Text│                  │  │                        │  │  │                     │ │
+│  └────┘ └────┘                  │  │   图像 (可缩放/平移)    │  │  │  [当前工具参数]       │ │
+│  ┌────┐ ┌────┐                  │  │                        │  │  │                     │ │
+│  │Brush│ │Eraser│               │  │   ┌────────────────┐    │  │  │ 颜色选择器           │ │
+│  └────┘ └────┘                  │  │   │ 裁剪选框/选区   │    │  │  │ 尺寸滑块             │ │
+│  ┌────┐ ┌────┐                  │  │   └────────────────┘    │  │  │ 不透明度              │ │
+│  │Shape│ │Resize│               │  │                        │  │  │                     │ │
+│  └────┘ └────┘                  │  │  鼠标滚轮=缩放         │  │  └─────────────────────┘ │
+│  ┌────┐ ┌────┐                  │  │  无工具时拖动=平移     │  │                          │
+│  │Rotate││Flip │                │  │  工具激活时拖动=操作    │  │  ┌─ AI 工具 ────────────┐ │
+│  └────┘ └────┘                  │  │                        │  │  │ [AI Enhance]         │ │
+│  ┌────┐ ┌────┐                  │  │  ClipRect 防溢出        │  │  │ [Face Restore]        │ │
+│  │Adjust││Filter│               │  │                        │  │  │ [Upscale 2x/4x]      │ │
+│  └────┘ └────┘                  │  │                        │  │  │ [Lineart] [HDR]      │ │
+│  ┌────┐ ┌────┐                  │  └────────────────────────┘  │  └─────────────────────┘ │
+│  │Denoise││RmBG │               │                              │                          │
+│  └────┘ └────┘                  │                              │  ┌─ 历史操作 ────────────┐ │
+│  ┌────┐ ┌────┐                  │                              │  │  ↩ Undo  (30步)       │ │
+│  │AI✧│ │Upscale│               │                              │  │  ↪ Redo               │ │
+│  └────┘ └────┘                  │                              │  └─────────────────────┘ │
+├───────────────────────────────────┴──────────────────────────────┴──────────────────────────┤
+│  状态栏: 缩放: 150%  |  图像: 1920×1080  |  工具: Crop  |  内存: 45MB                        │
+└─────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 核心功能
+
+| 功能类别 | 工具 | 说明 |
+|---------|------|------|
+| **基础变换** | Crop, Resize, Rotate, Flip | 图像裁剪(交互选框)、缩放(精确像素)、旋转(90°/自定义)、翻转(水平/垂直) |
+| **绘制标注** | Text, Brush, Eraser, Shapes | 文字(拖拽生成文本框)、画笔(自由绘制)、擦除、形状(矩形/圆/线/箭头) |
+| **色彩调整** | Adjust (Brightness/Contrast/Saturation/Blur) | 实时滑杆调节，即时预览 |
+| **滤镜** | Blur, Emboss, Edge, Sharpen, Sepia | 常见图像滤镜一键应用 |
+| **OpenCV 套件** | Smart Denoise, CLAHE, Auto White Balance, Super Resolve, Inpaint Erase, Lineart, HDR Tone | 基于 OpenCV (v4.13) 的图像处理管线 |
+| **AI 增强** | AI Enhance, AI Face Restore | 多步降噪→锐化→CLAHE→自动白平衡管线；人脸修复(GFPGAN/OpenCV fallback) |
+| **撤销/重做** | Undo/Redo | 30 步历史快照栈，所有操作可回退 |
+| **视图控制** | Zoom (滚轮), Pan (拖拽) | ClipRect 防溢出，状态栏显示缩放比 |
+
+### 后端架构
+
+```python
+modules/image_editor/
+├── __init__.py         # ImageEditor 类 — 核心编排层
+│   ├── 图像加载/保存(load, save)
+│   ├── 基础变换(crop, resize, rotate, flip)
+│   ├── 绘制(text, draw_brush, draw_shape)
+│   ├── 色彩调整(adjust)
+│   ├── 滤镜(filter)
+│   ├── 去背景(remove_bg)
+│   ├── 历史栈(_snapshots, undo, redo, 30步)
+│   └── 转发到 cv_tools / ai_providers
+├── tools.py            # 像素级图像处理函数
+│   ├── add_text()      # 支持 stroke/shadow 的文本渲染
+│   ├── draw_brush()    # 自由画笔
+│   ├── draw_shape()    # 矩形/圆/线/箭头
+│   └── smart_blur()    # 区域模糊
+├── cv_tools.py         # OpenCV 功能集合 (12+ 函数)
+│   ├── smart_denoise()     # fastNlMeansDenoisingColored
+│   ├── smart_sharpen()     # Unsharp Mask
+│   ├── clahe_enhance()     # CLAHE 自适应直方图均衡
+│   ├── auto_white_balance() # Gray World 自动白平衡
+│   ├── inpaint_erase()     # Telea/NS 修复擦除
+│   ├── super_resolve()     # 多重 LANCZOS 上采样 + 锐化
+│   ├── extract_lineart()   # Canny/Sobel/Laplacian 线稿
+│   └── hdr_tone()          # Gamma+对比度+饱和度 HDR
+└── ai_providers.py     # AI 增强模块
+    ├── ai_enhance_image()  # 管线: 降噪→锐化→CLAHE→WB
+    ├── ai_restore_faces()  # GFPGAN(如GPU可用) / OpenCV fallback
+    └── get_capabilities()  # 返回可用 AI 功能列表
+```
+
+### API 端点
+
+| 端点 | 说明 | 状态 |
+|------|------|------|
+| `POST /api/v1/editor/load` | 加载图像 | ✅ |
+| `POST /api/v1/editor/crop` | 裁剪 | ✅ |
+| `POST /api/v1/editor/resize` | 缩放 | ✅ |
+| `POST /api/v1/editor/rotate` | 旋转 | ✅ |
+| `POST /api/v1/editor/flip` | 翻转 | ✅ |
+| `POST /api/v1/editor/adjust` | 色彩调整 (亮度/对比度/饱和度/模糊) | ✅ |
+| `POST /api/v1/editor/filter` | 滤镜 (blur/emboss/edge/sharpen/sepia) | ✅ |
+| `POST /api/v1/editor/text` | 添加文本 (font/size/color/stroke/shadow) | ✅ |
+| `POST /api/v1/editor/blur-region` | 区域模糊 | ✅ |
+| `POST /api/v1/editor/denoise` | 降噪 | ✅ |
+| `POST /api/v1/editor/draw` | 画笔绘制 (freehand) | ✅ |
+| `POST /api/v1/editor/shape` | 形状绘制 (rect/circle/line/arrow) | ✅ |
+| `POST /api/v1/editor/remove-bg` | 移除背景 | ✅ |
+| `POST /api/v1/editor/smart-sharpen` | OpenCV 智能锐化 | ✅ |
+| `POST /api/v1/editor/clahe` | OpenCV CLAHE | ✅ |
+| `POST /api/v1/editor/auto-wb` | OpenCV 自动白平衡 | ✅ |
+| `POST /api/v1/editor/upscale` | OpenCV 超分辨率 2x/4x | ✅ |
+| `POST /api/v1/editor/inpaint-erase` | OpenCV 修复擦除 | ✅ |
+| `POST /api/v1/editor/lineart` | OpenCV 线稿提取 | ✅ |
+| `POST /api/v1/editor/hdr` | OpenCV HDR 色调 | ✅ |
+| `POST /api/v1/editor/ai-enhance` | AI 增强管线 | ✅ |
+| `POST /api/v1/editor/ai-restore` | AI 人脸修复 | ✅ |
+| `POST /api/v1/editor/undo` | 撤销 | ✅ |
+| `POST /api/v1/editor/redo` | 重做 | ✅ |
+| `GET /api/v1/editor/fonts` | 字体列表 (30 种) | ✅ |
+| `GET /api/v1/editor/history` | 历史状态 (can_undo/can_redo) | ✅ |
+
+### 与竞品对比
+
+| 功能 | **PhantomVox Image Studio** | 百度智能看图 | Canva | Photopea |
+|------|---------------------------|------------|-------|---------|
+| 裁剪 | ✅ 交互选框 | ✅ | ✅ | ✅ |
+| 文字 | ✅ 拖拽生成文本框 | ✅ | ✅ | ✅ |
+| 画笔 | ✅ 自由绘制 | ✅ | ✅ | ✅ |
+| OpenCV 管线 | ✅ 12种处理函数 | ❌ | ❌ | ⚪ 部分 |
+| AI 增强 | ✅ (CPU可用) | ✅ 云端 | ✅ 云端 | ❌ |
+| 超分辨率 | ✅ 2x/4x | ✅ | ❌ | ❌ |
+| 线稿 | ✅ Canny/Sobel/Laplacian | ❌ | ✅ | ❌ |
+| HDR 色调 | ✅ | ⚪ | ✅ | ❌ |
+| 30步撤销 | ✅ (所有操作) | ❌ | ✅ | ✅ |
+| 离线可用 | ✅ (纯本地) | ❌ 纯云端 | ❌ 部分 | ✅ |
+| 免费 | ✅ (MIT) | ✅ 基础 | ⚪ 付费墙 | ⚪ 广告 |
+
+---
+
+## 四、AI Agent 页面 — 智能体控制中心
 
 这是 PhantomVox 的**核心差异化**，一个独立的完整工作区。
 
@@ -204,7 +340,7 @@ Flow Graph（创作流图谱）是 PhantomVox 的**工作流编排中心**。用
 
 ---
 
-## 四、StoryCut 页面 — 故事剪辑
+## 五、StoryCut 页面 — 故事剪辑
 
 ### 定位
 快速粗剪、素材浏览、故事板式操作。对标达芬奇 Cut 页面的效率理念，但交互更轻量、AI 更强。
@@ -234,7 +370,7 @@ Flow Graph（创作流图谱）是 PhantomVox 的**工作流编排中心**。用
 
 ---
 
-## 五、ProEdit 页面 — 专业编辑
+## 六、ProEdit 页面 — 专业编辑
 
 ### 布局结构
 
@@ -278,7 +414,7 @@ Flow Graph（创作流图谱）是 PhantomVox 的**工作流编排中心**。用
 
 ---
 
-## 六、Palette 页面 — 色彩工坊
+## 七、Palette 页面 — 色彩工坊
 
 ### 布局结构
 
@@ -309,7 +445,7 @@ Flow Graph（创作流图谱）是 PhantomVox 的**工作流编排中心**。用
 
 ---
 
-## 七、AudioForge 页面 — 音频工坊
+## 八、AudioForge 页面 — 音频工坊
 
 ### 布局结构
 
@@ -357,7 +493,7 @@ Flow Graph（创作流图谱）是 PhantomVox 的**工作流编排中心**。用
 
 ---
 
-## 八、EffectLab 页面 — 特效工坊
+## 九、EffectLab 页面 — 特效工坊
 
 ### 布局结构
 
@@ -396,7 +532,7 @@ Flow Graph（创作流图谱）是 PhantomVox 的**工作流编排中心**。用
 
 ---
 
-## 九、模型设置（Model Config）
+## 十、模型设置（Model Config）
 
 > 🚧 本模块目前为框架设计阶段。模型设置是全局配置中心，让用户选择、切换、管理所有 AI 模块的后端模型和 API 提供商。
 
@@ -488,7 +624,7 @@ restore:
 
 ---
 
-## 十、FFmpeg 引擎层 — 音视频处理核心
+## 十一、FFmpeg 引擎层 — 音视频处理核心
 
 > 所有 5 个页面的音视频操作，底层均由 FFmpeg 引擎驱动。FFmpeg 不是"一个页面"，而是**整个应用的音视频骨骼**。
 
@@ -657,7 +793,7 @@ AI Agent 的代码生成模块，本质上是将自然语言翻译为 FFmpeg fil
 
 ---
 
-## 十一、全局菜单栏（Global Menu）
+## 十二、全局菜单栏（Global Menu）
 
 > 所有七个工作区共享的全局菜单栏，位于窗口最顶部。PhantomVox 遵循专业软件惯例，但菜单项针对 AI 音视频创作做了定制。
 
@@ -893,7 +1029,7 @@ AI Agent 的代码生成模块，本质上是将自然语言翻译为 FFmpeg fil
 
 ---
 
-## 十六、PhantomVox 模块命名对照
+## 十七、PhantomVox 模块命名对照
 
 | 达芬奇名称 | PhantomVox 名称 | 说明 |
 |-----------|----------------|------|
@@ -913,7 +1049,7 @@ AI Agent 的代码生成模块，本质上是将自然语言翻译为 FFmpeg fil
 
 ---
 
-## 十二、账户与订阅系统
+## 十三、账户与订阅系统
 
 ### 11.1 登录/注册入口
 
@@ -1077,7 +1213,7 @@ PhantomVox 支持**完全离线使用**：
 
 ---
 
-## 十三、版本与升级系统
+## 十四、版本与升级系统
 
 ### 12.1 版本号规范
 
@@ -1189,7 +1325,7 @@ PhantomVox v1.2.3 (Build 20260603)
 | **试用激活** | 注册即获得 14 天 Pro 试用（不限支付方式） |
 | **教育优惠** | 教育邮箱(.edu)验证后获得教育版折扣 |
 
-## 十四、国际化系统 (i18n)
+## 十五、国际化系统 (i18n)
 
 ### 13.1 系统架构
 
@@ -1303,7 +1439,7 @@ modules/i18n/
 
 ---
 
-## 十五、硬件检测与模型等级
+## 十六、硬件检测与模型等级
 
 ### 14.1 概述
 
@@ -1372,28 +1508,29 @@ report()                                     # 完整报告 (含所有模型兼�
 
 | 章 | 标题 | 说明 |
 |----|------|------|
-| 一 | 整体应用布局 | 7 个工作区标签 |
-| **二** | **Flow Graph** | **创作流图谱 — 工作流编排** |
-| 三 | AI Agent 页面 | 智能体控制中心 |
-| 四 | StoryCut 页面 | 故事剪辑布局+AI |
-| 五 | ProEdit 页面 | 专业编辑布局+AI |
-| 六 | Palette 页面 | 色彩工坊布局+AI |
-| 七 | AudioForge 页面 | 音频工坊布局+AI |
-| 八 | EffectLab 页面 | 特效工坊布局+AI |
-| 九 | 模型设置 | 全局 AI 模型配置 |
-| 十 | FFmpeg 引擎层 | 音视频处理核心 |
-| 十一 | 全局菜单栏 | 8 个菜单+快捷键 |
-| **十二** | **账户与订阅** | **登录/注册/订阅体系** |
-| **十三** | **版本与升级** | **版本号/更新/关于** |
-| **十四** | **国际化 (i18n)** | **15 语言/系统词库/运行时切换** |
-| **十五** | **硬件检测与模型等级** | **T1~T4/音频模型兼容/升级建议** |
-| 十六 | 模块命名对照 | 达芬奇↔PhantomVox |
-| 十七 | 页面↔AI 映射 | 能力对应表 |
-| **十八** | **实施路线** | **P0~P7 分阶段** |
-| ★ **十九** | **跨平台架构** | **Flutter + Rust + Python | 移动+桌面** |
+| 一 | 整体应用布局 | 8 个工作区标签 |
+| **二** | **Flow Graph** | **创作流图谱 — 树形策划编辑器** |
+| **三** | **Image Studio** | **图像处理工坊 — AI 图像编辑** |
+| 四 | AI Agent 页面 | 智能体控制中心 |
+| 五 | StoryCut 页面 | 故事剪辑布局+AI |
+| 六 | ProEdit 页面 | 专业编辑布局+AI |
+| 七 | Palette 页面 | 色彩工坊布局+AI |
+| 八 | AudioForge 页面 | 音频工坊布局+AI |
+| 九 | EffectLab 页面 | 特效工坊布局+AI |
+| 十 | 模型设置 | 全局 AI 模型配置 |
+| 十一 | FFmpeg 引擎层 | 音视频处理核心 |
+| 十二 | 全局菜单栏 | 8 个菜单+快捷键 |
+| **十三** | **账户与订阅** | **登录/注册/订阅体系** |
+| **十四** | **版本与升级** | **版本号/更新/关于** |
+| **十五** | **国际化 (i18n)** | **15 语言/系统词库/运行时切换** |
+| **十六** | **硬件检测与模型等级** | **T1~T4/音频模型兼容/升级建议** |
+| 十七 | 模块命名对照 | 达芬奇↔PhantomVox |
+| 十八 | 页面↔AI 映射 | 能力对应表 |
+| **十九** | **实施路线** | **P0~P8 分阶段** |
+| ★ **二十** | **跨平台架构** | **Flutter + Rust + Python | 移动+桌面** |
 ---
 
-## 十七、页面↔AI 映射
+## 十八、页面↔AI 映射
 
 | 页面 | AI 增强功能 | 实现状态 |
 |------|-----------|---------|
@@ -1402,12 +1539,14 @@ report()                                     # 完整报告 (含所有模型兼�
 | **Palette** 色彩工坊 | AI 色彩匹配、AI 风格推荐、AI 节点生成 | ✅ **Flutter UI 完成** — 参考画廊/色轮/曲线/示波器/节点工作台 |
 | **AudioForge** 音频工坊 | AI 音频工坊面板（语音克隆/TTS/音乐生成/降噪/混音）、AI 配乐推荐 | ✅ **Flutter UI 完成** — TTS 面板 + 音乐面板 + 语音克隆占位, 后端 API 已打通 |
 | **EffectLab** 特效工坊 | AI 节点生成、AI 特效推荐、代码生成集成 | ✅ **Flutter UI 完成** — 预览/输出视口/节点图/检查器/帧时间线 |
-| **Flow Graph** 创作流图谱 | AI 工作流编排、定时任务、DAG 可视化 | ✅ **Flutter UI 完成** — DAG编辑/定时任务/工作流监控/10个API端点 |
+| **Flow Graph** 创作流图谱 | AI 树形策划编辑、聊天驱动生成、版本管理 | ✅ **v0.3.5** — 4 级树 (topic→scene→beat→sub_beat), LLM 生成完整树, AI 扩展, 版本快照/恢复, 导入/导出 |
+| **Image Studio** 图像处理工坊 | AI 图像编辑、OpenCV 增强、AI 修复 | ✅ **v0.3.5** — 24 个 API 端点, Crop/Text/Brush/Shapes/滤镜/调整, OpenCV 12 函数, AI Enhance, AI Face Restore, 30 步撤销 |
+| **StoryCut** 故事剪辑 | AI QuickCut、语音转文字索引、AI 场景标记 | ✅ **Flutter UI 完成** — 素材浏览/视口/电平指示/故事时间线 |
 | **AI Agent** 智能体中心 | 多智能体矩阵 (Director/Editor/Audio/Music/Visual/Color/Restore/Code) | ✅ **Flutter UI 完成** — 5 子面板 + Agent 矩阵网格 + **P7 端到端编排** |
 
 ---
 
-## 十八、分阶段实施路线
+## 十九、分阶段实施路线
 
 | 阶段 | 内容 | 前置 | 备注 |
 |------|------|------|------|
@@ -1417,7 +1556,7 @@ report()                                     # 完整报告 (含所有模型兼�
 | | ├── 音频模型数据库 (TTS+Music, T1~T4) | — | ✅ 已完成 |
 | | ├── 引擎模块注册机制 (core/engine.py) | — | ✅ 已完成 |
 | | ├── AudioEngine 编排层 + 3 个音频提供者 | — | ✅ 已完成 (Edge-TTS 真实, Suno/MusicGen 桩) |
-| | ├── API Server (Flask, 47 端点, 端口 8899) | — | ✅ 已完成 |
+| | ├── API Server (Flask, 80+ 端点, 端口 8899) | — | ✅ 已完成 |
 | | └── Flutter 桌面应用骨架 | — | ✅ 已完成 (Linux 编译通过) |
 | **P1** | Agent 框架 + 模型配置 | P0 | ✅ **已完成** |
 | | ├── AgentEngine 编排 (5 面板 + 8 Agent) | | ✅ 已完成 |
@@ -1443,20 +1582,26 @@ report()                                     # 完整报告 (含所有模型兼�
 | | ├── StoryCut 故事剪辑 (素材浏览/视口/故事时间线) | | ✅ 已完成 |
 | | ├── AI Agent 页面 (聊天/思考/生图/生视频/代码面板) | | ✅ 已完成 |
 | | ├── 多智能体矩阵 (8 Agent 状态网格) | | ✅ 已完成 |
-| | ├── Flow Graph 创作流图谱 (DAG 编辑/定时任务/工作流) | | ✅ 已完成 |
+| | ├── Flow Graph 创作流图谱 (树形策划编辑/聊天驱动/版本管理) | | ✅ 已完成 (v0.3.5 树形重写) |
 | | └── StoryCut + Agent + Flow Graph 集成到滚动导航栏 | | ✅ 已完成 |
 | **P6** | 代码生成引擎 + 视频生成 | P5 | **P6 完成** — 43 模板, 7 类别, 真实 FFmpeg filter 生成 |
 | | ├── modules/codegen/ — NL→FFmpeg 引擎 (43 模板, 7 类别) | | ✅ 已完成 |
 | | ├── modules/videogen/ — 视频生成引擎 (桩, 可扩展提供者模式) | | ✅ 已完成 |
-| | ├── 6 个新 API 端点 (codegen×3 + videogen×3) → 端点总数 47 | | ✅ 已完成 |
+| | ├── 6 个新 API 端点 (codegen×3 + videogen×3) → 当时的端点总数 47 | | ✅ 已完成 |
 | | ├── CodeAgent 使用真实 codegen 引擎替代 stub | | ✅ 已完成 |
 | | └── Flutter Code 面板调用 /api/v1/codegen/generate | | ✅ 已完成 |
+| **P8** | Image Studio 图像处理工坊 | P7 | **P8 完成** — 全功能图像编辑器 + OpenCV + AI |
+| | ├── modules/image_editor/ — ImageEditor (crop/text/brush/shapes) | | ✅ 已完成 |
+| | ├── cv_tools.py — OpenCV 12 函数 (denoise/sharpen/inpaint/upscale/lineart/HDR) | | ✅ 已完成 |
+| | ├── ai_providers.py — AI Enhance + Face Restore 管线 | | ✅ 已完成 |
+| | ├── 24 个 /api/v1/editor/* 端点 | | ✅ 已完成 |
+| | └── Flutter Image Studio 页面 (2列工具栏/画布/属性面板/30步撤销) | | ✅ 已完成 |
 | **P7** | Director Agent 端到端编排 | P6 | **P7 完成** — 用户意图→分解→派发→Agent执行→时间线素材 |
 | | ├── WorkflowRunner 编排引擎 (plan/dispatch/collect/assemble) | | ✅ 已完成 |
 | | ├── 3 个 workflow API 端点 (start/status/list) | | ✅ 已完成 |
 | | ├── Agent 页面调用 workflow API (替代旧 plan API) | | ✅ 已完成 |
 | | ├── 时间线资产列表 + Apply to Timeline 按钮 | | ✅ 已完成 |
-| | └── API 端点总数: 47 | | ✅ 已完成 |
+| | └── API 端点总数: 80+ | | ✅ 已完成 |
 
 ### P3 音频工坊 — 模型接入计划
 
@@ -1500,7 +1645,7 @@ PhantomVox 启动
 
 ---
 
-## 十九、跨平台架构与开发技术栈
+## 二十、跨平台架构与开发技术栈
 
 ### 18.1 平台目标
 
@@ -1661,6 +1806,32 @@ Python AI Server  ←→ Flutter UI
      ├── POST /api/v1/timeline/<id>/clip    # 添加片段 ✅
      ├── POST /api/v1/timeline/<id>/effect  # 添加特效 ✅
      ├── POST /api/v1/timeline/<id>/render  # 渲染时间线 ✅
+     ├── POST /api/v1/editor/load         # Image Studio 加载图像 ✅
+     ├── POST /api/v1/editor/crop         # 裁剪 ✅
+     ├── POST /api/v1/editor/resize       # 缩放 ✅
+     ├── POST /api/v1/editor/rotate       # 旋转 ✅
+     ├── POST /api/v1/editor/flip         # 翻转 ✅
+     ├── POST /api/v1/editor/adjust       # 色彩调整 ✅
+     ├── POST /api/v1/editor/filter       # 滤镜 ✅
+     ├── POST /api/v1/editor/text         # 添加文本 ✅
+     ├── POST /api/v1/editor/blur-region  # 区域模糊 ✅
+     ├── POST /api/v1/editor/denoise      # 降噪 ✅
+     ├── POST /api/v1/editor/draw         # 画笔 ✅
+     ├── POST /api/v1/editor/shape        # 形状 ✅
+     ├── POST /api/v1/editor/remove-bg    # 移除背景 ✅
+     ├── POST /api/v1/editor/smart-sharpen # OpenCV 锐化 ✅
+     ├── POST /api/v1/editor/clahe        # OpenCV CLAHE ✅
+     ├── POST /api/v1/editor/auto-wb      # 自动白平衡 ✅
+     ├── POST /api/v1/editor/upscale      # 超分辨率 2x/4x ✅
+     ├── POST /api/v1/editor/inpaint-erase # 修复擦除 ✅
+     ├── POST /api/v1/editor/lineart      # 线稿提取 ✅
+     ├── POST /api/v1/editor/hdr          # HDR 色调 ✅
+     ├── POST /api/v1/editor/ai-enhance   # AI 增强管线 ✅
+     ├── POST /api/v1/editor/ai-restore   # AI 人脸修复 ✅
+     ├── POST /api/v1/editor/undo         # 撤销 ✅
+     ├── POST /api/v1/editor/redo         # 重做 ✅
+     ├── GET  /api/v1/editor/fonts        # 字体列表 (30种) ✅
+     ├── GET  /api/v1/editor/history      # 历史状态 ✅
      ├── POST /api/v1/workflow/start     # 启动工作流 ✅
      ├── GET  /api/v1/workflow/<id>/status # 工作流状态 ✅
      └── GET  /api/v1/workflow/list      # 工作流列表 ✅
@@ -1703,20 +1874,24 @@ final response = await dio.post(
 
 | 阶段 | 开发目标 | 使用工具 | 平台 |
 |------|---------|---------|------|
-| P0 | ✅ Python AI Server 完整 (47端点) + Audio 引擎 + i18n + 硬件检测 | VS Code + Python | ✅ 调试用 CLI |
-| P1 | ✅ Agent 框架 + 思维导图 + 模型配置 (14 新端点) | Python | 调试用 CLI |
-| P2 | ✅ ProEdit 完整 UI (时间线/素材/检查器/混音器) | Flutter Canvas | ✅ Linux 桌面端完成 |
-| P3 | ✅ AudioForge 音频工坊 UI + 更多 TTS/Music 模型集成 | Flutter + Python AI Server | ✅ 桌面端完成 |
-| P4 | Palette + EffectLab | Flutter Canvas + Shaders | ✅ 桌面端完成 |
-| P5 | StoryCut + AI Agent UI | Flutter + WebSocket | ✅ 桌面端完成 |
-| P6 | 代码生成引擎 + 视频生成 | CodeGenEngine + VideoGenEngine | ✅ 完成 (43 模板, 47 端点) |
-| P7 | Director Agent 端到端编排 | WorkflowRunner + Agent API | ✅ 完成 (用户意图→时间线资产) |
+|| P0 | ✅ Python AI Server 完整 (80+端点) + Audio 引擎 + i18n + 硬件检测 | VS Code + Python | ✅ 调试用 CLI |
+|| P1 | ✅ Agent 框架 + 思维导图 + 模型配置 (14 新端点) | Python | 调试用 CLI |
+|| P2 | ✅ ProEdit 完整 UI (时间线/素材/检查器/混音器) | Flutter Canvas | ✅ Linux 桌面端完成 |
+|| P3 | ✅ AudioForge 音频工坊 UI + 更多 TTS/Music 模型集成 | Flutter + Python AI Server | ✅ 桌面端完成 |
+|| P4 | Palette + EffectLab | Flutter Canvas + Shaders | ✅ 桌面端完成 |
+|| P5 | StoryCut + AI Agent UI + Flow Graph 树形版 | Flutter + WebSocket | ✅ 桌面端完成 |
+|| P6 | 代码生成引擎 + 视频生成 | CodeGenEngine + VideoGenEngine | ✅ 完成 (43 模板, 80+ 端点) |
+|| P7 | Director Agent 端到端编排 | WorkflowRunner + Agent API | ✅ 完成 (用户意图→时间线资产) |
+|| P8 | Image Studio 图像处理工坊 | OpenCV + AI Enhance | ✅ 完成 (24 editor 端点) |
 
 ### 18.9 关键结论
 
-1. **Python AI Server 已实现** — 47 个 REST 端点覆盖 Agent 智能体、TTS、音乐生成、代码生成、视频生成、时间线管理、硬件检测、国际化、工作流编排、模型配置，直接对接 Flutter 前端。
-2. **Rust 媒体引擎从 P2 开始介入**——P1 的 Flutter UI 骨架已编译通过，可直接通过 HTTP 与 Python AI Server 通信。
-3. **Flutter 是所有 UI 的唯一选择**——不要 Web 前端、不要原生 Swift/Kotlin，维护三套 UI 成本不可接受。
-4. **移动端 P6 才做**——前期集中桌面端验证产品价值，移动端作为扩展而非核心。
+1. **Python AI Server 已实现** — 80+ 个 REST 端点覆盖 Agent 智能体、Image Studio、TTS、音乐生成、代码生成、视频生成、时间线管理、硬件检测、国际化、工作流编排、模型配置，直接对接 Flutter 前端。
+2. **Image Studio (图像处理工坊) 已实现** — 24 个 /api/v1/editor/* 端点，Flutter 全功能页面（2列工具栏/画布/属性面板/30步撤销），OpenCV 12 函数套件，CPU AI 增强管线。
+3. **Rust 媒体引擎从 P2 开始介入**——P1 的 Flutter UI 骨架已编译通过，可直接通过 HTTP 与 Python AI Server 通信。
+4. **Flutter 是所有 UI 的唯一选择**——不要 Web 前端、不要原生 Swift/Kotlin，维护三套 UI 成本不可接受。
+5. **移动端 P6 才做**——前期集中桌面端验证产品价值，移动端作为扩展而非核心。
 
-*文档版本：v1.2 — 2026-06-04*
+*文档版本：v1.3 — 2026-06-04*
+
+*当前应用版本：PhantomVox AI v0.3.5*
