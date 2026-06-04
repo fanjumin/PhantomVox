@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../widgets/tr.dart';
 import '../services/i18n_service.dart';
-import '../widgets/tr.dart';
+import '../services/api_service.dart';
 
-
-/// Flow Graph — DAG workflow orchestration center.
+/// Flow Graph — Creative flow tree editor.
 class FlowGraphPage extends StatefulWidget {
   const FlowGraphPage({super.key});
 
@@ -12,98 +11,331 @@ class FlowGraphPage extends StatefulWidget {
   State<FlowGraphPage> createState() => _FlowGraphPageState();
 }
 
-// ─── Data models ────────────────────────────────────────────
+// ─── Data model ────────────────────────────────────────────
 
 class _FlowNode {
   final String id;
   String label;
-  double progress;
-  _FlowNodeType type;
+  String nodeType; // topic, scene, beat, missing
+  String description;
+  bool aiGenerated;
+  String status;
   final List<_FlowNode> children;
-  bool running;
 
   _FlowNode({
     required this.id,
     required this.label,
-    this.progress = 0,
-    this.type = _FlowNodeType.branch,
+    this.nodeType = 'topic',
+    this.description = '',
+    this.aiGenerated = false,
+    this.status = 'pending',
     List<_FlowNode>? children,
-    this.running = false,
   }) : children = children ?? [];
-}
 
-enum _FlowNodeType { root, branch, leaf }
-
-enum _TaskStatus { active, paused, failed }
-
-class _ScheduledTask {
-  final String name;
-  final String schedule;
-  _TaskStatus status;
-  _ScheduledTask(this.name, this.schedule, this.status);
-}
-
-class _RunRecord {
-  final String id;
-  double progress;
-  final String status; // 'running' | 'done' | 'failed'
-  final String duration;
-  _RunRecord(this.id, this.progress, this.status, this.duration);
+  Map<String, dynamic> toJson() => {
+    'id': id, 'label': label, 'node_type': nodeType,
+    'description': description, 'ai_generated': aiGenerated,
+    'status': status,
+  };
 }
 
 // ─── State ──────────────────────────────────────────────────
 
 class _FlowGraphPageState extends State<FlowGraphPage> {
-  int _tabIndex = 0;
+  final ApiService _api = ApiService();
 
-  static const _tabs = [
-    _TabData('📋', 'Flow'),
-    _TabData('⏰', 'Schedule'),
-    _TabData('⚙', 'Settings'),
-    _TabData('🔄', 'Logs'),
+  // Tree data
+  _FlowNode? _root;
+  _FlowNode? _selectedNode;
+  bool _loading = true;
+
+  // Bottom panel
+  bool _showBottomPanel = false;
+  int _bottomTab = 0; // 0=Schedule, 1=Logs
+
+  // Schedule + Logs (kept from old version for backward compat)
+  static const _scheduleTasks = [
+    {'name': 'Daily Report', 'schedule': 'Every day 08:00', 'status': '🟢'},
+    {'name': 'Archive Backup', 'schedule': 'Every Monday', 'status': '⚪'},
+    {'name': 'Video Transcode', 'schedule': 'Manual only', 'status': '🔴'},
   ];
-
-  // Flow graph data
-  late _FlowNode _root;
-
-  // Scheduled tasks
-  final List<_ScheduledTask> _tasks = [
-    _ScheduledTask('Daily Report', 'Every day 08:00', _TaskStatus.active),
-    _ScheduledTask('Archive Backup', 'Every Monday', _TaskStatus.paused),
-    _ScheduledTask('Video Transcode', 'Manual only', _TaskStatus.failed),
-  ];
-
-  // Workflow run log
-  final List<_RunRecord> _runs = [
-    _RunRecord('#1423', 0.68, 'running', '2m34s'),
-    _RunRecord('#1422', 1.0, 'done', '1m12s'),
-    _RunRecord('#1421', 0.45, 'failed', '3m01s'),
+  static const _runLogs = [
+    {'id': '#1423', 'progress': 0.68, 'status': 'running', 'duration': '2m34s'},
+    {'id': '#1422', 'progress': 1.0, 'status': 'done', 'duration': '1m12s'},
+    {'id': '#1421', 'progress': 0.45, 'status': 'failed', 'duration': '3m01s'},
   ];
 
   @override
   void initState() {
     super.initState();
-    _root = _FlowNode(
-      id: 'root',
-      label: 'Product Promo',
-      type: _FlowNodeType.root,
-      progress: 0.65,
+    _loadFlowGraph();
+  }
+
+  Future<void> _loadFlowGraph() async {
+    setState(() => _loading = true);
+    try {
+      final data = await _api.get('/api/v1/flowgraph');
+      _root = _parseNodes(data);
+    } catch (_) {
+      // Default demo data if server not reachable
+      _root = _defaultDemo();
+    }
+    setState(() => _loading = false);
+  }
+
+  _FlowNode _parseNodes(Map<String, dynamic> data) {
+    final nodes = data['nodes'] as Map<String, dynamic>? ?? {};
+    final rootId = data['root'] as String? ?? '';
+    if (rootId.isEmpty || nodes.isEmpty) return _defaultDemo();
+
+    // Build map of id -> _FlowNode
+    final map = <String, _FlowNode>{};
+    for (final entry in nodes.entries) {
+      final n = entry.value as Map<String, dynamic>;
+      map[entry.key] = _FlowNode(
+        id: n['id'] as String,
+        label: n['label'] as String? ?? '',
+        nodeType: n['node_type'] as String? ?? 'topic',
+        description: n['description'] as String? ?? '',
+        aiGenerated: n['ai_generated'] as bool? ?? false,
+        status: n['status'] as String? ?? 'pending',
+      );
+    }
+
+    // Link children
+    for (final entry in nodes.entries) {
+      final n = entry.value as Map<String, dynamic>;
+      final node = map[entry.key];
+      if (node == null) continue;
+      for (final cid in (n['children'] as List? ?? [])) {
+        final child = map[cid as String];
+        if (child != null) node.children.add(child);
+      }
+    }
+
+    return map[rootId] ?? _defaultDemo();
+  }
+
+  _FlowNode _defaultDemo() {
+    return _FlowNode(
+      id: 'root', label: 'Demo: Craft Heritage', nodeType: 'topic',
       children: [
-        _FlowNode(id: 'n1', label: 'Voice Clone', progress: 0.5, type: _FlowNodeType.branch,
-            children: [_FlowNode(id: 'n1a', label: 'Narration', progress: 1.0, type: _FlowNodeType.leaf)]),
-        _FlowNode(id: 'n2', label: 'Music Gen', progress: 0.3, type: _FlowNodeType.branch,
-            children: [_FlowNode(id: 'n2a', label: 'Jazz Style', progress: 0.6, type: _FlowNodeType.leaf)]),
-        _FlowNode(id: 'n3', label: 'Material Prep', progress: 0.8, type: _FlowNodeType.branch,
-            children: [_FlowNode(id: 'n3a', label: 'AI BG', progress: 1.0, type: _FlowNodeType.leaf)]),
-        _FlowNode(id: 'n4', label: 'Video Gen', progress: 0.0, type: _FlowNodeType.branch,
-            children: [_FlowNode(id: 'n4a', label: 'Promo Clip', progress: 0.0, type: _FlowNodeType.leaf)]),
-        _FlowNode(id: 'n5', label: 'Code Gen', progress: 0.0, type: _FlowNodeType.branch,
-            children: [_FlowNode(id: 'n5a', label: 'Custom FX', progress: 0.0, type: _FlowNodeType.leaf)]),
+        _FlowNode(id: 'n1', label: 'Opening: Master Teaching', nodeType: 'scene',
+          description: 'Make close-up shots of leather crafting hands',
+          children: [
+            _FlowNode(id: 'n1a', label: 'Hand close-up (10s)', nodeType: 'beat'),
+            _FlowNode(id: 'n1b', label: 'Student frown', nodeType: 'beat'),
+          ]),
+        _FlowNode(id: 'n2', label: 'Conflict: Student Frustrated', nodeType: 'scene',
+          children: [
+            _FlowNode(id: 'n2a', label: 'Drop tool audio', nodeType: 'beat'),
+          ]),
+        _FlowNode(id: 'n3', label: '[AI] Turning point', nodeType: 'missing',
+          description: 'AI suggests: teacher repairs tool at night alone',
+          aiGenerated: true),
+        _FlowNode(id: 'n4', label: 'Resolution: Final product', nodeType: 'scene'),
       ],
     );
   }
 
-  // ─── Build ──────────────────────────────────────────────
+  // ── Actions ───────────────────────────────────────────────
+
+  void _selectNode(_FlowNode node) {
+    setState(() => _selectedNode = node);
+  }
+
+  Future<void> _addNode([String? parentId]) async {
+    final parent = parentId != null ? _findNode(parentId) : _selectedNode ?? _root;
+    if (parent == null) return;
+
+    final labelCtrl = TextEditingController();
+    final type = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF16213E),
+        title: const Tr('Add Node', style: TextStyle(color: Colors.white, fontSize: 14)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: labelCtrl,
+              style: const TextStyle(color: Colors.white, fontSize: 13),
+              decoration: const InputDecoration(
+                hintText: 'Node label...',
+                hintStyle: TextStyle(color: Colors.grey),
+                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF2A2A4E))),
+              ),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              value: 'scene',
+              items: ['scene', 'beat', 'missing'].map((t) =>
+                DropdownMenuItem(value: t, child: Text(t, style: const TextStyle(color: Colors.white, fontSize: 12))),
+              ).toList(),
+              onChanged: (v) {},
+              dropdownColor: const Color(0xFF16213E),
+              decoration: const InputDecoration(
+                labelText: 'Type', labelStyle: TextStyle(color: Colors.grey, fontSize: 12),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Tr('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, 'ok'), child: const Tr('Add')),
+        ],
+      ),
+    );
+
+    if (type != 'ok' || labelCtrl.text.isEmpty) return;
+
+    try {
+      await _api.post('/api/v1/flowgraph/node', body: {
+        'parent_id': parent.id,
+        'label': labelCtrl.text,
+        'node_type': 'scene',
+      });
+      await _loadFlowGraph();
+    } catch (_) {
+      // Fallback: add locally
+      setState(() {
+        parent.children.add(_FlowNode(
+          id: 'n${DateTime.now().millisecondsSinceEpoch}',
+          label: labelCtrl.text,
+          nodeType: 'scene',
+        ));
+      });
+    }
+  }
+
+  Future<void> _deleteNode(String nodeId) async {
+    try {
+      await _api.delete('/api/v1/flowgraph/node/$nodeId');
+      await _loadFlowGraph();
+    } catch (_) {
+      // Fallback: remove locally
+      _removeNode(_root, nodeId);
+      setState(() {});
+    }
+  }
+
+  bool _removeNode(_FlowNode? parent, String id) {
+    if (parent == null) return false;
+    parent.children.removeWhere((c) => c.id == id);
+    for (final c in parent.children) {
+      if (_removeNode(c, id)) return true;
+    }
+    return false;
+  }
+
+  Future<void> _aiExpand(String nodeId) async {
+    try {
+      final result = await _api.post('/api/v1/flowgraph/expand', body: {
+        'node_id': nodeId,
+      });
+      if (result['status'] == 'ok') {
+        await _loadFlowGraph();
+      }
+    } catch (_) {
+      // Fallback: add a mock AI suggestion
+      final node = _findNode(nodeId);
+      if (node != null) {
+        setState(() {
+          node.children.add(_FlowNode(
+            id: 'ai${DateTime.now().millisecondsSinceEpoch}',
+            label: '[AI] Suggested scene',
+            nodeType: 'missing',
+            description: 'AI generated suggestion — review and adjust',
+            aiGenerated: true,
+          ));
+        });
+      }
+    }
+  }
+
+  Future<void> _saveFlowGraph() async {
+    try {
+      await _api.post('/api/v1/flowgraph/root', body: {
+        'label': _root?.label ?? 'Untitled',
+      });
+      if (_root != null) await _saveNodeRecursive(_root!);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Tr('Saved'), duration: const Duration(seconds: 1)),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Tr('Save failed — server not reachable'), duration: const Duration(seconds: 2)),
+        );
+      }
+    }
+  }
+
+  Future<void> _saveNodeRecursive(_FlowNode node) async {
+    for (final child in node.children) {
+      await _api.post('/api/v1/flowgraph/node', body: {
+        'parent_id': node.id,
+        'label': child.label,
+        'node_type': child.nodeType,
+        'description': child.description,
+        'ai_generated': child.aiGenerated,
+      });
+      await _saveNodeRecursive(child);
+    }
+  }
+
+  Future<void> _updateNodeLabel(String nodeId, String newLabel) async {
+    try {
+      await _api.patch('/api/v1/flowgraph/node/$nodeId', body: {'label': newLabel});
+      final node = _findNode(nodeId);
+      if (node != null) setState(() => node.label = newLabel);
+    } catch (_) {
+      final node = _findNode(nodeId);
+      if (node != null) setState(() => node.label = newLabel);
+    }
+  }
+
+  _FlowNode? _findNode(String id, [_FlowNode? parent]) {
+    parent ??= _root;
+    if (parent == null) return null;
+    if (parent.id == id) return parent;
+    for (final c in parent.children) {
+      final found = _findNode(id, c);
+      if (found != null) return found;
+    }
+    return null;
+  }
+
+  Future<void> _reorderNode(_FlowNode parent, int oldIdx, int newIdx) async {
+    setState(() {
+      if (oldIdx < newIdx) newIdx--;
+      final node = parent.children.removeAt(oldIdx);
+      parent.children.insert(newIdx, node);
+    });
+    // Sync to API
+    try {
+      final ids = parent.children.map((c) => c.id).toList();
+      await _api.post('/api/v1/flowgraph/reorder', body: {
+        'parent_id': parent.id,
+        'child_ids': ids,
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _changeNodeType(String nodeId, String newType) async {
+    final node = _findNode(nodeId);
+    if (node == null) return;
+    try {
+      await _api.patch('/api/v1/flowgraph/node/$nodeId', body: {'node_type': newType});
+      setState(() => node.nodeType = newType);
+    } catch (_) {
+      setState(() => node.nodeType = newType);
+    }
+  }
+
+  // ── Build ────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -113,57 +345,35 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
         children: [
           _buildTopBar(),
           const Divider(height: 1, color: Color(0xFF2A2A4E)),
-          Expanded(child: _buildTabContent()),
+          Expanded(child: _loading ? const Center(child: CircularProgressIndicator()) : _buildBody()),
         ],
       ),
     );
   }
 
   Widget _buildTopBar() {
+    final title = _root?.label ?? 'Flow Graph';
     return Container(
-      height: 32,
+      height: 40,
       color: const Color(0xFF0D0D1A),
       padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Row(
         children: [
-          Tr('Flow Graph', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1, color: Colors.white)),
-          const SizedBox(width: 16),
+          Tr('Flow Graph', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1, color: Colors.white)),
+          const SizedBox(width: 12),
           Expanded(
-            child: ListView(
+            child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
-              children: List.generate(_tabs.length, (i) {
-                final t = _tabs[i];
-                final active = i == _tabIndex;
-                return GestureDetector(
-                  onTap: () => setState(() => _tabIndex = i),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    height: 32,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      border: Border(bottom: BorderSide(
-                        color: active ? const Color(0xFF6C63FF) : Colors.transparent, width: 2,
-                      )),
-                    ),
-                    child: Text(
-                      '${t.icon} ${i18n.tr(t.label)}',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: active ? Colors.white : Colors.grey,
-                        fontWeight: active ? FontWeight.w600 : FontWeight.normal,
-                      ),
-                    ),
+              child: Row(children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2A2A4E),
+                    borderRadius: BorderRadius.circular(4),
                   ),
-                );
-              }),
-            ),
-          ),
-          // Status + action buttons
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
+                  child: Text(i18n.tr(title), style: const TextStyle(fontSize: 11, color: Colors.white70)),
+                ),
+                const SizedBox(width: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6),
                   height: 22,
@@ -171,672 +381,465 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
                     color: const Color(0xFF2A2A4E),
                     borderRadius: BorderRadius.circular(4),
                   ),
-                  child: const Center(
-                    child: Tr('Idle', style: TextStyle(fontSize: 10, color: Colors.green)),
-                  ),
+                  child: const Center(child: Tr('Draft', style: TextStyle(fontSize: 10, color: Colors.green))),
                 ),
-                const SizedBox(width: 6),
-                _miniBtn('▶', i18n.tr('Run All')),
-                const SizedBox(width: 4),
-                _miniBtn('⏸', i18n.tr('Pause')),
-                const SizedBox(width: 4),
-                _miniBtn('💾', i18n.tr('Save')),
-              ],
+              ]),
             ),
           ),
+          _topBtn(i18n.tr('Save'), Icons.save, () {
+            // Re-think how saving works
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: const Tr('Flow graph is auto-synced via API — use Save to persist'),
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            }
+          }),
+          const SizedBox(width: 4),
+          _topBtn(i18n.tr('+ Node'), Icons.add, () => _addNode()),
+          const SizedBox(width: 4),
+          _topBtn(i18n.tr('AI'), Icons.auto_awesome,
+              () => _aiExpand(_selectedNode?.id ?? _root?.id ?? 'root')),
+          const SizedBox(width: 4),
+          _topBtn(_showBottomPanel ? '▾' : '▴', Icons.expand_less,
+              () => setState(() => _showBottomPanel = !_showBottomPanel)),
         ],
       ),
     );
   }
 
-  Widget _miniBtn(String icon, String tooltip) {
+  Widget _topBtn(String label, IconData icon, VoidCallback onTap) {
     return Tooltip(
-      message: i18n.tr(tooltip),
+      message: label,
       child: GestureDetector(
-        onTap: () => setState(() {}),
+        onTap: onTap,
         child: Container(
-          width: 22, height: 22,
+          width: 28, height: 28,
           decoration: BoxDecoration(
             color: const Color(0xFF2A2A4E),
             borderRadius: BorderRadius.circular(4),
           ),
           alignment: Alignment.center,
-          child: Text(icon, style: const TextStyle(fontSize: 11)),
+          child: label.length <= 3
+              ? Text(label, style: const TextStyle(fontSize: 10, color: Colors.white))
+              : Icon(icon, size: 14, color: Colors.white),
         ),
       ),
     );
   }
 
-  // ─── Tab content ────────────────────────────────────────
+  // ── Main body ─────────────────────────────────────────────
 
-  Widget _buildTabContent() {
-    switch (_tabIndex) {
-      case 0: return _buildFlowEditor();
-      case 1: return _buildSchedulePanel();
-      case 2: return _buildSettingsPanel();
-      case 3: return _buildLogPanel();
-      default: return const SizedBox.shrink();
-    }
-  }
-
-  // ══════════════ TAB 0: Flow Graph DAG Editor ═══════════
-
-  Widget _buildFlowEditor() {
+  Widget _buildBody() {
+    if (_root == null) return const Center(child: Tr('No flow graph data'));
     return Column(
       children: [
-        // Canvas area
-        Expanded(
-          child: _FlowGraphCanvas(
-            root: _root,
-            onNodeTap: _onNodeTap,
-            onNodeContext: _onNodeContext,
-          ),
-        ),
-        const Divider(height: 1, color: Color(0xFF2A2A4E)),
-        // Bottom bar: task schedule + workflow monitor
-        SizedBox(
-          height: 160,
-          child: Row(
-            children: [
-              Expanded(child: _buildTaskPanel()),
-              Container(width: 1, color: const Color(0xFF2A2A4E)),
-              Expanded(child: _buildMonitorPanel()),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  void _onNodeTap(_FlowNode node) {
-    setState(() {
-      node.running = !node.running;
-    });
-  }
-
-  void _onNodeContext(_FlowNode node, Offset globalPos) {
-    showMenu<String>(
-      context: context,
-      position: RelativeRect.fromLTRB(globalPos.dx, globalPos.dy, globalPos.dx + 1, globalPos.dy + 1),
-      color: const Color(0xFF16213E),
-      items: [
-        const PopupMenuItem(value: 'run', child: Tr('▶ Run', style: TextStyle(color: Colors.white, fontSize: 12))),
-        const PopupMenuItem(value: 'pause', child: Tr('⏸ Pause', style: TextStyle(color: Colors.white, fontSize: 12))),
-        const PopupMenuItem(value: 'edit', child: Tr('✏ Edit', style: TextStyle(color: Colors.white, fontSize: 12))),
-        const PopupMenuItem(value: 'backtrack', child: Tr('↩ Backtrack', style: TextStyle(color: Colors.white, fontSize: 12))),
-        const PopupMenuItem(value: 'save', child: Tr('💾 Save as Template', style: TextStyle(color: Colors.white, fontSize: 12))),
-      ],
-    ).then((v) {
-      if (v != null) {
-        setState(() {
-          if (v == 'run') node.running = true;
-          if (v == 'pause') node.running = false;
-        });
-      }
-    });
-  }
-
-  // ══════════════ TAB 1: Scheduled Tasks ═══════════════════
-
-  Widget _buildSchedulePanel() {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Tr('Scheduled Tasks', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
-              const Spacer(),
-              _actionChip(i18n.tr('+ Add'), Icons.add, () {}),
-              const SizedBox(width: 8),
-              _actionChip(i18n.tr('Import/Export'), Icons.import_export, () {}),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Expanded(
-            child: ListView(
-              children: [
-                _buildTaskHeader(),
-                ..._tasks.map(_buildTaskRow),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTaskHeader() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Color(0xFF2A2A4E))),
-      ),
-      child: Row(
-        children: const [
-          SizedBox(width: 24),
-          Expanded(child: Tr('Name', style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold))),
-          Expanded(child: Tr('Schedule', style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold))),
-          SizedBox(width: 80, child: Tr('Status', style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold))),
-          SizedBox(width: 60),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTaskRow(_ScheduledTask task) {
-    final icon = task.status == _TaskStatus.active ? '🟢' : task.status == _TaskStatus.paused ? '⚪' : '🔴';
-    final st = task.status == _TaskStatus.active ? i18n.tr('Active') : task.status == _TaskStatus.paused ? i18n.tr('Paused') : i18n.tr('Failed');
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Color(0xFF1A1A2E))),
-      ),
-      child: Row(
-        children: [
-          Text(icon, style: const TextStyle(fontSize: 14)),
-          const SizedBox(width: 8),
-          Expanded(child: Text(task.name, style: const TextStyle(fontSize: 12, color: Colors.white))),
-          Expanded(child: Text(task.schedule, style: const TextStyle(fontSize: 12, color: Colors.grey))),
-          SizedBox(width: 80, child: Text(st, style: TextStyle(fontSize: 12, color: task.status == _TaskStatus.active ? Colors.green : Colors.grey))),
-          SizedBox(
-            width: 60,
-            child: TextButton(
-              onPressed: () {},
-              child: Tr('Edit', style: TextStyle(fontSize: 10)),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ══════════════ TAB 2: Settings ═════════════════════════
-
-  Widget _buildSettingsPanel() {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Tr('Workflow Settings', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
-          const SizedBox(height: 16),
-          _settingRow(i18n.tr('Execution Mode'), i18n.tr('Serial')),
-          _settingRow(i18n.tr('Parallel Branches'), i18n.tr('Enabled')),
-          _settingRow(i18n.tr('Conditional Branching'), i18n.tr('Enabled')),
-          _settingRow(i18n.tr('Merge Mode'), i18n.tr('Auto-merge')),
-          _settingRow(i18n.tr('Max Retries'), i18n.tr('3')),
-          _settingRow(i18n.tr('Timeout per node'), i18n.tr('5 min')),
-          const Spacer(),
-          FilledButton.icon(
-            onPressed: () {},
-            icon: const Icon(Icons.save, size: 14),
-            label: const Tr('Save Settings'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _settingRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        children: [
-          SizedBox(width: 160, child: Text(i18n.tr(label), style: const TextStyle(fontSize: 12, color: Colors.grey))),
-          Text(i18n.tr(value), style: const TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.w500)),
-        ],
-      ),
-    );
-  }
-
-  // ══════════════ TAB 3: Run Logs ═══════════════════════════
-
-  Widget _buildLogPanel() {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Tr('Run Logs', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
-              const Spacer(),
-              _actionChip(i18n.tr('Clear'), Icons.delete_sweep, () => setState(() => _runs.clear())),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Expanded(
-            child: ListView(
-              children: [
-                _buildLogHeader(),
-                ...List.generate(_runs.length, (i) => _buildLogRow(i)),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLogHeader() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Color(0xFF2A2A4E))),
-      ),
-      child: Row(
-        children: const [
-          Expanded(flex: 2, child: Tr('Run ID', style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold))),
-          Expanded(child: Tr('Progress', style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold))),
-          Expanded(child: Tr('Status', style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold))),
-          Expanded(child: Tr('Duration', style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold))),
-          SizedBox(width: 80, child: Tr('Action', style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold))),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLogRow(int i) {
-    final r = _runs[i];
-    final statusIcon = r.status == 'running' ? '🟢' : r.status == 'done' ? '✅' : '🔴';
-    final statusLabel = r.status == 'running' ? i18n.tr('Running') : r.status == 'done' ? i18n.tr('Done') : i18n.tr('Failed');
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Color(0xFF1A1A2E))),
-      ),
-      child: Row(
-        children: [
-          Expanded(flex: 2, child: Text(r.id, style: const TextStyle(fontSize: 12, color: Colors.white))),
-          Expanded(
-            child: Row(
-              children: [
-                Expanded(
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: LinearProgressIndicator(
-                      value: r.progress,
-                      backgroundColor: const Color(0xFF2A2A4E),
-                      valueColor: AlwaysStoppedAnimation(
-                        r.status == 'failed' ? Colors.red : const Color(0xFF6C63FF),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Text('${(r.progress * 100).toInt()}%', style: const TextStyle(fontSize: 10, color: Colors.grey)),
-              ],
-            ),
-          ),
-          Expanded(child: Text('$statusIcon $statusLabel', style: const TextStyle(fontSize: 12, color: Colors.white))),
-          Expanded(child: Text(r.duration, style: const TextStyle(fontSize: 12, color: Colors.grey))),
-          SizedBox(
-            width: 80,
-            child: Row(
-              children: [
-                if (r.status == 'running')
-                  _tinyBtn(i18n.tr('View'))
-                else if (r.status == 'done')
-                  _tinyBtn(i18n.tr('Log'))
-                else
-                  _tinyBtn(i18n.tr('Retry')),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _tinyBtn(String label) {
-    return TextButton(
-      onPressed: () {},
-      style: TextButton.styleFrom(
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        minimumSize: Size.zero,
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      ),
-      child: Text(i18n.tr(label), style: const TextStyle(fontSize: 10, color: Color(0xFF6C63FF))),
-    );
-  }
-
-  Widget _actionChip(String label, IconData icon, VoidCallback onTap) {
-    return ActionChip(
-      avatar: Icon(icon, size: 14),
-      label: Text(i18n.tr(label), style: const TextStyle(fontSize: 11)),
-      onPressed: onTap,
-      backgroundColor: const Color(0xFF2A2A4E),
-      side: BorderSide.none,
-      labelStyle: const TextStyle(fontSize: 11, color: Colors.white),
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-    );
-  }
-
-  // ══════════════ TAB 0: Task panel (bottom-left) ═══════════
-
-  Widget _buildTaskPanel() {
-    return Padding(
-      padding: const EdgeInsets.all(8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Tr('Scheduled Tasks', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
-              const Spacer(),
-              TextButton(
-                onPressed: () {},
-                child: Tr('+ Add', style: TextStyle(fontSize: 10)),
-              ),
-            ],
-          ),
-          Expanded(
-            child: ListView(
-              children: _tasks.map((t) {
-                final icon = t.status == _TaskStatus.active ? '🟢' : t.status == _TaskStatus.paused ? '⚪' : '🔴';
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 2),
-                  child: Row(
-                    children: [
-                      Text(icon, style: const TextStyle(fontSize: 10)),
-                      const SizedBox(width: 6),
-                      Expanded(child: Text(t.name, style: const TextStyle(fontSize: 10, color: Colors.white))),
-                      Text(t.schedule, style: const TextStyle(fontSize: 9, color: Colors.grey)),
-                    ],
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ══════════════ TAB 0: Monitor panel (bottom-right) ═══════
-
-  Widget _buildMonitorPanel() {
-    return Padding(
-      padding: const EdgeInsets.all(8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Tr('Workflow Monitor', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
-              const Spacer(),
-              TextButton(onPressed: () {}, child: Tr('New', style: TextStyle(fontSize: 10))),
-              TextButton(onPressed: () {}, child: Tr('Pause All', style: TextStyle(fontSize: 10))),
-            ],
-          ),
-          Expanded(
-            child: ListView(
-              children: _runs.map((r) {
-                final icon = r.status == 'running' ? '🟢' : r.status == 'done' ? '✅' : '🔴';
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 2),
-                  child: Row(
-                    children: [
-                      Text(icon, style: const TextStyle(fontSize: 10)),
-                      const SizedBox(width: 4),
-                      Text(r.id, style: const TextStyle(fontSize: 10, color: Colors.white)),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(2),
-                          child: LinearProgressIndicator(
-                            value: r.progress,
-                            backgroundColor: const Color(0xFF2A2A4E),
-                            valueColor: AlwaysStoppedAnimation(
-                              r.status == 'failed' ? Colors.red : const Color(0xFF6C63FF),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      Text('${(r.progress * 100).toInt()}%', style: const TextStyle(fontSize: 9, color: Colors.grey)),
-                    ],
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─── Helper widgets ─────────────────────────────────────────
-
-class _TabData {
-  final String icon;
-  final String label;
-  const _TabData(this.icon, this.label);
-}
-
-// ═══════════════════ Flow Graph Canvas ═══════════════════════
-
-class _FlowGraphCanvas extends StatefulWidget {
-  final _FlowNode root;
-  final void Function(_FlowNode node) onNodeTap;
-  final void Function(_FlowNode node, Offset globalPos) onNodeContext;
-
-  const _FlowGraphCanvas({
-    required this.root,
-    required this.onNodeTap,
-    required this.onNodeContext,
-  });
-
-  @override
-  State<_FlowGraphCanvas> createState() => _FlowGraphCanvasState();
-}
-
-class _FlowGraphCanvasState extends State<_FlowGraphCanvas> {
-  Offset _offset = Offset.zero;
-  double _scale = 1.0;
-  Offset? _dragStart;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onScaleStart: (d) => _dragStart = d.focalPoint,
-      onScaleUpdate: (d) {
-        setState(() {
-          if (d.pointerCount == 1 && _dragStart != null) {
-            _offset += d.focalPoint - _dragStart!;
-            _dragStart = d.focalPoint;
-          } else {
-            _scale = (_scale * d.scale).clamp(0.3, 3.0);
-          }
-        });
-      },
-      onScaleEnd: (_) => _dragStart = null,
-      child: Container(
-        color: const Color(0xFF111122),
-        child: CustomPaint(
-          painter: _ConnectorPainter(widget.root, _offset, _scale),
-          child: Stack(
-            children: _buildNodeWidgets(),
-          ),
-        ),
-      ),
-    );
-  }
-
-  List<Widget> _buildNodeWidgets() {
-    final widgets = <Widget>[];
-    final basePositions = _computeNodePositions();
-    for (final entry in basePositions.entries) {
-      final node = entry.key;
-      final pos = entry.value * _scale + _offset;
-      widgets.add(
-        Positioned(
-          left: pos.dx,
-          top: pos.dy,
-          child: _NodeWidget(
-            node: node,
-            onTap: () => widget.onNodeTap(node),
-            onContext: (gp) => widget.onNodeContext(node, gp),
-          ),
-        ),
-      );
-    }
-    return widgets;
-  }
-
-  Map<_FlowNode, Offset> _computeNodePositions() {
-    final map = <_FlowNode, Offset>{};
-    final root = widget.root;
-    map[root] = const Offset(220, 10);
-    const startX = 40.0;
-    const stepX = 100.0;
-
-    for (var i = 0; i < root.children.length; i++) {
-      final branch = root.children[i];
-      map[branch] = Offset(startX + i * stepX, 90);
-      for (var j = 0; j < branch.children.length; j++) {
-        map[branch.children[j]] = Offset(startX + i * stepX, 170);
-      }
-    }
-    return map;
-  }
-}
-
-// ─── Node connector painter ─────────────────────────────────
-
-class _ConnectorPainter extends CustomPainter {
-  final _FlowNode root;
-  final Offset offset;
-  final double scale;
-
-  _ConnectorPainter(this.root, this.offset, this.scale);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = const Color(0xFF3A3A6E)
-      ..strokeWidth = 2
-      ..style = PaintingStyle.stroke;
-
-    final map = _computePositions();
-    final rootPos = map[root]! * scale + offset;
-
-    for (final branch in root.children) {
-      if (!map.containsKey(branch)) continue;
-      final branchPos = map[branch]! * scale + offset;
-      _drawCurve(canvas, rootPos, branchPos, paint);
-
-      for (final leaf in branch.children) {
-        if (!map.containsKey(leaf)) continue;
-        final leafPos = map[leaf]! * scale + offset;
-        _drawCurve(canvas, branchPos, leafPos, paint);
-      }
-    }
-  }
-
-  void _drawCurve(Canvas canvas, Offset from, Offset to, Paint paint) {
-    final midY = (from.dy + to.dy) / 2;
-    final path = Path()
-      ..moveTo(from.dx + 40, from.dy + 20)
-      ..cubicTo(from.dx + 40, midY, to.dx + 40, midY, to.dx + 40, to.dy);
-    canvas.drawPath(path, paint);
-  }
-
-  Map<_FlowNode, Offset> _computePositions() {
-    final map = <_FlowNode, Offset>{};
-    map[root] = const Offset(220, 10);
-    const startX = 40.0, stepX = 100.0;
-    for (var i = 0; i < root.children.length; i++) {
-      final b = root.children[i];
-      map[b] = Offset(startX + i * stepX, 90);
-      for (var j = 0; j < b.children.length; j++) {
-        map[b.children[j]] = Offset(startX + i * stepX, 170);
-      }
-    }
-    return map;
-  }
-
-  @override
-  bool shouldRepaint(covariant _ConnectorPainter old) => true;
-}
-
-// ─── Node widget ────────────────────────────────────────────
-
-class _NodeWidget extends StatelessWidget {
-  final _FlowNode node;
-  final VoidCallback onTap;
-  final void Function(Offset globalPos) onContext;
-
-  const _NodeWidget({required this.node, required this.onTap, required this.onContext});
-
-  @override
-  Widget build(BuildContext context) {
-    final isRoot = node.type == _FlowNodeType.root;
-    final isLeaf = node.type == _FlowNodeType.leaf;
-    Color bgColor;
-    if (isRoot) {
-      bgColor = const Color(0xFF4A2A6E);
-    } else if (isLeaf) {
-      bgColor = const Color(0xFF1A4A3E);
-    } else {
-      bgColor = const Color(0xFF2A3A6E);
-    }
-
-    return GestureDetector(
-      onTap: onTap,
-      onSecondaryTap: () {
-        final render = context.findRenderObject() as RenderBox?;
-        if (render != null) {
-          onContext(render.localToGlobal(Offset.zero));
-        }
-      },
-      child: Container(
-        width: isRoot ? 90 : 80,
-        padding: const EdgeInsets.all(6),
-        decoration: BoxDecoration(
-          color: bgColor,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(
-            color: node.running ? const Color(0xFF6C63FF) : const Color(0xFF5A5A8E),
-            width: node.running ? 2 : 1,
-          ),
-          boxShadow: node.running
-              ? [BoxShadow(color: const Color(0xFF6C63FF).withValues(alpha: 0.3), blurRadius: 8)]
-              : null,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        Expanded(child: Row(
           children: [
-            Text(
-              node.label,
-              style: const TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.w500),
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
+            // Tree view (60%)
+            Expanded(flex: 3, child: _buildTreeView()),
+            Container(width: 1, color: const Color(0xFF2A2A4E)),
+            // Node detail panel (40%)
+            Expanded(flex: 2, child: _buildDetailPanel()),
+          ],
+        )),
+        if (_showBottomPanel) ...[
+          const Divider(height: 1, color: Color(0xFF2A2A4E)),
+          SizedBox(height: 120, child: _buildBottomPanel()),
+        ],
+      ],
+    );
+  }
+
+  // ══════════════ Tree view ═══════════════════════════════
+
+  Widget _buildTreeView() {
+    return Container(
+      color: const Color(0xFF111122),
+      child: _root == null ? const SizedBox.shrink() : _buildNodeTree(_root!, 0),
+    );
+  }
+
+  Widget _buildNodeTree(_FlowNode node, int depth) {
+    if (node.nodeType == 'beat' && node.children.isEmpty) {
+      return _buildLeafTile(node, depth);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildBranchTile(node, depth),
+        if (node.children.isNotEmpty)
+          ReorderableListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: node.children.length,
+            onReorder: (oldIdx, newIdx) => _reorderNode(node, oldIdx, newIdx),
+            proxyDecorator: (child, _, __) => Material(
+              color: Colors.transparent,
+              child: Opacity(opacity: 0.7, child: child),
             ),
-            const SizedBox(height: 4),
-            // Progress indicator
-            ClipRRect(
-              borderRadius: BorderRadius.circular(3),
-              child: LinearProgressIndicator(
-                value: node.progress,
-                backgroundColor: Colors.black26,
-                valueColor: AlwaysStoppedAnimation(isRoot ? const Color(0xFF9B6BFF) : const Color(0xFF6C63FF)),
-                minHeight: 4,
+            itemBuilder: (ctx, i) {
+              final child = node.children[i];
+              return _buildNodeTree(child, depth + 1);
+            },
+          ),
+      ],
+    );
+  }
+
+  Widget _buildBranchTile(_FlowNode node, int depth) {
+    final isSelected = _selectedNode?.id == node.id;
+    final icon = _nodeIcon(node.nodeType);
+    final color = _nodeColor(node.nodeType);
+
+    return GestureDetector(
+      onTap: () => _selectNode(node),
+      child: Container(
+        key: ValueKey(node.id),
+        padding: EdgeInsets.only(
+          left: 12.0 + depth * 20.0,
+          right: 8,
+          top: 6,
+          bottom: 4,
+        ),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF2A2A4E) : Colors.transparent,
+          border: const Border(bottom: BorderSide(color: Color(0xFF1A1A2E), width: 0.5)),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 14, color: color),
+            const SizedBox(width: 6),
+            if (node.aiGenerated)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                margin: const EdgeInsets.only(right: 4),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade800,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+                child: const Text('AI', style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.white)),
+              ),
+            Expanded(
+              child: Text(
+                i18n.tr(node.label),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: node.aiGenerated ? Colors.orange.shade200 : Colors.white,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                  decoration: node.nodeType == 'missing' ? TextDecoration.lineThrough : null,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
-            const SizedBox(height: 2),
-            Text(
-              '${(node.progress * 100).toInt()}%',
-              style: const TextStyle(fontSize: 8, color: Colors.white70),
+            if (node.children.isNotEmpty)
+              Text('${node.children.length}', style: const TextStyle(fontSize: 10, color: Colors.grey)),
+            PopupMenuButton<String>(
+              onSelected: (action) => _handleNodeAction(node, action),
+              color: const Color(0xFF16213E),
+              itemBuilder: (_) => [
+                const PopupMenuItem(value: 'add', child: Tr('Add Child', style: TextStyle(color: Colors.white, fontSize: 11))),
+                const PopupMenuItem(value: 'ai', child: Tr('AI Expand', style: TextStyle(color: Colors.white, fontSize: 11))),
+                const PopupMenuItem(value: 'delete', child: Tr('Delete', style: TextStyle(color: Colors.red, fontSize: 11))),
+              ],
+              icon: const Icon(Icons.more_horiz, size: 14, color: Colors.grey),
             ),
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildLeafTile(_FlowNode node, int depth) {
+    final isSelected = _selectedNode?.id == node.id;
+    final color = _nodeColor(node.nodeType);
+
+    return GestureDetector(
+      onTap: () => _selectNode(node),
+      child: Container(
+        key: ValueKey(node.id),
+        padding: EdgeInsets.only(
+          left: 12.0 + depth * 20.0,
+          right: 8,
+          top: 5,
+          bottom: 4,
+        ),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF2A2A4E) : Colors.transparent,
+          border: const Border(bottom: BorderSide(color: Color(0xFF1A1A2E), width: 0.5)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 6, height: 6,
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              i18n.tr(node.label),
+              style: TextStyle(fontSize: 11, color: Colors.white70),
+              overflow: TextOverflow.ellipsis,
+            ),
+            const Spacer(),
+            PopupMenuButton<String>(
+              onSelected: (a) => _handleNodeAction(node, a),
+              color: const Color(0xFF16213E),
+              itemBuilder: (_) => [
+                const PopupMenuItem(value: 'add', child: Tr('Add Child', style: TextStyle(color: Colors.white, fontSize: 11))),
+                const PopupMenuItem(value: 'delete', child: Tr('Delete', style: TextStyle(color: Colors.red, fontSize: 11))),
+              ],
+              icon: const Icon(Icons.more_horiz, size: 12, color: Colors.grey),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _handleNodeAction(_FlowNode node, String action) {
+    switch (action) {
+      case 'add': _addNode(node.id); break;
+      case 'ai': _aiExpand(node.id); break;
+      case 'delete': _deleteNode(node.id); break;
+    }
+  }
+
+  // ══════════════ Detail panel ═══════════════════════════
+
+  Widget _buildDetailPanel() {
+    if (_selectedNode == null) {
+      return Container(
+        color: const Color(0xFF0D0D1A),
+        child: Center(
+          child: Tr('Select a node to edit', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+        ),
+      );
+    }
+
+    final node = _selectedNode!;
+    final labelCtrl = TextEditingController(text: node.label);
+    final descCtrl = TextEditingController(text: node.description);
+
+    return Container(
+      color: const Color(0xFF0D0D1A),
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(_nodeIcon(node.nodeType), size: 16, color: _nodeColor(node.nodeType)),
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                decoration: BoxDecoration(
+                  color: _nodeColor(node.nodeType).withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(3),
+                ),
+                child: Text(node.nodeType.toUpperCase(), style: TextStyle(fontSize: 9, color: _nodeColor(node.nodeType), fontWeight: FontWeight.bold)),
+              ),
+              if (node.aiGenerated) ...[
+                const SizedBox(width: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade800,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                  child: const Text('AI', style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.white)),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: labelCtrl,
+            style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+            decoration: const InputDecoration(
+              hintText: 'Label...',
+              hintStyle: TextStyle(color: Colors.grey),
+              enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF2A2A4E))),
+              focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF6C63FF))),
+              isDense: true,
+            ),
+            onSubmitted: (v) => _updateNodeLabel(node.id, v),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: descCtrl,
+            maxLines: 4,
+            style: const TextStyle(color: Colors.white70, fontSize: 12),
+            decoration: InputDecoration(
+              hintText: i18n.tr('Description...'),
+              hintStyle: const TextStyle(color: Colors.grey),
+              enabledBorder: const OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF2A2A4E))),
+              focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF6C63FF))),
+              isDense: true,
+              contentPadding: const EdgeInsets.all(8),
+            ),
+            onSubmitted: (v) {
+              _changeDescription(node.id, v);
+            },
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              _detailBtn(i18n.tr('Add Child'), Icons.add, () => _addNode(node.id)),
+              const SizedBox(width: 6),
+              _detailBtn(i18n.tr('AI Expand'), Icons.auto_awesome, () => _aiExpand(node.id)),
+              const SizedBox(width: 6),
+              _detailBtn(i18n.tr('Delete'), Icons.delete, () => _deleteNode(node.id),
+                  color: Colors.red),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Type selector
+          Tr('Type', style: const TextStyle(fontSize: 10, color: Colors.grey)),
+          const SizedBox(height: 4),
+          DropdownButtonFormField<String>(
+            value: node.nodeType,
+            items: ['topic', 'scene', 'beat', 'missing'].map((t) =>
+              DropdownMenuItem(value: t, child: Text(t, style: const TextStyle(fontSize: 12, color: Colors.white))),
+            ).toList(),
+            onChanged: (v) {
+              if (v != null) _changeNodeType(node.id, v);
+            },
+            dropdownColor: const Color(0xFF16213E),
+            decoration: const InputDecoration(
+              isDense: true,
+              enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF2A2A4E))),
+            ),
+            style: const TextStyle(color: Colors.white, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _changeDescription(String nodeId, String desc) {
+    final node = _findNode(nodeId);
+    if (node != null) setState(() => node.description = desc);
+  }
+
+  Widget _detailBtn(String label, IconData icon, VoidCallback onTap, {Color? color}) {
+    return OutlinedButton.icon(
+      onPressed: onTap,
+      icon: Icon(icon, size: 12),
+      label: Text(i18n.tr(label), style: const TextStyle(fontSize: 10)),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: color ?? Colors.white,
+        side: BorderSide(color: color?.withValues(alpha: 0.5) ?? const Color(0xFF2A2A4E)),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+    );
+  }
+
+  // ══════════════ Bottom panel ═══════════════════════════
+
+  Widget _buildBottomPanel() {
+    return Container(
+      color: const Color(0xFF0D0D1A),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              _bottomTabBtn('Schedule', 0),
+              _bottomTabBtn('Logs', 1),
+              const Spacer(),
+              _bottomTabBtn('×', -1),
+            ],
+          ),
+          const Divider(height: 1, color: Color(0xFF2A2A4E)),
+          Expanded(child: _bottomTab == 0 ? _buildScheduleView() : _buildLogsView()),
+        ],
+      ),
+    );
+  }
+
+  Widget _bottomTabBtn(String label, int idx) {
+    final active = idx == _bottomTab;
+    return GestureDetector(
+      onTap: () => setState(() {
+        if (idx == -1) {
+          _showBottomPanel = false;
+        } else {
+          _bottomTab = idx;
+        }
+      }),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(
+            color: active ? const Color(0xFF6C63FF) : Colors.transparent, width: 2,
+          )),
+        ),
+        child: Text(
+          idx == -1 ? '×' : i18n.tr(label),
+          style: TextStyle(fontSize: 11, color: active ? Colors.white : Colors.grey),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildScheduleView() {
+    return ListView.builder(
+      itemCount: _scheduleTasks.length,
+      itemBuilder: (_, i) {
+        final t = _scheduleTasks[i];
+        return ListTile(
+          dense: true,
+          leading: Text(t['status']!, style: const TextStyle(fontSize: 12)),
+          title: Text(t['name']!, style: const TextStyle(fontSize: 11, color: Colors.white)),
+          subtitle: Text(t['schedule']!, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+        );
+      },
+    );
+  }
+
+  Widget _buildLogsView() {
+    return ListView.builder(
+      itemCount: _runLogs.length,
+      itemBuilder: (_, i) {
+        final r = _runLogs[i];
+        final icon = r['status'] == 'running' ? '🟢' : r['status'] == 'done' ? '✅' : '🔴';
+        return ListTile(
+          dense: true,
+          leading: Text(icon, style: const TextStyle(fontSize: 12)),
+          title: Text('${r['id']}  ${r['duration']}', style: const TextStyle(fontSize: 11, color: Colors.white)),
+          subtitle: LinearProgressIndicator(
+            value: r['progress'] as double,
+            backgroundColor: const Color(0xFF2A2A4E),
+            valueColor: AlwaysStoppedAnimation(r['status'] == 'failed' ? Colors.red : const Color(0xFF6C63FF)),
+          ),
+        );
+      },
+    );
+  }
+
+  // ─── Helpers ───────────────────────────────────────────
+
+  IconData _nodeIcon(String type) {
+    switch (type) {
+      case 'topic': return Icons.circle;
+      case 'scene': return Icons.crop_square;
+      case 'beat': return Icons.play_arrow;
+      case 'missing': return Icons.help_outline;
+      default: return Icons.circle;
+    }
+  }
+
+  Color _nodeColor(String type) {
+    switch (type) {
+      case 'topic': return const Color(0xFF9B6BFF); // Purple
+      case 'scene': return const Color(0xFF6C63FF); // Blue
+      case 'beat': return const Color(0xFF4CAF50);  // Green
+      case 'missing': return const Color(0xFFFF9800); // Orange
+      default: return Colors.grey;
+    }
   }
 }

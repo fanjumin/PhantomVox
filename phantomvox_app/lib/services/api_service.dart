@@ -83,6 +83,21 @@ class ApiService {
     return jsonDecode(r.body);
   }
 
+  Future<Map<String, dynamic>> patch(String path,
+      {Map<String, dynamic>? body}) async {
+    final r = await http.patch(
+      Uri.parse('$baseUrl$path'),
+      headers: {'Content-Type': 'application/json'},
+      body: body != null ? jsonEncode(body) : null,
+    );
+    return jsonDecode(r.body);
+  }
+
+  Future<Map<String, dynamic>> delete(String path) async {
+    final r = await http.delete(Uri.parse('$baseUrl$path'));
+    return jsonDecode(r.body);
+  }
+
   // ── Timeline ──
 
   Future<Map<String, dynamic>> createTimeline({

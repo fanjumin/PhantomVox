@@ -18,7 +18,7 @@ Usage:
 from __future__ import annotations
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
-from modules.agent.mindmap import MindMap, NodeStatus
+from modules.agent.mindmap import FlowGraph, FlowNode, NodeType, NodeStatus
 from modules.agent.panels import PanelProvider
 from modules.agent.agents import AgentBase
 from modules.agent.agents.director import DirectorAgent
@@ -105,20 +105,18 @@ class AgentEngine:
         return asyncio.run(coro)
 
     def get_mindmap(self) -> Dict[str, Any]:
-        return self._director.mindmap.to_dict()
+        return self._director.flowgraph.to_dict()
 
     def update_node(self, node_label: str, status: str, *,
                     progress: Optional[float] = None,
                     result: Optional[str] = None,
                     error: Optional[str] = None):
         """Update mind map node status by label (used by WorkflowRunner)"""
-        for node in self._director.mindmap.nodes.values():
+        for node in self._director.flowgraph.nodes.values():
             if node.label == node_label:
-                self._director.mindmap.set_status(
-                    node.id, NodeStatus(status),
-                    progress=progress, result=result, error=error,
+                self._director.flowgraph.update_node(
+                    node.id, status=NodeStatus(status),
                 )
-                return
 
     # ── Single agent execution ──────────────────────────────
 

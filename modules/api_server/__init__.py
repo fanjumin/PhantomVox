@@ -343,6 +343,108 @@ def create_app(engine=None):
         agent = app.engine.get("agent")
         return jsonify({"workflows": agent.list_workflows()})
 
+    # ── Flow Graph (Creative Flow Tree) ────────────────
+
+    @app.route("/api/v1/flowgraph")
+    def flowgraph_get():
+        """Get the full flow graph tree."""
+        agent = app.engine.get("agent")
+        return jsonify(agent.get_mindmap())
+
+    @app.route("/api/v1/flowgraph/root", methods=["POST"])
+    def flowgraph_set_root():
+        """Create or update the root node."""
+        data = request.get_json(silent=True) or {}
+        label = data.get("label", "Untitled Project")
+        description = data.get("description", "")
+        agent = app.engine.get("agent")
+        from modules.agent.mindmap import FlowGraph
+        # If no root exists, create one; otherwise update label
+        fg_data = agent.get_mindmap()
+        if not fg_data.get("root"):
+            agent._director.flowgraph = FlowGraph(label)
+        else:
+            agent._director.flowgraph.update_node("root", label=label, description=description)
+        return jsonify(agent.get_mindmap())
+
+    @app.route("/api/v1/flowgraph/node", methods=["POST"])
+    def flowgraph_add_node():
+        """Add a child node under a parent."""
+        data = request.get_json(silent=True) or {}
+        parent_id = data.get("parent_id", "root")
+        label = data.get("label", "")
+        node_type = data.get("node_type", "scene")
+        description = data.get("description", "")
+        ai_generated = data.get("ai_generated", False)
+        if not label:
+            return jsonify({"error": "Missing 'label' field"}), 400
+        agent = app.engine.get("agent")
+        from modules.agent.mindmap import NodeType as NT
+        try:
+            nid = agent._director.flowgraph.add_node(
+                parent_id, label,
+                node_type=NT(node_type),
+                description=description,
+                ai_generated=ai_generated,
+            )
+            return jsonify({"status": "ok", "node_id": nid})
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/flowgraph/node/<node_id>", methods=["PATCH"])
+    def flowgraph_update_node(node_id):
+        """Update a node's fields."""
+        data = request.get_json(silent=True) or {}
+        agent = app.engine.get("agent")
+        ok = agent._director.flowgraph.update_node(node_id, **data)
+        if not ok:
+            return jsonify({"error": f"Node not found: {node_id}"}), 404
+        return jsonify({"status": "ok"})
+
+    @app.route("/api/v1/flowgraph/node/<node_id>", methods=["DELETE"])
+    def flowgraph_delete_node(node_id):
+        """Delete a node and its descendants."""
+        agent = app.engine.get("agent")
+        ok = agent._director.flowgraph.delete_node(node_id)
+        if not ok:
+            return jsonify({"error": f"Cannot delete node: {node_id}"}), 400
+        return jsonify({"status": "ok"})
+
+    @app.route("/api/v1/flowgraph/node/<node_id>/move", methods=["POST"])
+    def flowgraph_move_node(node_id):
+        """Move a node under a new parent."""
+        data = request.get_json(silent=True) or {}
+        new_parent_id = data.get("parent_id", "root")
+        agent = app.engine.get("agent")
+        ok = agent._director.flowgraph.move_node(node_id, new_parent_id)
+        if not ok:
+            return jsonify({"error": "Move failed: invalid parent or cycle"}), 400
+        return jsonify({"status": "ok"})
+
+    @app.route("/api/v1/flowgraph/reorder", methods=["POST"])
+    def flowgraph_reorder():
+        """Reorder children of a parent node."""
+        data = request.get_json(silent=True) or {}
+        parent_id = data.get("parent_id", "root")
+        child_ids = data.get("child_ids", [])
+        agent = app.engine.get("agent")
+        ok = agent._director.flowgraph.reorder_children(parent_id, child_ids)
+        if not ok:
+            return jsonify({"error": f"Parent not found: {parent_id}"}), 404
+        return jsonify({"status": "ok"})
+
+    @app.route("/api/v1/flowgraph/expand", methods=["POST"])
+    def flowgraph_expand():
+        """AI expand a node — Director generates child suggestions."""
+        data = request.get_json(silent=True) or {}
+        node_id = data.get("node_id", "root")
+        agent = app.engine.get("agent")
+        result = agent.execute_agent("director", {
+            "action": "expand_flowgraph",
+            "node_id": node_id,
+        })
+        return jsonify(result)
+
     # ── 模型配置 ──────────────────────────────────────
 
     @app.route("/api/v1/models")
