@@ -433,6 +433,13 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
           _topBtn(i18n.tr('Delete'), Icons.delete, () => _deleteFlowGraph()),
           const SizedBox(width: 4),
           _topBtn(i18n.tr('+ Node'), Icons.add, () => _addNode()),
+          const SizedBox(width: 2),
+          _topBtn('-', Icons.remove, () {
+            final target = _selectedNode;
+            if (target != null && target.id != 'root') {
+              _deleteNode(target.id);
+            }
+          }),
           const SizedBox(width: 4),
           _topBtn(i18n.tr('AI'), Icons.auto_awesome,
               () => _aiExpand(_selectedNode?.id ?? _root?.id ?? 'root')),
@@ -1307,6 +1314,7 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
       case 'topic': return Icons.circle;
       case 'scene': return Icons.crop_square;
       case 'beat': return Icons.play_arrow;
+      case 'sub_beat': return Icons.fiber_manual_record;
       case 'missing': return Icons.help_outline;
       default: return Icons.circle;
     }
@@ -1314,10 +1322,11 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
 
   Color _nodeColor(String type) {
     switch (type) {
-      case 'topic': return const Color(0xFF9B6BFF); // Purple
-      case 'scene': return const Color(0xFF6C63FF); // Blue
-      case 'beat': return const Color(0xFF4CAF50);  // Green
-      case 'missing': return const Color(0xFFFF9800); // Orange
+      case 'topic': return const Color(0xFF6C63FF);
+      case 'scene': return const Color(0xFF4FC3F7);
+      case 'beat': return const Color(0xFF81C784);
+      case 'sub_beat': return const Color(0xFFA1887F);
+      case 'missing': return Colors.orange;
       default: return Colors.grey;
     }
   }

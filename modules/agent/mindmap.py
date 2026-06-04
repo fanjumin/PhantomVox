@@ -21,6 +21,7 @@ class NodeType(str, Enum):
     TOPIC = "topic"
     SCENE = "scene"
     BEAT = "beat"
+    SUB_BEAT = "sub_beat"
     MISSING = "missing"
 
 

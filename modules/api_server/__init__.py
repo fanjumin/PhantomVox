@@ -776,7 +776,8 @@ def create_app(engine=None):
 Node types:
 - topic (root, one only)
 - scene (major section / episode)
-- beat (specific moment / shot)
+- beat (specific moment / shot / sub-scene)
+- sub_beat (fine-grained action / camera direction)
 - missing (gap that needs filling, mark with [AI])
 
 Output ONLY a JSON object with this exact structure (no markdown, no explanation):
@@ -798,7 +799,7 @@ Rules:
 - Every node referenced in "children" must exist
 - Every node (except root) must have a valid parent_id
 - parent_id must match the actual parent, root's children have parent_id "root"
-- 2-3 levels of depth is ideal
+- 3-4 levels of depth is ideal (topic → scene → beat → sub-beat)
 - 15-40 nodes total is good
 - Node IDs: "root", "n1", "n2", ... "n1a", "n1b", ...
 - Labels in Chinese
