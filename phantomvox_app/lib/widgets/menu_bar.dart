@@ -570,7 +570,7 @@ class PhantomVoxMenuBar extends StatelessWidget implements PreferredSizeWidget {
     return MenuItemButton(
       leadingIcon: isActive ? const Icon(Icons.check, size: 14) : null,
       shortcut: SingleActivator(key, control: true),
-      child: Text('$label  ${isActive ? "✓" : ""}'),
+      child: Text('${i18n.tr(label)}  ${isActive ? "✓" : ""}'),
       onPressed: () => onSwitch(index),
     );
   }
@@ -581,7 +581,7 @@ class PhantomVoxMenuBar extends StatelessWidget implements PreferredSizeWidget {
         enabled ? Icons.check_box : Icons.check_box_outline_blank,
         size: 14,
       ),
-      child: Text(label),
+      child: Text(i18n.tr(label)),
       onPressed: () => _showSnack(context, 'Panel toggle coming soon'),
     );
   }
