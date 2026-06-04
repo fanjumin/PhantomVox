@@ -472,14 +472,11 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
       children: [
         Expanded(child: Row(
           children: [
-            // Tree view (45%)
-            Expanded(flex: 3, child: _buildTreeView()),
+            // Tree view (55%)
+            Expanded(flex: 5, child: _buildTreeView()),
             Container(width: 1, color: const Color(0xFF2A2A4E)),
-            // Node detail panel (25%)
-            Expanded(flex: 2, child: _buildDetailPanel()),
-            Container(width: 1, color: const Color(0xFF2A2A4E)),
-            // Right panel: Chat / Versions (30%)
-            Expanded(flex: 2, child: _buildRightPanel()),
+            // Right panel: Chat / Versions (45%)
+            Expanded(flex: 4, child: _buildRightPanel()),
           ],
         )),
       ],
@@ -600,6 +597,7 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
                     color: const Color(0xFF16213E),
                     itemBuilder: (_) => [
                       const PopupMenuItem(value: 'add', child: Tr('Add Child', style: TextStyle(color: Colors.white, fontSize: 11))),
+                      const PopupMenuItem(value: 'edit', child: Tr('Edit', style: TextStyle(color: Colors.white, fontSize: 11))),
                       const PopupMenuItem(value: 'ai', child: Tr('AI Expand', style: TextStyle(color: Colors.white, fontSize: 11))),
                       const PopupMenuItem(value: 'delete', child: Tr('Delete', style: TextStyle(color: Colors.red, fontSize: 11))),
                     ],
@@ -618,8 +616,87 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
     switch (action) {
       case 'add': _addNode(node.id); break;
       case 'ai': _aiExpand(node.id); break;
+      case 'edit': _editNodeDetails(node); break;
       case 'delete': _deleteNode(node.id); break;
     }
+  }
+
+  void _editNodeDetails(_FlowNode node) {
+    final labelCtrl = TextEditingController(text: node.label);
+    final descCtrl = TextEditingController(text: node.description);
+    String selectedType = node.nodeType;
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: const Color(0xFF16213E),
+          title: const Text('Edit Node', style: TextStyle(color: Colors.white, fontSize: 14)),
+          content: SizedBox(
+            width: 300,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Label', style: TextStyle(color: Colors.white70, fontSize: 11)),
+                const SizedBox(height: 4),
+                TextField(
+                  controller: labelCtrl,
+                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                    contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text('Description', style: TextStyle(color: Colors.white70, fontSize: 11)),
+                const SizedBox(height: 4),
+                TextField(
+                  controller: descCtrl,
+                  maxLines: 3,
+                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                    contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text('Type', style: TextStyle(color: Colors.white70, fontSize: 11)),
+                const SizedBox(height: 4),
+                DropdownButton<String>(
+                  value: selectedType,
+                  dropdownColor: const Color(0xFF16213E),
+                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                  items: const [
+                    DropdownMenuItem(value: 'topic', child: Text('Topic')),
+                    DropdownMenuItem(value: 'scene', child: Text('Scene')),
+                    DropdownMenuItem(value: 'beat', child: Text('Beat')),
+                    DropdownMenuItem(value: 'missing', child: Text('Missing [AI]')),
+                  ],
+                  onChanged: (v) { if (v != null) setDialogState(() => selectedType = v); },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel', style: TextStyle(color: Colors.grey, fontSize: 12))),
+            TextButton(
+                onPressed: () {
+                  setState(() {
+                    node.label = labelCtrl.text;
+                    node.description = descCtrl.text;
+                    node.nodeType = selectedType;
+                  });
+                  Navigator.pop(ctx);
+                },
+                child: const Text('Save', style: TextStyle(color: Color(0xFF6C63FF), fontSize: 12))),
+          ],
+        ),
+      ),
+    );
   }
 
   // ══════════════ Detail panel ═══════════════════════════
