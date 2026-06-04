@@ -218,6 +218,74 @@ def blur_region(img: Image.Image, x: int, y: int, w: int, h: int,
     return img
 
 
+# ── Draw / Brush ───────────────────────────────────────────
+
+def draw_brush(img: Image.Image, points: List[Tuple[int, int]],
+               color: Tuple[int, int, int] = (255, 255, 255),
+               size: int = 5, opacity: float = 1.0) -> Image.Image:
+    """Draw freehand brush strokes as connected lines between points."""
+    img = img.copy()
+    if img.mode != "RGBA":
+        img = img.convert("RGBA")
+    overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
+    alpha = int(255 * opacity)
+    if len(points) < 2:
+        # Single dot
+        x, y = points[0]
+        draw.ellipse([x - size // 2, y - size // 2,
+                      x + size // 2, y + size // 2],
+                     fill=(*color, alpha))
+    else:
+        # Smooth line between consecutive points
+        for i in range(len(points) - 1):
+            x1, y1 = points[i]
+            x2, y2 = points[i + 1]
+            draw.line([x1, y1, x2, y2], fill=(*color, alpha),
+                      width=size, joint="curve")
+    return Image.alpha_composite(img, overlay).convert("RGB")
+
+
+def draw_shape(img: Image.Image, shape_type: str,
+               x: int, y: int, w: int, h: int,
+               fill_color: Optional[Tuple[int, int, int]] = None,
+               stroke_color: Tuple[int, int, int] = (255, 255, 255),
+               stroke_width: int = 2) -> Image.Image:
+    """Draw a shape (rect, circle, line) onto the image."""
+    img = img.copy()
+    if img.mode != "RGBA":
+        img = img.convert("RGBA")
+    overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
+
+    fill = (*fill_color, 255) if fill_color else None
+    stroke = (*stroke_color, 255)
+
+    if shape_type == "rect":
+        draw.rectangle([x, y, x + w, y + h],
+                       fill=fill, outline=stroke, width=stroke_width)
+    elif shape_type == "circle":
+        draw.ellipse([x, y, x + w, y + h],
+                     fill=fill, outline=stroke, width=stroke_width)
+    elif shape_type == "line":
+        draw.line([x, y, x + w, y + h],
+                  fill=stroke, width=stroke_width)
+    elif shape_type == "arrow":
+        # Line with arrowhead
+        draw.line([x, y, x + w, y + h], fill=stroke, width=stroke_width)
+        # Simple arrowhead
+        import math
+        angle = math.atan2(y + h - y, x + w - x)
+        a_len = max(stroke_width * 4, 10)
+        ax1 = (x + w - a_len * math.cos(angle - 0.4))
+        ay1 = (y + h - a_len * math.sin(angle - 0.4))
+        ax2 = (x + w - a_len * math.cos(angle + 0.4))
+        ay2 = (y + h - a_len * math.sin(angle + 0.4))
+        draw.polygon([(x + w, y + h), (ax1, ay1), (ax2, ay2)],
+                     fill=stroke, outline=stroke)
+    return Image.alpha_composite(img, overlay).convert("RGB")
+
+
 # ── Export ─────────────────────────────────────────────────
 
 def export_image(img: Image.Image, output_path: str,

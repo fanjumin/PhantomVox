@@ -1,12 +1,13 @@
 import 'dart:convert';
 import 'dart:typed_data';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import '../services/api_service.dart';
 
 /// Tool interaction modes
-enum ToolMode { none, crop, adjust, rotate, text }
+enum ToolMode { none, crop, resize, rotate, adjust, text, brush, eraser, shape }
 
 class ImageEditorPage extends StatefulWidget {
   const ImageEditorPage({super.key});
@@ -21,16 +22,21 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
   bool _loading = false;
   String _status = 'No image loaded. Click Open to start.';
 
-  // ── Tool mode & interactive state ──────────────────
+  // ── Tool mode ──────────────────────────────────────
   ToolMode _toolMode = ToolMode.none;
-  // Crop selection (in image pixel coords, normalized to layout)
+
+  // Crop state
   double? _selX, _selY, _selW, _selH;
   double? _dragStartX, _dragStartY;
-  String? _dragHandle; // corner/edge being dragged
-  // Image display area info (layout coords)
+  String? _dragHandle;
+
+  // Image display area
   final GlobalKey _imgKey = GlobalKey();
-  Size? _displaySize; // actual rendered size on screen
-  final FocusNode _focusNode = FocusNode();
+  Size? _displaySize;
+
+  // Zoom
+  double _zoomLevel = 1.0;
+  Offset _panOffset = Offset.zero;
 
   // Adjust sliders
   double _brightness = 1.0, _contrast = 1.0, _saturation = 1.0;
@@ -38,7 +44,7 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
   Map<String, dynamic> _caps = {};
 
   // ── Text tool state ──────────────────────────────
-  double? _textX, _textY;           // click position (image coords)
+  double? _textX, _textY;
   final TextEditingController _textCtrl = TextEditingController();
   double _textSize = 32;
   Color _textColor = Colors.white;
@@ -51,11 +57,29 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
   List<Map<String, dynamic>> _fonts = [];
   Map<String, dynamic>? _selectedFont;
 
+  // ── Brush/Eraser state ──────────────────────────
+  List<List<Offset>> _brushStrokes = [];  // current strokes (client-side preview)
+  List<Offset> _currentStroke = [];
+  bool _isDrawing = false;
+  double _brushSize = 5;
+  double _brushOpacity = 1.0;
+  Color _brushColor = Colors.white;
+  double _eraserSize = 15;
+
+  // ── Shape state ─────────────────────────────────
+  Offset? _shapeStart;
+  Offset? _shapeEnd;
+  String _shapeType = 'rect';
+  Color _shapeFillColor = const Color(0x00000000); // transparent by default
+  Color _shapeStrokeColor = Colors.white;
+  double _shapeStrokeWidth = 2;
+  bool _shapeFill = false;
+
   // ── Undo/Redo state ─────────────────────────────
   bool _canUndo = false;
   bool _canRedo = false;
 
-  // Color swatches for text/stroke/shadow
+  // Color swatches
   static const List<Color> _colorSwatches = [
     Colors.white, Colors.black, Colors.red, Colors.orange,
     Colors.yellow, Colors.green, Colors.blue, Colors.purple,
@@ -71,7 +95,6 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
   @override
   void dispose() {
     _textCtrl.dispose();
-    _focusNode.dispose();
     super.dispose();
   }
 
@@ -175,6 +198,8 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
       _loading = true;
       _canUndo = false;
       _canRedo = false;
+      _zoomLevel = 1.0;
+      _panOffset = Offset.zero;
     });
     try {
       final r = await _api.post('/api/v1/editor/load', body: {'path': path});
@@ -204,10 +229,16 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
   // ── Tool mode management ─────────────────────────
 
   void _exitToolMode() {
-    _toolMode = ToolMode.none;
-    _selX = _selY = _selW = _selH = null;
-    _dragHandle = null;
-    _textX = _textY = null;
+    setState(() {
+      _toolMode = ToolMode.none;
+      _selX = _selY = _selW = _selH = null;
+      _dragHandle = null;
+      _textX = _textY = null;
+      _currentStroke = [];
+      _brushStrokes = [];
+      _isDrawing = false;
+      _shapeStart = _shapeEnd = null;
+    });
   }
 
   void _enterCrop() {
@@ -230,6 +261,13 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
       'w': _selW!.round(), 'h': _selH!.round(),
     });
     _exitToolMode();
+  }
+
+  void _enterResize() {
+    if (_imageBytes == null) return;
+    if (_toolMode == ToolMode.resize) { _exitToolMode(); return; }
+    _exitToolMode();
+    setState(() => _toolMode = ToolMode.resize);
   }
 
   void _enterAdjust() {
@@ -269,19 +307,45 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
     });
   }
 
+  void _enterBrush() {
+    if (_imageBytes == null) return;
+    if (_toolMode == ToolMode.brush) { _exitToolMode(); return; }
+    _exitToolMode();
+    setState(() {
+      _toolMode = ToolMode.brush;
+      _brushSize = 5;
+      _brushColor = Colors.white;
+    });
+  }
+
+  void _enterEraser() {
+    if (_imageBytes == null) return;
+    if (_toolMode == ToolMode.eraser) { _exitToolMode(); return; }
+    _exitToolMode();
+    setState(() {
+      _toolMode = ToolMode.eraser;
+      _eraserSize = 15;
+    });
+  }
+
+  void _enterShape() {
+    if (_imageBytes == null) return;
+    if (_toolMode == ToolMode.shape) { _exitToolMode(); return; }
+    _exitToolMode();
+    setState(() {
+      _toolMode = ToolMode.shape;
+      _shapeStart = _shapeEnd = null;
+    });
+  }
+
   // ── Text: click on canvas ───────────────────────
-  void _onTextCanvasTap(DragStartDetails d) {
+  void _onTextCanvasTap(Offset localPos) {
     if (_toolMode != ToolMode.text) return;
-    final pos = _screenToImage(d.localPosition);
+    final pos = _screenToImage(localPos);
     if (pos == null) return;
     setState(() {
       _textX = pos.dx;
       _textY = pos.dy;
-      _textCtrl.clear();
-      _textSize = 32;
-      _textColor = Colors.white;
-      _enableStroke = false;
-      _enableShadow = false;
     });
   }
 
@@ -309,11 +373,95 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
       body['font_path'] = _selectedFont!['path'];
     }
     _callEdit('/api/v1/editor/text', body);
-    // Stay in text mode so user can add more text
     setState(() {
       _textX = _textY = null;
       _textCtrl.clear();
     });
+  }
+
+  // ── Brush: draw on canvas ──────────────────────
+  void _onBrushStart(DragStartDetails d) {
+    if (_toolMode != ToolMode.brush && _toolMode != ToolMode.eraser) return;
+    final pos = _screenToImage(d.localPosition);
+    if (pos == null) return;
+    _isDrawing = true;
+    _currentStroke = [pos];
+  }
+
+  void _onBrushUpdate(DragUpdateDetails d) {
+    if (!_isDrawing) return;
+    final pos = _screenToImage(d.localPosition);
+    if (pos == null) return;
+    _currentStroke.add(pos);
+    setState(() {}); // redraw overlay
+  }
+
+  void _onBrushEnd(DragEndDetails d) async {
+    if (!_isDrawing || _currentStroke.length < 1) return;
+    _isDrawing = false;
+    final pts = _currentStroke.map((o) => [o.dx.round(), o.dy.round()]).toList();
+    _currentStroke = [];
+    setState(() {});
+    if (_toolMode == ToolMode.brush) {
+      await _callEdit('/api/v1/editor/draw', {
+        'points': pts,
+        'color': [_brushColor.red, _brushColor.green, _brushColor.blue],
+        'size': _brushSize.round(),
+        'opacity': _brushOpacity,
+      });
+    } else {
+      // Eraser: draw with black (bg color) or large white brush
+      await _callEdit('/api/v1/editor/draw', {
+        'points': pts,
+        'color': [255, 255, 255], // white eraser
+        'size': _eraserSize.round(),
+        'opacity': 1.0,
+      });
+    }
+  }
+
+  // ── Shape: drag on canvas ──────────────────────
+  void _onShapeStart(DragStartDetails d) {
+    if (_toolMode != ToolMode.shape) return;
+    final pos = _screenToImage(d.localPosition);
+    if (pos == null) return;
+    _shapeStart = pos;
+    _shapeEnd = pos;
+  }
+
+  void _onShapeUpdate(DragUpdateDetails d) {
+    if (_shapeStart == null) return;
+    final pos = _screenToImage(d.localPosition);
+    if (pos == null) return;
+    setState(() => _shapeEnd = pos);
+  }
+
+  void _onShapeEnd(DragEndDetails d) async {
+    if (_shapeStart == null || _shapeEnd == null) return;
+    final x = _shapeStart!.dx.round();
+    final y = _shapeStart!.dy.round();
+    double w = _shapeEnd!.dx - _shapeStart!.dx;
+    double h = _shapeEnd!.dy - _shapeStart!.dy;
+    if (w.abs() < 5 && h.abs() < 5) {
+      _shapeStart = _shapeEnd = null;
+      setState(() {});
+      return;
+    }
+    final body = <String, dynamic>{
+      'type': _shapeType,
+      'x': w >= 0 ? x : (x + w.round()),
+      'y': h >= 0 ? y : (y + h.round()),
+      'w': w.abs().round(),
+      'h': h.abs().round(),
+      'stroke_color': [_shapeStrokeColor.red, _shapeStrokeColor.green, _shapeStrokeColor.blue],
+      'stroke_width': _shapeStrokeWidth.round(),
+    };
+    if (_shapeFill) {
+      body['fill_color'] = [_shapeFillColor.red, _shapeFillColor.green, _shapeFillColor.blue];
+    }
+    _shapeStart = _shapeEnd = null;
+    setState(() {});
+    await _callEdit('/api/v1/editor/shape', body);
   }
 
   // ── Crop drag logic ────────────────────────────
@@ -412,8 +560,6 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
     return null;
   }
 
-  // ── Layout image coords for overlay drawing ─────
-
   Rect? _selectionLayoutRect() {
     if (_selX == null || _displaySize == null || _info == null) return null;
     final imgW = (_info!['width'] as num).toDouble();
@@ -431,7 +577,6 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
     );
   }
 
-  /// Convert text click position to layout position (for crosshair indicator)
   Offset? _textLayoutPos() {
     if (_textX == null || _displaySize == null || _info == null) return null;
     final imgW = (_info!['width'] as num).toDouble();
@@ -446,6 +591,24 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
     return Offset(ox + _textX! * scale, oy + _textY! * scale);
   }
 
+  Rect? _shapeLayoutRect() {
+    if (_shapeStart == null || _shapeEnd == null || _displaySize == null || _info == null) return null;
+    final imgW = (_info!['width'] as num).toDouble();
+    final imgH = (_info!['height'] as num).toDouble();
+    final ds = _displaySize!;
+    final scale = (ds.width / imgW) < (ds.height / imgH)
+        ? ds.width / imgW : ds.height / imgH;
+    final drawW = imgW * scale;
+    final drawH = imgH * scale;
+    final ox = (ds.width - drawW) / 2;
+    final oy = (ds.height - drawH) / 2;
+    double x1 = ox + _shapeStart!.dx * scale;
+    double y1 = oy + _shapeStart!.dy * scale;
+    double x2 = ox + _shapeEnd!.dx * scale;
+    double y2 = oy + _shapeEnd!.dy * scale;
+    return Rect.fromLTRB(x1, y1, x2, y2);
+  }
+
   // ── Quick actions ──────────────────────────────
 
   void _quickFilter(String f) => _callEdit('/api/v1/editor/filter', {'filter': f});
@@ -458,147 +621,224 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
       backgroundColor: const Color(0xFF0D0D1A),
       appBar: AppBar(
         backgroundColor: const Color(0xFF1A1A2E),
-        title: const Text('Image Studio',
-            style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
-        centerTitle: false,
+        toolbarHeight: 38,
         automaticallyImplyLeading: false,
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Image Studio',
+                style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+            const SizedBox(width: 16),
+            // Undo/Redo — prominent, with labels
+            _undoBtn(),
+            const SizedBox(width: 2),
+            _redoBtn(),
+          ],
+        ),
         actions: [
-          // Undo / Redo
-          if (_imageBytes != null) ...{
-            _iconBtn(Icons.undo, 'Undo', _canUndo ? _undo : null),
-            _iconBtn(Icons.redo, 'Redo', _canRedo ? _redo : null),
-          },
-          _btn('Open', Icons.folder_open, _openImage),
-          _btn('Export', Icons.save_alt, _exportImage),
+          _topBtn('Open', Icons.folder_open, _openImage),
+          _topBtn('Export', Icons.save_alt, _exportImage),
           if (_imageBytes != null) ...[
-            _btn('Flip H', Icons.flip, () => _callEdit('/api/v1/editor/flip', {'direction': 'horizontal'})),
-            _btn('Flip V', Icons.flip, () => _callEdit('/api/v1/editor/flip', {'direction': 'vertical'})),
+            _topBtn('Flip H', Icons.flip, () => _callEdit('/api/v1/editor/flip', {'direction': 'horizontal'})),
+            _topBtn('Flip V', Icons.flip, () => _callEdit('/api/v1/editor/flip', {'direction': 'vertical'})),
           ],
         ],
       ),
-      body: Column(
-        children: [
-          _buildToolbar(),
-          _buildStatusBar(),
-          Expanded(child: _buildCanvas()),
-          if (_toolMode != ToolMode.none) _buildActionPanel(),
-        ],
+      body: _imageBytes == null ? _buildEmptyState() : _buildEditorBody(),
+    );
+  }
+
+  Widget _undoBtn() {
+    return GestureDetector(
+      onTap: _canUndo ? _undo : null,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+        decoration: BoxDecoration(
+          color: _canUndo ? const Color(0xFF2A2A4E) : const Color(0xFF1A1A2E),
+          borderRadius: BorderRadius.circular(4),
+          border: _canUndo ? Border.all(color: const Color(0xFF6C63FF), width: 0.5) : null,
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.undo, size: 12, color: _canUndo ? Colors.white : Colors.grey.shade700),
+          const SizedBox(width: 3),
+          Text('Undo', style: TextStyle(fontSize: 10, color: _canUndo ? Colors.white : Colors.grey.shade700)),
+        ]),
       ),
     );
   }
 
-  Widget _iconBtn(IconData icon, String tooltip, VoidCallback? onTap) {
+  Widget _redoBtn() {
+    return GestureDetector(
+      onTap: _canRedo ? _redo : null,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+        decoration: BoxDecoration(
+          color: _canRedo ? const Color(0xFF2A2A4E) : const Color(0xFF1A1A2E),
+          borderRadius: BorderRadius.circular(4),
+          border: _canRedo ? Border.all(color: const Color(0xFF6C63FF), width: 0.5) : null,
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.redo, size: 12, color: _canRedo ? Colors.white : Colors.grey.shade700),
+          const SizedBox(width: 3),
+          Text('Redo', style: TextStyle(fontSize: 10, color: _canRedo ? Colors.white : Colors.grey.shade700)),
+        ]),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        const Icon(Icons.image, size: 64, color: Color(0xFF3A3A5E)),
+        const SizedBox(height: 12),
+        Text('Click Open to load an image',
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+      ]),
+    );
+  }
+
+  Widget _buildEditorBody() {
+    return Column(
+      children: [
+        Expanded(
+          child: Row(
+            children: [
+              // ── LEFT TOOLBAR ──
+              _buildLeftToolbar(),
+              // ── CANVAS ──
+              Expanded(child: _buildCanvas()),
+              // ── RIGHT SIDEBAR ──
+              _buildRightSidebar(),
+            ],
+          ),
+        ),
+        // ── STATUS BAR ──
+        _buildStatusBar(),
+      ],
+    );
+  }
+
+  // ════════════ LEFT TOOLBAR ═══════════════════════
+
+  Widget _buildLeftToolbar() {
+    return Container(
+      width: 52,
+      color: const Color(0xFF1A1A2E),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Column(children: [
+          _toolIcon(Icons.crop, 'Crop', ToolMode.crop, _enterCrop),
+          _toolIcon(Icons.text_fields, 'Text', ToolMode.text, _enterText),
+          _toolIcon(Icons.brush, 'Brush', ToolMode.brush, _enterBrush),
+          _toolIcon(Icons.auto_fix_high, 'Eraser', ToolMode.eraser, _enterEraser),
+          _toolIcon(Icons.category, 'Shape', ToolMode.shape, _enterShape),
+          _divider(),
+          _toolIcon(Icons.photo_size_select_large, 'Resize', ToolMode.resize, _enterResize),
+          _toolIcon(Icons.rotate_right, 'Rotate', ToolMode.rotate, _enterRotate),
+          _toolIcon(Icons.tune, 'Adjust', ToolMode.adjust, _enterAdjust),
+          _divider(),
+          _toolIcon(Icons.filter_b_and_w, 'Gray', null, () => _quickFilter('grayscale')),
+          _toolIcon(Icons.color_lens, 'Sepia', null, () => _quickFilter('sepia')),
+          _toolIcon(Icons.blur_on, 'Blur', null, () => _quickFilter('blur')),
+          _toolIcon(Icons.invert_colors, 'Invert', null, () => _quickFilter('invert')),
+          _divider(),
+          _toolIcon(Icons.noise_control_off, 'Denoise', null,
+              () => _callEdit('/api/v1/editor/denoise', {'strength': 3})),
+          if (_caps['remove_bg'] == true)
+            _toolIcon(Icons.image_not_supported, 'Rm BG', null,
+                () => _callEdit('/api/v1/editor/remove-bg', {})),
+        ]),
+      ),
+    );
+  }
+
+  Widget _divider() {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      width: 32, height: 1, color: const Color(0xFF3A3A5E),
+    );
+  }
+
+  Widget _toolIcon(IconData icon, String label, ToolMode? mode, VoidCallback onTap) {
+    final active = mode != null && _toolMode == mode;
     return Padding(
-      padding: const EdgeInsets.only(left: 2),
+      padding: const EdgeInsets.only(bottom: 2),
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.all(4),
+          width: 44, height: 38,
           decoration: BoxDecoration(
-            color: onTap != null ? const Color(0xFF2A2A4E) : const Color(0xFF1A1A2E),
-            borderRadius: BorderRadius.circular(3),
+            color: active ? const Color(0xFF3A3A7E) : Colors.transparent,
+            borderRadius: BorderRadius.circular(4),
+            border: active ? Border.all(color: const Color(0xFF6C63FF), width: 1) : null,
           ),
-          child: Icon(icon, size: 14,
-              color: onTap != null ? Colors.white70 : Colors.grey.shade700),
+          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(icon, size: 16, color: active ? const Color(0xFF6C63FF) : Colors.white60),
+            Text(label, style: TextStyle(fontSize: 7, color: active ? Colors.white : Colors.white38)),
+          ]),
         ),
       ),
     );
   }
 
-  Widget _buildToolbar() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      color: const Color(0xFF1A1A2E),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(children: [
-          _toolBtn('Crop', Icons.crop, _enterCrop, active: _toolMode == ToolMode.crop),
-          _toolBtn('Resize', Icons.photo_size_select_large, _resizeDialog),
-          _toolBtn('Rotate', Icons.rotate_right, _enterRotate, active: _toolMode == ToolMode.rotate),
-          _toolBtn('Adjust', Icons.tune, _enterAdjust, active: _toolMode == ToolMode.adjust),
-          _toolBtn('Text', Icons.text_fields, _enterText, active: _toolMode == ToolMode.text),
-          const SizedBox(width: 4),
-          Container(width: 1, height: 20, color: const Color(0xFF3A3A5E)),
-          const SizedBox(width: 4),
-          _toolBtn('Gray', Icons.filter_b_and_w, () => _quickFilter('grayscale')),
-          _toolBtn('Sepia', Icons.color_lens, () => _quickFilter('sepia')),
-          _toolBtn('Blur', Icons.blur_on, () => _quickFilter('blur')),
-          _toolBtn('Invert', Icons.invert_colors, () => _quickFilter('invert')),
-          const SizedBox(width: 4),
-          Container(width: 1, height: 20, color: const Color(0xFF3A3A5E)),
-          const SizedBox(width: 4),
-          _toolBtn('Denoise', Icons.noise_control_off, () => _callEdit('/api/v1/editor/denoise', {'strength': 3})),
-          if (_caps['remove_bg'] == true)
-            _toolBtn('Rm BG', Icons.image_not_supported, () => _callEdit('/api/v1/editor/remove-bg', {})),
-        ]),
-      ),
-    );
-  }
-
-  Widget _buildStatusBar() {
-    String hint = '';
-    if (_toolMode == ToolMode.crop) {
-      hint = '  ·  Drag to select region, Enter to apply';
-    } else if (_toolMode == ToolMode.text) {
-      if (_textX == null) {
-        hint = '  ·  Click on image to place text';
-      } else {
-        hint = '  ·  Type text below, adjust properties, then Apply';
-      }
-    }
-    String undoLabel = '';
-    if (_canUndo) undoLabel = '  [Undo avail]';
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      color: const Color(0xFF12121E),
-      child: Row(children: [
-        Text(_status, style: const TextStyle(fontSize: 10, color: Colors.grey)),
-        if (_loading) ...{
-          const SizedBox(width: 8),
-          const SizedBox(width: 12, height: 12,
-              child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF6C63FF))),
-        },
-        Text(undoLabel, style: const TextStyle(fontSize: 10, color: Color(0xFF6C63FF))),
-        if (hint.isNotEmpty)
-          Text(hint, style: const TextStyle(fontSize: 10, color: Colors.orange)),
-      ]),
-    );
-  }
+  // ════════════ CANVAS ═══════════════════════════
 
   Widget _buildCanvas() {
-    if (_imageBytes == null) {
-      return Center(
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          const Icon(Icons.image, size: 64, color: Color(0xFF3A3A5E)),
-          const SizedBox(height: 12),
-          Text('Click Open to load an image',
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
-        ]),
-      );
-    }
-
     return LayoutBuilder(
       builder: (ctx, constraints) {
         _displaySize = constraints.biggest;
         return Stack(
           children: [
-            // Image
+            // Image with zoom + pan
             Positioned.fill(
-              child: FittedBox(
-                key: _imgKey,
-                fit: BoxFit.contain,
-                child: Image.memory(_imageBytes!),
+              child: GestureDetector(
+                onScaleStart: (d) {},
+                onScaleUpdate: (d) {
+                  setState(() {
+                    _zoomLevel = (_zoomLevel * d.scale).clamp(0.1, 5.0);
+                    _panOffset += d.focalPointDelta;
+                  });
+                },
+                child: Transform(
+                  transform: Matrix4.identity()
+                    ..translate(_panOffset.dx, _panOffset.dy)
+                    ..scale(_zoomLevel),
+                  alignment: Alignment.center,
+                  child: Center(
+                    child: FittedBox(
+                      key: _imgKey,
+                      fit: BoxFit.contain,
+                      child: GestureDetector(
+                        onPanStart: (d) {
+                          if (_toolMode == ToolMode.crop) _onCropPanStart(d);
+                          else if (_toolMode == ToolMode.brush || _toolMode == ToolMode.eraser) _onBrushStart(d);
+                          else if (_toolMode == ToolMode.shape) _onShapeStart(d);
+                        },
+                        onPanUpdate: (d) {
+                          if (_toolMode == ToolMode.crop) _onCropPanUpdate(d);
+                          else if (_toolMode == ToolMode.brush || _toolMode == ToolMode.eraser) _onBrushUpdate(d);
+                          else if (_toolMode == ToolMode.shape) _onShapeUpdate(d);
+                        },
+                        onPanEnd: (d) {
+                          if (_toolMode == ToolMode.crop) _onCropPanEnd(d);
+                          else if (_toolMode == ToolMode.brush || _toolMode == ToolMode.eraser) _onBrushEnd(d);
+                          else if (_toolMode == ToolMode.shape) _onShapeEnd(d);
+                        },
+                        onTapDown: _toolMode == ToolMode.text
+                            ? (d) => _onTextCanvasTap(d.localPosition)
+                            : null,
+                        child: Image.memory(_imageBytes!),
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ),
 
             // ── Crop overlay ──
             if (_toolMode == ToolMode.crop)
               Positioned.fill(
-                child: GestureDetector(
-                  onPanStart: _onCropPanStart,
-                  onPanUpdate: _onCropPanUpdate,
-                  onPanEnd: _onCropPanEnd,
+                child: IgnorePointer(
                   child: CustomPaint(
                     painter: _CropOverlayPainter(
                       selection: _selectionLayoutRect(),
@@ -608,33 +848,53 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
                 ),
               ),
 
-            // ── Text crosshair indicator ──
+            // ── Text crosshair ──
             if (_toolMode == ToolMode.text && _textX != null)
               Positioned.fill(
                 child: IgnorePointer(
                   child: CustomPaint(
-                    painter: _TextCrosshairPainter(
-                      position: _textLayoutPos(),
+                    painter: _TextCrosshairPainter(position: _textLayoutPos()),
+                  ),
+                ),
+              ),
+
+            // ── Brush stroke preview ──
+            if ((_toolMode == ToolMode.brush || _toolMode == ToolMode.eraser) && _currentStroke.isNotEmpty)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: CustomPaint(
+                    painter: _BrushPreviewPainter(
+                      stroke: _currentStroke,
+                      color: _toolMode == ToolMode.brush ? _brushColor : Colors.white,
+                      size: _toolMode == ToolMode.brush ? _brushSize : _eraserSize,
+                      imageInfo: _info,
+                      displaySize: _displaySize ?? Size.zero,
                     ),
                   ),
                 ),
               ),
 
-            // ── Text click handler ──
-            if (_toolMode == ToolMode.text)
+            // ── Shape preview ──
+            if (_toolMode == ToolMode.shape && _shapeStart != null && _shapeEnd != null)
               Positioned.fill(
-                child: GestureDetector(
-                  behavior: HitTestBehavior.translucent,
-                  onPanStart: _onTextCanvasTap,
-                  child: const SizedBox.expand(),
+                child: IgnorePointer(
+                  child: CustomPaint(
+                    painter: _ShapePreviewPainter(
+                      rect: _shapeLayoutRect(),
+                      shapeType: _shapeType,
+                      fillColor: _shapeFill ? _shapeFillColor : null,
+                      strokeColor: _shapeStrokeColor,
+                      strokeWidth: _shapeStrokeWidth,
+                    ),
+                  ),
                 ),
               ),
 
-            // ── Keyboard listener (crop Enter/Esc) ──
+            // ── Keyboard listener ──
             if (_toolMode == ToolMode.crop)
               Positioned.fill(
                 child: KeyboardListener(
-                  focusNode: _focusNode,
+                  focusNode: FocusNode()..requestFocus(),
                   autofocus: true,
                   onKeyEvent: (event) {
                     if (event is KeyDownEvent) {
@@ -642,7 +902,6 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
                         _applyCrop();
                       } else if (event.logicalKey == LogicalKeyboardKey.escape) {
                         _exitToolMode();
-                        if (mounted) setState(() {});
                       }
                     }
                   },
@@ -655,377 +914,474 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
     );
   }
 
-  Widget _buildActionPanel() {
-    switch (_toolMode) {
-      case ToolMode.crop:
-        return Container(
-          padding: const EdgeInsets.all(8),
-          color: const Color(0xFF1A1A2E),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _actBtn('Cancel', () { _exitToolMode(); setState(() {}); }),
-              const SizedBox(width: 12),
-              _actBtn('Apply Crop', _applyCrop),
-            ],
-          ),
-        );
-      case ToolMode.adjust:
-        return Container(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-          color: const Color(0xFF1A1A2E),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _slider('Brightness', _brightness, 0.0, 2.0, (v) {
-                _brightness = v;
-                _callEdit('/api/v1/editor/adjust',
-                    {'brightness': v, 'contrast': _contrast, 'saturation': _saturation});
-              }),
-              _slider('Contrast', _contrast, 0.0, 2.0, (v) {
-                _contrast = v;
-                _callEdit('/api/v1/editor/adjust',
-                    {'brightness': _brightness, 'contrast': v, 'saturation': _saturation});
-              }),
-              _slider('Saturation', _saturation, 0.0, 2.0, (v) {
-                _saturation = v;
-                _callEdit('/api/v1/editor/adjust',
-                    {'brightness': _brightness, 'contrast': _contrast, 'saturation': v});
-              }),
-              const SizedBox(height: 4),
-              _actBtn('Done', () { _exitToolMode(); setState(() {}); }),
-            ],
-          ),
-        );
-      case ToolMode.rotate:
-        return Container(
-          padding: const EdgeInsets.all(8),
-          color: const Color(0xFF1A1A2E),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _actBtn('↺ 90°', () => _callEdit('/api/v1/editor/rotate', {'angle': -90})),
-              const SizedBox(width: 8),
-              _actBtn('↻ 90°', () => _callEdit('/api/v1/editor/rotate', {'angle': 90})),
-              const SizedBox(width: 8),
-              _actBtn('↺ 180°', () => _callEdit('/api/v1/editor/rotate', {'angle': 180})),
-              const SizedBox(width: 12),
-              _actBtn('Done', () { _exitToolMode(); setState(() {}); }),
-            ],
-          ),
-        );
-      case ToolMode.text:
-        return _buildTextPanel();
-      default:
-        return const SizedBox.shrink();
-    }
-  }
+  // ════════════ RIGHT SIDEBAR ═══════════════════════
 
-  // ── Text property panel ──────────────────────────
-
-  Widget _buildTextPanel() {
-    if (_textX == null) return const SizedBox.shrink();
+  Widget _buildRightSidebar() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
-      color: const Color(0xFF1A1A2E),
+      width: 240,
+      color: const Color(0xFF16162A),
       child: SingleChildScrollView(
+        padding: const EdgeInsets.all(8),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Text input
-            TextField(
-              controller: _textCtrl,
-              maxLines: 2,
-              minLines: 1,
-              style: const TextStyle(color: Colors.white, fontSize: 12),
-              decoration: InputDecoration(
-                hintText: 'Type your text here...',
-                hintStyle: const TextStyle(color: Colors.grey, fontSize: 12),
-                filled: true,
-                fillColor: const Color(0xFF2A2A4E),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: BorderSide.none),
-              ),
-            ),
-            const SizedBox(height: 6),
-
-            // Font size
-            Row(children: [
-              const SizedBox(width: 60, child: Text('Font Size', style: TextStyle(fontSize: 10, color: Colors.grey))),
-              Expanded(child: Slider(
-                value: _textSize, min: 8, max: 120, divisions: 112,
-                activeColor: const Color(0xFF6C63FF),
-                onChanged: (v) => setState(() => _textSize = v),
-                label: _textSize.round().toString(),
-              )),
-              SizedBox(width: 30, child: Text('${_textSize.round()}', style: const TextStyle(fontSize: 10, color: Colors.white70))),
-            ]),
-
-            // Font selector
-            if (_fonts.isNotEmpty) ...{
-              Row(children: [
-                const SizedBox(width: 60, child: Text('Font', style: TextStyle(fontSize: 10, color: Colors.grey))),
-                Expanded(
-                  child: DropdownButton<String>(
-                    value: _selectedFont?['name'] as String?,
-                    dropdownColor: const Color(0xFF16213E),
-                    isExpanded: true,
-                    style: const TextStyle(color: Colors.white, fontSize: 11),
-                    underline: const SizedBox(),
-                    onChanged: (v) {
-                      if (v == null) return;
-                      setState(() {
-                        _selectedFont = _fonts.firstWhere(
-                          (f) => f['name'] == v,
-                          orElse: () => _fonts.first,
-                        );
-                      });
-                    },
-                    items: _fonts.map((f) => DropdownMenuItem(
-                      value: f['name'] as String,
-                      child: Text(f['name'] as String, style: const TextStyle(fontSize: 11, color: Colors.white)),
-                    )).toList(),
-                  ),
-                ),
-              ]),
-              const SizedBox(height: 4),
-            },
-
-            // Color swatches
-            Row(children: [
-              const SizedBox(width: 60, child: Text('Color', style: TextStyle(fontSize: 10, color: Colors.grey))),
-              ..._colorSwatches.map((c) => GestureDetector(
-                onTap: () => setState(() => _textColor = c),
-                child: Container(
-                  margin: const EdgeInsets.only(right: 4),
-                  width: 18, height: 18,
-                  decoration: BoxDecoration(
-                    color: c,
-                    borderRadius: BorderRadius.circular(3),
-                    border: Border.all(
-                      color: c == _textColor ? const Color(0xFF6C63FF) : Colors.grey.shade600,
-                      width: c == _textColor ? 2 : 1,
-                    ),
-                  ),
-                ),
-              )),
-            ]),
-            const SizedBox(height: 6),
-
-            // Stroke toggle
-            Row(children: [
-              SizedBox(
-                width: 18, height: 18,
-                child: Checkbox(
-                  value: _enableStroke,
-                  onChanged: (v) => setState(() => _enableStroke = v ?? false),
-                  activeColor: const Color(0xFF6C63FF),
-                  side: const BorderSide(color: Colors.grey, width: 1),
-                ),
-              ),
-              const SizedBox(width: 6),
-              const Text('Stroke', style: TextStyle(fontSize: 10, color: Colors.grey)),
-              if (_enableStroke) ...{
-                const SizedBox(width: 8),
-                SizedBox(
-                  width: 80,
-                  child: Slider(
-                    value: _strokeWidth, min: 1, max: 10, divisions: 9,
-                    activeColor: const Color(0xFF6C63FF),
-                    onChanged: (v) => setState(() => _strokeWidth = v),
-                  ),
-                ),
-                SizedBox(width: 20, child: Text('${_strokeWidth.round()}', style: const TextStyle(fontSize: 10, color: Colors.white70))),
-                const SizedBox(width: 4),
-                ..._colorSwatches.take(4).map((c) => GestureDetector(
-                  onTap: () => setState(() => _strokeColor = c),
-                  child: Container(
-                    margin: const EdgeInsets.only(right: 3),
-                    width: 14, height: 14,
-                    decoration: BoxDecoration(
-                      color: c,
-                      borderRadius: BorderRadius.circular(2),
-                      border: Border.all(
-                        color: c == _strokeColor ? const Color(0xFF6C63FF) : Colors.grey.shade600,
-                        width: c == _strokeColor ? 2 : 1,
-                      ),
-                    ),
-                  ),
-                )),
-              },
-            ]),
-            const SizedBox(height: 4),
-
-            // Shadow toggle
-            Row(children: [
-              SizedBox(
-                width: 18, height: 18,
-                child: Checkbox(
-                  value: _enableShadow,
-                  onChanged: (v) => setState(() => _enableShadow = v ?? false),
-                  activeColor: const Color(0xFF6C63FF),
-                  side: const BorderSide(color: Colors.grey, width: 1),
-                ),
-              ),
-              const SizedBox(width: 6),
-              const Text('Shadow', style: TextStyle(fontSize: 10, color: Colors.grey)),
-              if (_enableShadow) ...{
-                const SizedBox(width: 8),
-                SizedBox(
-                  width: 80,
-                  child: Slider(
-                    value: _shadowBlur, min: 1, max: 20, divisions: 19,
-                    activeColor: const Color(0xFF6C63FF),
-                    onChanged: (v) => setState(() => _shadowBlur = v),
-                  ),
-                ),
-                SizedBox(width: 20, child: Text('${_shadowBlur.round()}', style: const TextStyle(fontSize: 10, color: Colors.white70))),
-                const SizedBox(width: 4),
-                ..._colorSwatches.take(4).map((c) => GestureDetector(
-                  onTap: () => setState(() => _shadowColor = c),
-                  child: Container(
-                    margin: const EdgeInsets.only(right: 3),
-                    width: 14, height: 14,
-                    decoration: BoxDecoration(
-                      color: c,
-                      borderRadius: BorderRadius.circular(2),
-                      border: Border.all(
-                        color: c == _shadowColor ? const Color(0xFF6C63FF) : Colors.grey.shade600,
-                        width: c == _shadowColor ? 2 : 1,
-                      ),
-                    ),
-                  ),
-                )),
-              },
-            ]),
-            const SizedBox(height: 6),
-
-            // Apply + Cancel
-            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              _actBtn('Cancel', () { _exitToolMode(); setState(() {}); }),
-              const SizedBox(width: 12),
-              _actBtn('Apply Text', _applyText),
-            ]),
-          ],
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: _sidebarContent(),
         ),
       ),
     );
   }
 
-  // ── Resize dialog ─────────────────────────────
+  List<Widget> _sidebarContent() {
+    switch (_toolMode) {
+      case ToolMode.none: return _sidebarInfo();
+      case ToolMode.crop: return _sidebarCrop();
+      case ToolMode.resize: return _sidebarResize();
+      case ToolMode.rotate: return _sidebarRotate();
+      case ToolMode.adjust: return _sidebarAdjust();
+      case ToolMode.text: return _sidebarText();
+      case ToolMode.brush: return _sidebarBrush();
+      case ToolMode.eraser: return _sidebarEraser();
+      case ToolMode.shape: return _sidebarShape();
+    }
+  }
 
-  void _resizeDialog() {
+  List<Widget> _sidebarInfo() {
+    return [
+      _sidebarTitle('Image Info'),
+      _infoRow('Dimensions',
+          '${_info?['width'] ?? '?'} × ${_info?['height'] ?? '?'}'),
+      _infoRow('Format', '${_info?['format'] ?? ''}'),
+      _infoRow('Mode', '${_info?['mode'] ?? ''}'),
+      const SizedBox(height: 16),
+      _sidebarTitle('Zoom'),
+      _zoomControls(),
+      if (_canUndo || _canRedo) ...[
+        const SizedBox(height: 16),
+        _sidebarTitle('History'),
+        _infoRow('Steps', '${_canUndo ? 'Undo' : ''}${_canUndo && _canRedo ? ' / ' : ''}${_canRedo ? 'Redo' : ''}'),
+      ],
+    ];
+  }
+
+  List<Widget> _sidebarCrop() {
+    return [
+      _sidebarTitle('Crop'),
+      const SizedBox(height: 8),
+      _sideBtn('Apply Crop', _applyCrop),
+      const SizedBox(height: 4),
+      _sideBtn('Cancel', () { _exitToolMode(); setState(() {}); }),
+      const SizedBox(height: 12),
+      if (_selW != null && _selH != null)
+        _infoRow('Selection', '${_selW!.round()} × ${_selH!.round()}'),
+    ];
+  }
+
+  List<Widget> _sidebarResize() {
     final wC = TextEditingController(text: '${_info?['width'] ?? 800}');
     final hC = TextEditingController(text: '${_info?['height'] ?? 600}');
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF16213E),
-        title: const Text('Resize', style: TextStyle(color: Colors.white, fontSize: 14)),
-        content: Column(mainAxisSize: MainAxisSize.min, children: [
-          _field('Width', wC), _field('Height', hC),
-        ]),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel', style: TextStyle(color: Colors.grey, fontSize: 12))),
-          TextButton(onPressed: () {
-            Navigator.pop(ctx);
-            _callEdit('/api/v1/editor/resize', {
-              'width': int.tryParse(wC.text) ?? 800,
-              'height': int.tryParse(hC.text) ?? 600,
+    return [
+      _sidebarTitle('Resize'),
+      const SizedBox(height: 8),
+      _sideField('Width', wC),
+      const SizedBox(height: 4),
+      _sideField('Height', hC),
+      const SizedBox(height: 8),
+      _sideBtn('Apply', () {
+        _callEdit('/api/v1/editor/resize', {
+          'width': int.tryParse(wC.text) ?? 800,
+          'height': int.tryParse(hC.text) ?? 600,
+        });
+        _exitToolMode();
+      }),
+      const SizedBox(height: 4),
+      _sideBtn('Cancel', () { _exitToolMode(); setState(() {}); }),
+    ];
+  }
+
+  List<Widget> _sidebarRotate() {
+    return [
+      _sidebarTitle('Rotate'),
+      const SizedBox(height: 8),
+      _sideBtn('↺ 90°', () => _callEdit('/api/v1/editor/rotate', {'angle': -90})),
+      const SizedBox(height: 4),
+      _sideBtn('↻ 90°', () => _callEdit('/api/v1/editor/rotate', {'angle': 90})),
+      const SizedBox(height: 4),
+      _sideBtn('↺ 180°', () => _callEdit('/api/v1/editor/rotate', {'angle': 180})),
+      const SizedBox(height: 8),
+      _sideBtn('Done', () { _exitToolMode(); setState(() {}); }),
+    ];
+  }
+
+  List<Widget> _sidebarAdjust() {
+    return [
+      _sidebarTitle('Adjust'),
+      const SizedBox(height: 8),
+      _sideSlider('Brightness', _brightness, 0.0, 2.0, (v) {
+        _brightness = v;
+        _callEdit('/api/v1/editor/adjust',
+            {'brightness': v, 'contrast': _contrast, 'saturation': _saturation});
+      }),
+      _sideSlider('Contrast', _contrast, 0.0, 2.0, (v) {
+        _contrast = v;
+        _callEdit('/api/v1/editor/adjust',
+            {'brightness': _brightness, 'contrast': v, 'saturation': _saturation});
+      }),
+      _sideSlider('Saturation', _saturation, 0.0, 2.0, (v) {
+        _saturation = v;
+        _callEdit('/api/v1/editor/adjust',
+            {'brightness': _brightness, 'contrast': _contrast, 'saturation': v});
+      }),
+      const SizedBox(height: 8),
+      _sideBtn('Done', () { _exitToolMode(); setState(() {}); }),
+    ];
+  }
+
+  List<Widget> _sidebarText() {
+    return [
+      _sidebarTitle('Text'),
+      const SizedBox(height: 4),
+      TextField(
+        controller: _textCtrl,
+        maxLines: 3, minLines: 1,
+        style: const TextStyle(color: Colors.white, fontSize: 11),
+        decoration: InputDecoration(
+          hintText: _textX == null ? 'Click image first' : 'Type text...',
+          hintStyle: const TextStyle(color: Colors.grey, fontSize: 11),
+          filled: true, fillColor: const Color(0xFF2A2A4E),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(4),
+            borderSide: BorderSide.none,
+          ),
+        ),
+      ),
+      if (_textX != null) ...[
+        const SizedBox(height: 4),
+        _infoRow('Position', 'x:${_textX!.round()} y:${_textY!.round()}'),
+      ],
+      const SizedBox(height: 6),
+      _sideLabel('Font Size'),
+      _sideSliderNoVal(_textSize, 8, 120, (v) => setState(() => _textSize = v)),
+      if (_fonts.isNotEmpty) ...[
+        const SizedBox(height: 4),
+        _sideLabel('Font'),
+        DropdownButton<String>(
+          value: _selectedFont?['name'] as String?,
+          dropdownColor: const Color(0xFF16213E),
+          isExpanded: true,
+          style: const TextStyle(color: Colors.white, fontSize: 10),
+          underline: const SizedBox(),
+          onChanged: (v) {
+            if (v == null) return;
+            setState(() {
+              _selectedFont = _fonts.firstWhere(
+                (f) => f['name'] == v, orElse: () => _fonts.first);
             });
-          }, child: const Text('Apply', style: TextStyle(color: Color(0xFF6C63FF), fontSize: 12))),
+          },
+          items: _fonts.map((f) => DropdownMenuItem(
+            value: f['name'] as String,
+            child: Text(f['name'] as String, style: const TextStyle(fontSize: 10, color: Colors.white)),
+          )).toList(),
+        ),
+      ],
+      const SizedBox(height: 4),
+      _sideLabel('Color'),
+      _colorRow(_colorSwatches, _textColor, (c) => setState(() => _textColor = c)),
+      const SizedBox(height: 4),
+      _sideCheckbox('Stroke', _enableStroke, (v) => setState(() => _enableStroke = v ?? false)),
+      if (_enableStroke) ...[
+        _sideSliderNoVal(_strokeWidth, 1, 10, (v) => setState(() => _strokeWidth = v)),
+        _colorRow(_colorSwatches.sublist(0, 4), _strokeColor, (c) => setState(() => _strokeColor = c)),
+      ],
+      _sideCheckbox('Shadow', _enableShadow, (v) => setState(() => _enableShadow = v ?? false)),
+      if (_enableShadow) ...[
+        _sideSliderNoVal(_shadowBlur, 1, 20, (v) => setState(() => _shadowBlur = v)),
+        _colorRow(_colorSwatches.sublist(0, 4), _shadowColor, (c) => setState(() => _shadowColor = c)),
+      ],
+      const SizedBox(height: 8),
+      _sideBtn('Apply Text', _applyText),
+      const SizedBox(height: 4),
+      _sideBtn('Cancel', () { _exitToolMode(); setState(() {}); }),
+    ];
+  }
+
+  List<Widget> _sidebarBrush() {
+    return [
+      _sidebarTitle('Brush'),
+      const SizedBox(height: 4),
+      _sideLabel('Size: ${_brushSize.round()}'),
+      _sideSliderNoVal(_brushSize, 1, 50, (v) => setState(() => _brushSize = v)),
+      const SizedBox(height: 4),
+      _sideLabel('Opacity: ${(_brushOpacity * 100).round()}%'),
+      _sideSliderNoVal(_brushOpacity, 0.1, 1.0, (v) => setState(() => _brushOpacity = v)),
+      const SizedBox(height: 4),
+      _sideLabel('Color'),
+      _colorRow(_colorSwatches, _brushColor, (c) => setState(() => _brushColor = c)),
+      const SizedBox(height: 8),
+      _infoRow('Tip', 'Drag on canvas to draw'),
+      const SizedBox(height: 4),
+      _sideBtn('Done', () { _exitToolMode(); setState(() {}); }),
+    ];
+  }
+
+  List<Widget> _sidebarEraser() {
+    return [
+      _sidebarTitle('Eraser'),
+      const SizedBox(height: 4),
+      _sideLabel('Size: ${_eraserSize.round()}'),
+      _sideSliderNoVal(_eraserSize, 5, 80, (v) => setState(() => _eraserSize = v)),
+      const SizedBox(height: 8),
+      _infoRow('Tip', 'Drag on canvas to erase'),
+      const SizedBox(height: 4),
+      _sideBtn('Done', () { _exitToolMode(); setState(() {}); }),
+    ];
+  }
+
+  List<Widget> _sidebarShape() {
+    return [
+      _sidebarTitle('Shape'),
+      const SizedBox(height: 4),
+      _sideLabel('Type'),
+      DropdownButton<String>(
+        value: _shapeType,
+        dropdownColor: const Color(0xFF16213E),
+        isExpanded: true,
+        style: const TextStyle(color: Colors.white, fontSize: 10),
+        underline: const SizedBox(),
+        onChanged: (v) => setState(() => _shapeType = v ?? 'rect'),
+        items: ['rect', 'circle', 'line', 'arrow'].map((t) => DropdownMenuItem(
+          value: t,
+          child: Text(t[0].toUpperCase() + t.substring(1),
+              style: const TextStyle(fontSize: 10, color: Colors.white)),
+        )).toList(),
+      ),
+      const SizedBox(height: 4),
+      _sideLabel('Stroke Width: ${_shapeStrokeWidth.round()}'),
+      _sideSliderNoVal(_shapeStrokeWidth, 1, 10, (v) => setState(() => _shapeStrokeWidth = v)),
+      const SizedBox(height: 4),
+      _sideLabel('Stroke Color'),
+      _colorRow(_colorSwatches.sublist(0, 4), _shapeStrokeColor, (c) => setState(() => _shapeStrokeColor = c)),
+      const SizedBox(height: 4),
+      _sideCheckbox('Fill', _shapeFill, (v) => setState(() => _shapeFill = v ?? false)),
+      if (_shapeFill) ...[
+        _sideLabel('Fill Color'),
+        _colorRow(_colorSwatches, _shapeFillColor, (c) => setState(() => _shapeFillColor = c)),
+      ],
+      const SizedBox(height: 8),
+      _infoRow('Tip', 'Drag on canvas to draw'),
+      const SizedBox(height: 4),
+      _sideBtn('Done', () { _exitToolMode(); setState(() {}); }),
+    ];
+  }
+
+  // ════════════ STATUS BAR ═════════════════════════
+
+  Widget _buildStatusBar() {
+    final zoomPct = '${(_zoomLevel * 100).round()}%';
+    final imgInfo = _info != null
+        ? '${_info!['width']}×${_info!['height']} · ${_info!['format'] ?? ''}'
+        : '';
+    final historyLabel = _canUndo || _canRedo ? 'Undo/Redo avail' : '';
+    String hint = '';
+    if (_toolMode == ToolMode.text && _textX == null) hint = 'Click image to place text';
+    else if (_toolMode == ToolMode.brush) hint = 'Drag to draw';
+    else if (_toolMode == ToolMode.eraser) hint = 'Drag to erase';
+    else if (_toolMode == ToolMode.shape) hint = 'Drag for shape';
+
+    return Container(
+      height: 28,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      color: const Color(0xFF12121E),
+      child: Row(children: [
+        // Zoom controls
+        Text(zoomPct, style: const TextStyle(fontSize: 10, color: Colors.white70)),
+        const SizedBox(width: 4),
+        _zoomBtn(Icons.add, () => setState(() => _zoomLevel = (_zoomLevel * 1.25).clamp(0.1, 5.0))),
+        const SizedBox(width: 2),
+        _zoomBtn(Icons.remove, () => setState(() => _zoomLevel = (_zoomLevel / 1.25).clamp(0.1, 5.0))),
+        const SizedBox(width: 2),
+        _zoomBtn(Icons.fit_screen, () => setState(() { _zoomLevel = 1.0; _panOffset = Offset.zero; })),
+        const SizedBox(width: 12),
+        // Image info
+        Text(imgInfo, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+        const Spacer(),
+        // History hint
+        if (historyLabel.isNotEmpty)
+          Text(historyLabel, style: const TextStyle(fontSize: 10, color: const Color(0xFF6C63FF))),
+        if (hint.isNotEmpty) ...[
+          if (historyLabel.isNotEmpty) const SizedBox(width: 8),
+          Text(hint, style: const TextStyle(fontSize: 10, color: Colors.orange)),
         ],
+        if (_loading) ...[
+          const SizedBox(width: 8),
+          const SizedBox(width: 12, height: 12,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF6C63FF))),
+        ],
+      ]),
+    );
+  }
+
+  Widget _zoomBtn(IconData icon, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 20, height: 20,
+        decoration: BoxDecoration(
+          color: const Color(0xFF2A2A4E),
+          borderRadius: BorderRadius.circular(3),
+        ),
+        child: Icon(icon, size: 12, color: Colors.white70),
       ),
     );
   }
 
-  // ── Widget helpers ─────────────────────────────
+  // ════════════ SIDEBAR WIDGET HELPERS ═══════════
 
-  Widget _btn(String label, IconData icon, VoidCallback onTap) {
+  Widget _sidebarTitle(String t) {
+    return Text(t, style: const TextStyle(
+        color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600));
+  }
+
+  Widget _infoRow(String label, String val) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(children: [
+        Text('$label: ', style: const TextStyle(fontSize: 10, color: Colors.grey)),
+        Text(val, style: const TextStyle(fontSize: 10, color: Colors.white70)),
+      ]),
+    );
+  }
+
+  Widget _sideLabel(String t) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 2, bottom: 2),
+      child: Text(t, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+    );
+  }
+
+  Widget _sideBtn(String label, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        decoration: BoxDecoration(
+          color: const Color(0xFF6C63FF),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Center(child: Text(label,
+            style: const TextStyle(fontSize: 11, color: Colors.white))),
+      ),
+    );
+  }
+
+  Widget _sideField(String label, TextEditingController ctrl) {
+    return TextField(
+      controller: ctrl,
+      style: const TextStyle(color: Colors.white, fontSize: 11),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(color: Colors.grey, fontSize: 10),
+        filled: true, fillColor: const Color(0xFF2A2A4E),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(4),
+          borderSide: BorderSide.none,
+        ),
+      ),
+    );
+  }
+
+  Widget _sideSlider(String label, double val, double min, double max,
+      ValueChanged<double> onChanged) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: Row(children: [
+        SizedBox(width: 70, child: Text('$label: ${val.toStringAsFixed(1)}',
+            style: const TextStyle(fontSize: 10, color: Colors.white70))),
+        Expanded(child: Slider(
+          value: val, min: min, max: max, divisions: 40,
+          activeColor: const Color(0xFF6C63FF),
+          onChanged: onChanged,
+        )),
+      ]),
+    );
+  }
+
+  Widget _sideSliderNoVal(double val, double min, double max,
+      ValueChanged<double> onChanged) {
+    return Slider(
+      value: val, min: min, max: max,
+      divisions: max == 1.0 ? 9 : null,
+      activeColor: const Color(0xFF6C63FF),
+      onChanged: onChanged,
+    );
+  }
+
+  Widget _colorRow(List<Color> colors, Color selected, ValueChanged<Color> onTap) {
+    return Wrap(
+      spacing: 3, runSpacing: 3,
+      children: colors.map((c) => GestureDetector(
+        onTap: () => onTap(c),
+        child: Container(
+          width: 16, height: 16,
+          decoration: BoxDecoration(
+            color: c,
+            borderRadius: BorderRadius.circular(3),
+            border: Border.all(
+              color: c == selected ? const Color(0xFF6C63FF) : Colors.grey.shade600,
+              width: c == selected ? 2 : 1,
+            ),
+          ),
+        ),
+      )).toList(),
+    );
+  }
+
+  Widget _sideCheckbox(String label, bool val, ValueChanged<bool?> onChanged) {
+    return Row(children: [
+      SizedBox(
+        width: 16, height: 16,
+        child: Checkbox(
+          value: val, onChanged: onChanged,
+          activeColor: const Color(0xFF6C63FF),
+          side: const BorderSide(color: Colors.grey, width: 1),
+        ),
+      ),
+      const SizedBox(width: 4),
+      Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+    ]);
+  }
+
+  Widget _zoomControls() {
+    return Row(children: [
+      _zoomBtn(Icons.remove, () => setState(() => _zoomLevel = (_zoomLevel / 1.25).clamp(0.1, 5.0))),
+      const SizedBox(width: 4),
+      Text('${(_zoomLevel * 100).round()}%',
+          style: const TextStyle(fontSize: 11, color: Colors.white70)),
+      const SizedBox(width: 4),
+      _zoomBtn(Icons.add, () => setState(() => _zoomLevel = (_zoomLevel * 1.25).clamp(0.1, 5.0))),
+      const SizedBox(width: 4),
+      _zoomBtn(Icons.fit_screen, () => setState(() { _zoomLevel = 1.0; _panOffset = Offset.zero; })),
+    ]);
+  }
+
+  // ── Top bar button ─────────────────────────────
+
+  Widget _topBtn(String label, IconData icon, VoidCallback onTap) {
     return Padding(
       padding: const EdgeInsets.only(left: 4),
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
           decoration: BoxDecoration(
             color: const Color(0xFF2A2A4E),
             borderRadius: BorderRadius.circular(4),
           ),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
             Icon(icon, size: 12, color: Colors.white),
-            const SizedBox(width: 4),
+            const SizedBox(width: 3),
             Text(label, style: const TextStyle(fontSize: 10, color: Colors.white)),
           ]),
-        ),
-      ),
-    );
-  }
-
-  Widget _toolBtn(String label, IconData icon, VoidCallback onTap, {bool active = false}) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 2),
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          width: 48,
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          decoration: BoxDecoration(
-            color: active ? const Color(0xFF3A3A7E) : const Color(0xFF2A2A4E),
-            borderRadius: BorderRadius.circular(4),
-            border: active ? Border.all(color: const Color(0xFF6C63FF), width: 1) : null,
-          ),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Icon(icon, size: 14, color: active ? const Color(0xFF6C63FF) : Colors.white70),
-            const SizedBox(height: 2),
-            Text(label, style: TextStyle(fontSize: 8, color: active ? Colors.white : Colors.white70)),
-          ]),
-        ),
-      ),
-    );
-  }
-
-  Widget _actBtn(String label, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-        decoration: BoxDecoration(
-          color: const Color(0xFF6C63FF),
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: Text(label, style: const TextStyle(fontSize: 12, color: Colors.white)),
-      ),
-    );
-  }
-
-  Widget _slider(String label, double val, double min, double max, ValueChanged<double> onChanged) {
-    return Row(children: [
-      SizedBox(width: 80, child: Text('$label: ${val.toStringAsFixed(1)}',
-          style: const TextStyle(fontSize: 11, color: Colors.white70))),
-      Expanded(
-        child: Slider(
-          value: val, min: min, max: max, divisions: 40,
-          activeColor: const Color(0xFF6C63FF),
-          onChanged: onChanged,
-        ),
-      ),
-    ]);
-  }
-
-  Widget _field(String label, TextEditingController ctrl) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: TextField(
-        controller: ctrl,
-        style: const TextStyle(color: Colors.white, fontSize: 12),
-        decoration: InputDecoration(
-          labelText: label,
-          labelStyle: const TextStyle(color: Colors.grey, fontSize: 11),
-          border: const OutlineInputBorder(),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         ),
       ),
     );
@@ -1039,7 +1395,6 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
 class _CropOverlayPainter extends CustomPainter {
   final Rect? selection;
   final Size imageSize;
-
   _CropOverlayPainter({required this.selection, required this.imageSize});
 
   @override
@@ -1050,13 +1405,11 @@ class _CropOverlayPainter extends CustomPainter {
       canvas.drawRect(Rect.fromLTWH(0, selection!.bottom, imageSize.width, imageSize.height - selection!.bottom), overlay);
       canvas.drawRect(Rect.fromLTWH(0, selection!.top, selection!.left, selection!.height), overlay);
       canvas.drawRect(Rect.fromLTWH(selection!.right, selection!.top, imageSize.width - selection!.right, selection!.height), overlay);
-
       final border = Paint()
         ..color = Colors.white
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.5;
       canvas.drawRect(selection!, border);
-
       const hs = 6.0;
       final handle = Paint()..color = const Color(0xFF6C63FF);
       for (final corner in [
@@ -1088,15 +1441,12 @@ class _CropOverlayPainter extends CustomPainter {
 
 class _TextCrosshairPainter extends CustomPainter {
   final Offset? position;
-
   _TextCrosshairPainter({required this.position});
 
   @override
   void paint(Canvas canvas, Size size) {
     if (position == null) return;
-    final cross = Paint()
-      ..color = const Color(0xFF6C63FF)
-      ..strokeWidth = 1.5;
+    final cross = Paint()..color = const Color(0xFF6C63FF)..strokeWidth = 1.5;
     const len = 12.0;
     final p = position!;
     canvas.drawLine(Offset(p.dx - len, p.dy), Offset(p.dx + len, p.dy), cross);
@@ -1107,4 +1457,128 @@ class _TextCrosshairPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _TextCrosshairPainter old) =>
       old.position != position;
+}
+
+// ═════════════════════════════════════════════════════
+// Brush stroke preview painter
+// ═════════════════════════════════════════════════════
+
+class _BrushPreviewPainter extends CustomPainter {
+  final List<Offset> stroke;
+  final Color color;
+  final double size;
+  final Map<String, dynamic>? imageInfo;
+  final Size displaySize;
+
+  _BrushPreviewPainter({
+    required this.stroke, required this.color, required this.size,
+    required this.imageInfo, required this.displaySize,
+  });
+
+  @override
+  void paint(Canvas canvas, Size canvasSize) {
+    if (stroke.length < 1) return;
+    final imgW = (imageInfo?['width'] as num?)?.toDouble() ?? 1;
+    final imgH = (imageInfo?['height'] as num?)?.toDouble() ?? 1;
+    final scale = (displaySize.width / imgW) < (displaySize.height / imgH)
+        ? displaySize.width / imgW : displaySize.height / imgH;
+    final ox = (displaySize.width - imgW * scale) / 2;
+    final oy = (displaySize.height - imgH * scale) / 2;
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = size * scale
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..style = PaintingStyle.stroke;
+    final path = Path();
+    for (int i = 0; i < stroke.length; i++) {
+      final px = ox + stroke[i].dx * scale;
+      final py = oy + stroke[i].dy * scale;
+      if (i == 0) {
+        path.moveTo(px, py);
+      } else {
+        path.lineTo(px, py);
+      }
+    }
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _BrushPreviewPainter old) =>
+      old.stroke != stroke || old.color != color || old.size != size;
+}
+
+// ═════════════════════════════════════════════════════
+// Shape preview painter
+// ═════════════════════════════════════════════════════
+
+class _ShapePreviewPainter extends CustomPainter {
+  final Rect? rect;
+  final String shapeType;
+  final Color? fillColor;
+  final Color strokeColor;
+  final double strokeWidth;
+
+  _ShapePreviewPainter({
+    required this.rect, required this.shapeType,
+    required this.fillColor, required this.strokeColor,
+    required this.strokeWidth,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (rect == null) return;
+    final stroke = Paint()
+      ..color = strokeColor
+      ..strokeWidth = strokeWidth * 2
+      ..style = PaintingStyle.stroke;
+    final fill = Paint()
+      ..color = fillColor ?? const Color(0x00000000)
+      ..style = PaintingStyle.fill;
+
+    switch (shapeType) {
+      case 'rect':
+        if (fillColor != null) canvas.drawRect(rect!, fill);
+        canvas.drawRect(rect!, stroke);
+        break;
+      case 'circle':
+        if (fillColor != null) canvas.drawOval(rect!, fill);
+        canvas.drawOval(rect!, stroke);
+        break;
+      case 'line':
+      case 'arrow':
+        final start = Offset(rect!.left, rect!.top);
+        final end = Offset(rect!.right, rect!.bottom);
+        final line = Paint()
+          ..color = strokeColor
+          ..strokeWidth = strokeWidth * 2
+          ..strokeCap = StrokeCap.round;
+        canvas.drawLine(start, end, line);
+        // Arrowhead
+        if (shapeType == 'arrow') {
+          final angle = math.atan2(end.dy - start.dy, end.dx - start.dx);
+          final aLen = strokeWidth * 6;
+          final ax1 = Offset(
+            end.dx - aLen * math.cos(angle - 0.4),
+            end.dy - aLen * math.sin(angle - 0.4),
+          );
+          final ax2 = Offset(
+            end.dx - aLen * math.cos(angle + 0.4),
+            end.dy - aLen * math.sin(angle + 0.4),
+          );
+          final arrow = Paint()..color = strokeColor..style = PaintingStyle.fill;
+          final path = Path()
+            ..moveTo(end.dx, end.dy)
+            ..lineTo(ax1.dx, ax1.dy)
+            ..lineTo(ax2.dx, ax2.dy)
+            ..close();
+          canvas.drawPath(path, arrow);
+        }
+        break;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ShapePreviewPainter old) =>
+      old.rect != rect || old.shapeType != shapeType;
 }

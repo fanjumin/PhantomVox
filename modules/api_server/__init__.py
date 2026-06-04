@@ -569,6 +569,49 @@ def create_app(engine=None):
         except Exception as e:
             return jsonify({"error": str(e)}), 400
 
+    @app.route("/api/v1/editor/draw", methods=["POST"])
+    def editor_draw():
+        """Draw freehand brush stroke. Required: points [[x,y],...]. Optional: color, size, opacity."""
+        data = request.get_json(silent=True) or {}
+        editor = _get_img_editor()
+        points = data.get("points", [])
+        if not points or len(points) < 1:
+            return jsonify({"error": "Need at least 1 point"}), 400
+        try:
+            pts = [(int(p[0]), int(p[1])) for p in points]
+            editor.draw_brush(
+                pts,
+                color=tuple(data.get("color", [255, 255, 255])),
+                size=data.get("size", 5),
+                opacity=data.get("opacity", 1.0),
+            )
+            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64(),
+                            "history": editor.get_history_state()})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/shape", methods=["POST"])
+    def editor_shape():
+        """Draw a shape. Required: type, x, y, w, h. Optional: fill_color, stroke_color, stroke_width."""
+        data = request.get_json(silent=True) or {}
+        editor = _get_img_editor()
+        try:
+            kwargs = {}
+            if data.get("fill_color"):
+                kwargs["fill_color"] = tuple(data["fill_color"])
+            if data.get("stroke_color"):
+                kwargs["stroke_color"] = tuple(data["stroke_color"])
+            if data.get("stroke_width"):
+                kwargs["stroke_width"] = data["stroke_width"]
+            editor.draw_shape(
+                data["type"], data["x"], data["y"], data["w"], data["h"],
+                **kwargs,
+            )
+            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64(),
+                            "history": editor.get_history_state()})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
     @app.route("/api/v1/editor/denoise", methods=["POST"])
     def editor_denoise():
         """Denoise image. Optional: strength (1-5, default 3)."""

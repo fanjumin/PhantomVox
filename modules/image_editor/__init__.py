@@ -211,5 +211,17 @@ class ImageEditorEngine:
         self._current_image = remove_background(self._current_image)
         return self.info()
 
+    def draw_brush(self, points, color=(255, 255, 255), size=5, opacity=1.0):
+        self._save_snapshot()
+        self._current_image = tools.draw_brush(self._current_image, points,
+                                                color=color, size=size, opacity=opacity)
+        return self.info()
+
+    def draw_shape(self, shape_type, x, y, w, h, **kwargs):
+        self._save_snapshot()
+        self._current_image = tools.draw_shape(self._current_image, shape_type,
+                                                x, y, w, h, **kwargs)
+        return self.info()
+
     def get_capabilities(self) -> dict:
         return self.capabilities
