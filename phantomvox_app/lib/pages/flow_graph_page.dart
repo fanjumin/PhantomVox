@@ -51,8 +51,8 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
   _FlowNode? _selectedNode;
   bool _loading = true;
 
-  // Bottom panel
-  bool _showBottomPanel = false;
+  // Bottom panel (default: expanded so Chat is visible)
+  bool _showBottomPanel = true;
   int _bottomTab = 0; // 0=Chat, 1=Versions
 
   // Chat state
