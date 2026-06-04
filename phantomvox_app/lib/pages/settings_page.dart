@@ -66,9 +66,9 @@ class _SettingsPageState extends State<SettingsPage>
         _loading = false;
 
         // Populate form fields
-        _language = _deepGet(config, 'locale', 'zh_CN');
+        _language = _deepGet(config, 'locale') as String? ?? 'zh_CN';
         _temperature = (_deepGet(config, 'llm', 'temperature') as num?)?.toDouble() ?? 0.7;
-        final keys = _deepGet(config, 'api_keys', {});
+        final keys = config['api_keys'] ?? {};
         if (keys is Map) {
           for (final e in keys.entries) {
             _apiKeys[e.key] = e.value?.toString() ?? '';
