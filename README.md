@@ -1,4 +1,4 @@
-# PhantomVox AI v0.2.5
+# PhantomVox AI v0.3.0
 
 **Where AI Meets Creativity** — an intelligent audio-video creation suite powered by multi-agent AI.
 
@@ -8,14 +8,14 @@ Built with **Flutter** (desktop UI) + **Python** (AI server), targeting Linux/Wi
 
 | # | Workspace | Status | Description |
 |---|-----------|--------|-------------|
-| 1 | **Flow Graph** | ✅ v0.2.5 | DAG workflow orchestrator — visual node editor, scheduled tasks, workflow monitoring |
-| 2 | **AI Agent** | ✅ v0.2.5 | Multi-agent control center — Chat, Think, Image Gen, Video Gen, Code Gen panels + 8-agent matrix |
-| 3 | **StoryCut** | ✅ v0.2.5 | Story-driven quick cut — media browser, viewport, dual-layer timeline, AI QuickBar |
-| 4 | **ProEdit** | ✅ v0.2.5 | Precision editing — media pool + toolbox, 6-tab inspector, 5-track timeline, mixer |
-| 5 | **Palette** | ✅ v0.2.5 | Color grading — reference gallery, 15-node graph, 4-tab color tools (Wheels/Warper/Picker/Scopes) |
-| 6 | **AudioForge** | ✅ v0.2.5 | Audio mixing — Fairlight-style meter bar, track list, wave timeline, 5-channel mixer, AI workshop |
-| 7 | **EffectLab** | ✅ v0.2.5 | VFX compositing — dual viewport, Renderer3D1 inspector, frame timeline, node canvas |
-| 8 | **Dashboard** | ✅ v0.2.5 | Launch page — welcome banner, recent projects, hardware report, AI quick cards, quick chat |
+| 1 | **Flow Graph** | ✅ v0.3.0 | DAG workflow orchestrator — visual node editor, scheduled tasks, workflow monitoring |
+| 2 | **AI Agent** | ✅ v0.3.0 | Multi-agent control center — Chat, Think, Image Gen, Video Gen, Code Gen panels + 8-agent matrix |
+| 3 | **StoryCut** | ✅ v0.3.0 | Story-driven quick cut — media browser, viewport, dual-layer timeline, AI QuickBar |
+| 4 | **ProEdit** | ✅ v0.3.0 | Precision editing — media pool + toolbox, 6-tab inspector, 5-track timeline, mixer |
+| 5 | **Palette** | ✅ v0.3.0 | Color grading — reference gallery, 15-node graph, 4-tab color tools (Wheels/Warper/Picker/Scopes) |
+| 6 | **AudioForge** | ✅ v0.3.0 | Audio mixing — Fairlight-style meter bar, track list, wave timeline, 5-channel mixer, AI workshop |
+| 7 | **EffectLab** | ✅ v0.3.0 | VFX compositing — dual viewport, Renderer3D1 inspector, frame timeline, node canvas |
+| 8 | **Dashboard** | ✅ v0.3.0 | Launch page — welcome banner, recent projects, hardware report, AI quick cards, quick chat |
 
 ## Architecture
 
