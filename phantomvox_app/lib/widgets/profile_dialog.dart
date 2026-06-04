@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../../widgets/tr.dart';
+
 
 /// Local profile dialog — no cloud account, just local display name + prefs.
 /// Triggered from the menu bar account icon.
@@ -71,7 +73,7 @@ class _ProfileDialogState extends State<ProfileDialog> {
         children: [
           const Icon(Icons.person, size: 20, color: Color(0xFF6C63FF)),
           const SizedBox(width: 8),
-          const Text('Local Profile'),
+          const Tr('Local Profile'),
         ],
       ),
       content: SizedBox(
@@ -138,7 +140,7 @@ class _ProfileDialogState extends State<ProfileDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Cancel'),
+          child: const Tr('Cancel'),
         ),
         ElevatedButton(
           style: ElevatedButton.styleFrom(
@@ -146,7 +148,7 @@ class _ProfileDialogState extends State<ProfileDialog> {
             foregroundColor: Colors.white,
           ),
           onPressed: _save,
-          child: const Text('Save'),
+          child: const Tr('Save'),
         ),
       ],
     );

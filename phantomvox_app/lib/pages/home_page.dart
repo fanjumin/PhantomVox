@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../../widgets/tr.dart';
+
 
 /// Dashboard — PhantomVox AI launch page
 /// Layout: TOP_BAR + WELCOME_BANNER + RECENT_PROJECTS + (SYSTEM_STATUS | AI_QUICK_ENTRY) + FOOTER
@@ -72,7 +74,7 @@ class _HomePageState extends State<HomePage> {
               _loadData();
             },
             icon: const Icon(Icons.refresh),
-            label: const Text('Retry'),
+            label: const Tr('Retry'),
           ),
         ],
       ),

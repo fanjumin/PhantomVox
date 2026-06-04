@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import '../widgets/tr.dart';
 
 /// Palette page — precision color grading workspace
 /// Reference: DaVinci Resolve Color workspace
@@ -64,8 +65,7 @@ class _PalettePageState extends State<PalettePage> {
           const SizedBox(width: 16),
           Container(width: 1, height: 16, color: const Color(0xFF2A2A3E)),
           const SizedBox(width: 8),
-          const Text('The Ranch - Short Story | Edited',
-              style: TextStyle(fontSize: 10, color: Colors.white54)),
+          Tr('The Ranch - Short Story | Edited', style: TextStyle(fontSize: 10, color: Colors.white54)),
           const Spacer(),
           _tbLabel('Zoom: 78%'),
           const SizedBox(width: 8),
@@ -224,8 +224,7 @@ class _PalettePageState extends State<PalettePage> {
                           _smallBtn(Icons.skip_next),
                           _smallBtn(Icons.loop),
                           const SizedBox(width: 8),
-                          const Text('01:14:56:13',
-                              style: TextStyle(fontSize: 10, color: Colors.white70, fontFamily: 'monospace')),
+                          Tr('01:14:56:13', style: TextStyle(fontSize: 10, color: Colors.white70, fontFamily: 'monospace')),
                         ],
                       ),
                     ),
@@ -237,8 +236,7 @@ class _PalettePageState extends State<PalettePage> {
                           color: Colors.black54,
                           borderRadius: BorderRadius.circular(2),
                         ),
-                        child: const Text('HDR | Rec.709',
-                            style: TextStyle(fontSize: 8, color: Colors.white70)),
+                        child: Tr('HDR | Rec.709', style: TextStyle(fontSize: 8, color: Colors.white70)),
                       ),
                     ),
                     Positioned(
@@ -349,8 +347,7 @@ class _PalettePageState extends State<PalettePage> {
                       children: [
                         const Icon(Icons.arrow_forward, size: 10, color: Colors.red),
                         const SizedBox(width: 4),
-                        const Text('Final Out',
-                            style: TextStyle(fontSize: 9, color: Colors.red, fontWeight: FontWeight.w600)),
+                        Tr('Final Out', style: TextStyle(fontSize: 9, color: Colors.red, fontWeight: FontWeight.w600)),
                       ],
                     ),
                   ),
@@ -396,8 +393,7 @@ class _PalettePageState extends State<PalettePage> {
             children: [
               Text('\u2190 All Clips',
                   style: TextStyle(fontSize: 8, color: Colors.grey)),
-              Text('Blackmagic RAW',
-                  style: TextStyle(fontSize: 7, color: Colors.grey)),
+              Tr('Blackmagic RAW', style: TextStyle(fontSize: 7, color: Colors.grey)),
             ],
           ),
           const SizedBox(width: 8),
@@ -435,7 +431,7 @@ class _PalettePageState extends State<PalettePage> {
             ),
           ),
           const SizedBox(width: 8),
-          const Text('25', style: TextStyle(fontSize: 10, color: Color(0xFF699EFF))),
+          Tr('25', style: TextStyle(fontSize: 10, color: Color(0xFF699EFF))),
         ],
       ),
     );
@@ -613,8 +609,7 @@ class _PalettePageState extends State<PalettePage> {
             ),
           ),
           const SizedBox(height: 4),
-          const Text('Color Warper \u00b7 HSP Mode',
-              style: TextStyle(fontSize: 8, color: Colors.grey)),
+          Tr('Color Warper \u00b7 HSP Mode', style: TextStyle(fontSize: 8, color: Colors.grey)),
         ],
       ),
     );
@@ -669,7 +664,7 @@ class _PalettePageState extends State<PalettePage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('RGB Parade', style: TextStyle(fontSize: 8, color: Colors.grey)),
+                  Tr('RGB Parade', style: TextStyle(fontSize: 8, color: Colors.grey)),
                   const Spacer(),
                   Row(
                     children: [

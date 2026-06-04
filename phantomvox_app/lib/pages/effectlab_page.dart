@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import '../widgets/tr.dart';
 
 /// EffectLab page — visual effects compositing workspace (Fusion-style)
 /// Reference: DaVinci Resolve Fusion workspace
@@ -63,8 +64,7 @@ class _EffectLabPageState extends State<EffectLabPage> {
           const SizedBox(width: 12),
           Container(width: 1, height: 16, color: const Color(0xFF2A2A3E)),
           const SizedBox(width: 8),
-          const Text('The Investigator - Car VFX | Edited',
-              style: TextStyle(fontSize: 9, color: Colors.white54)),
+          Tr('The Investigator - Car VFX | Edited', style: TextStyle(fontSize: 9, color: Colors.white54)),
           const Spacer(),
           _tbLabel('Zoom: 400%'),
           const SizedBox(width: 6),
@@ -116,8 +116,7 @@ class _EffectLabPageState extends State<EffectLabPage> {
             padding: const EdgeInsets.only(left: 8),
             color: const Color(0xFF0D0D1A),
             alignment: Alignment.centerLeft,
-            child: const Text('uMerge1',
-                style: TextStyle(fontSize: 9, color: Color(0xFF699EFF), fontWeight: FontWeight.w600)),
+            child: Tr('uMerge1', style: TextStyle(fontSize: 9, color: Color(0xFF699EFF), fontWeight: FontWeight.w600)),
           ),
           Expanded(
             child: Container(
@@ -131,8 +130,7 @@ class _EffectLabPageState extends State<EffectLabPage> {
                     border: Border.all(color: const Color(0xFF2A2A3E)),
                   ),
                   child: const Center(
-                    child: Text('Explosion FX',
-                        style: TextStyle(fontSize: 8, color: Colors.white38)),
+                    child: Tr('Explosion FX', style: TextStyle(fontSize: 8, color: Colors.white38)),
                   ),
                 ),
               ),
@@ -143,8 +141,7 @@ class _EffectLabPageState extends State<EffectLabPage> {
             color: const Color(0xFF12121E),
             padding: const EdgeInsets.only(left: 8),
             alignment: Alignment.centerLeft,
-            child: const Text('X: 320 | Y: 240 | Z: 0',
-                style: TextStyle(fontSize: 8, color: Colors.grey, fontFamily: 'monospace')),
+            child: Tr('X: 320 | Y: 240 | Z: 0', style: TextStyle(fontSize: 8, color: Colors.grey, fontFamily: 'monospace')),
           ),
         ],
       ),
@@ -161,8 +158,7 @@ class _EffectLabPageState extends State<EffectLabPage> {
           padding: const EdgeInsets.only(left: 8),
           color: const Color(0xFF12121E),
           alignment: Alignment.centerLeft,
-          child: const Text('Output | MediaOut',
-              style: TextStyle(fontSize: 9, color: Colors.grey)),
+          child: Tr('Output | MediaOut', style: TextStyle(fontSize: 9, color: Colors.grey)),
         ),
         Expanded(
           child: Container(
@@ -188,8 +184,7 @@ class _EffectLabPageState extends State<EffectLabPage> {
                               _smallBtn(Icons.play_arrow),
                               _smallBtn(Icons.skip_next),
                               const SizedBox(width: 8),
-                              const Text('Frame 43',
-                                  style: TextStyle(fontSize: 9, color: Colors.white70, fontFamily: 'monospace')),
+                              Tr('Frame 43', style: TextStyle(fontSize: 9, color: Colors.white70, fontFamily: 'monospace')),
                             ],
                           ),
                         ),
@@ -205,8 +200,7 @@ class _EffectLabPageState extends State<EffectLabPage> {
                       color: Colors.black54,
                       borderRadius: BorderRadius.circular(2),
                     ),
-                    child: const Text('2048x1080 float32',
-                        style: TextStyle(fontSize: 7, color: Colors.white60)),
+                    child: Tr('2048x1080 float32', style: TextStyle(fontSize: 7, color: Colors.white60)),
                   ),
                 ),
               ],
@@ -264,7 +258,7 @@ class _EffectLabPageState extends State<EffectLabPage> {
                     children: [
                       const Icon(Icons.view_in_ar, size: 12, color: Color(0xFF699EFF)),
                       const SizedBox(width: 4),
-                      const Text('Renderer3D1', style: TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.w600)),
+                      Tr('Renderer3D1', style: TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.w600)),
                       const Spacer(),
                       _insLabel('In'), _insInput('0'),
                       _insLabel('Out'), _insInput('155'),
@@ -309,7 +303,7 @@ class _EffectLabPageState extends State<EffectLabPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Texture Depth', style: TextStyle(fontSize: 8, color: Colors.grey)),
+                        Tr('Texture Depth', style: TextStyle(fontSize: 8, color: Colors.grey)),
                         const SizedBox(height: 2),
                         Row(
                           children: [
@@ -354,7 +348,7 @@ class _EffectLabPageState extends State<EffectLabPage> {
                           alignment: Alignment.centerRight,
                           child: TextButton(
                             onPressed: () {},
-                            child: const Text('Generate', style: TextStyle(fontSize: 9, color: Color(0xFF699EFF))),
+                            child: Tr('Generate', style: TextStyle(fontSize: 9, color: Color(0xFF699EFF))),
                           ),
                         ),
                       ],
@@ -385,14 +379,13 @@ class _EffectLabPageState extends State<EffectLabPage> {
                 color: const Color(0xFF2A2A3E),
                 borderRadius: BorderRadius.circular(2),
               ),
-              child: const Text('Hardware Renderer',
-                  style: TextStyle(fontSize: 8, color: Colors.grey)),
+              child: Tr('Hardware Renderer', style: TextStyle(fontSize: 8, color: Colors.grey)),
             ),
             const SizedBox(height: 4),
             _checkRow('Image', true, radio: true),
             _checkRow('Deep Image', false, radio: true),
             const Divider(height: 6, color: Color(0xFF2A2A3E)),
-            const Text('Output Channels', style: TextStyle(fontSize: 8, color: Colors.grey)),
+            Tr('Output Channels', style: TextStyle(fontSize: 8, color: Colors.grey)),
             const SizedBox(height: 2),
             _checkRow('RGBA', true),
             _checkRow('Z', false),
@@ -516,7 +509,7 @@ class _EffectLabPageState extends State<EffectLabPage> {
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: Row(
         children: [
-          const Text('Frame: 32', style: TextStyle(fontSize: 9, color: Colors.grey)),
+          Tr('Frame: 32', style: TextStyle(fontSize: 9, color: Colors.grey)),
           Expanded(
             child: Container(
               margin: const EdgeInsets.symmetric(horizontal: 8),
@@ -544,7 +537,7 @@ class _EffectLabPageState extends State<EffectLabPage> {
               ),
             ),
           ),
-          const Text('78', style: TextStyle(fontSize: 9, color: Colors.grey)),
+          Tr('78', style: TextStyle(fontSize: 9, color: Colors.grey)),
           const SizedBox(width: 12),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -552,7 +545,7 @@ class _EffectLabPageState extends State<EffectLabPage> {
               color: const Color(0xFF1A1A2E),
               borderRadius: BorderRadius.circular(2),
             ),
-            child: const Text('In:13.0', style: TextStyle(fontSize: 8, color: Colors.grey, fontFamily: 'monospace')),
+            child: Tr('In:13.0', style: TextStyle(fontSize: 8, color: Colors.grey, fontFamily: 'monospace')),
           ),
           const SizedBox(width: 4),
           Container(
@@ -561,7 +554,7 @@ class _EffectLabPageState extends State<EffectLabPage> {
               color: const Color(0xFF1A1A2E),
               borderRadius: BorderRadius.circular(2),
             ),
-            child: const Text('Out:58.0', style: TextStyle(fontSize: 8, color: Colors.grey, fontFamily: 'monospace')),
+            child: Tr('Out:58.0', style: TextStyle(fontSize: 8, color: Colors.grey, fontFamily: 'monospace')),
           ),
           const SizedBox(width: 8),
           _smallBtn(Icons.skip_previous),

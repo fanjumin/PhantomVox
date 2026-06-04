@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../widgets/timeline_canvas.dart';
+import '../widgets/tr.dart';
 
 /// ProEdit page — 4-panel precision editing layout
 /// Reference: DaVinci Resolve Edit workspace
@@ -307,8 +308,7 @@ class _ProEditPageState extends State<ProEditPage> {
                       decoration: BoxDecoration(
                         color: Colors.black54, borderRadius: BorderRadius.circular(2),
                       ),
-                      child: const Text('DYLAN',
-                          style: TextStyle(fontSize: 9, color: Colors.white60)),
+                      child: Tr('DYLAN', style: TextStyle(fontSize: 9, color: Colors.white60)),
                     ),
                   ),
                   const Center(
@@ -636,7 +636,7 @@ class _ProEditPageState extends State<ProEditPage> {
                   alignment: Alignment.centerRight,
                   child: TextButton(
                     onPressed: () {},
-                    child: const Text('Apply', style: TextStyle(fontSize: 10, color: Color(0xFF699EFF))),
+                    child: Tr('Apply', style: TextStyle(fontSize: 10, color: Color(0xFF699EFF))),
                   ),
                 ),
               ],
@@ -767,7 +767,7 @@ class _ProEditPageState extends State<ProEditPage> {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       child: Row(
         children: [
-          const SizedBox(width: 80, child: Text('Flip', style: TextStyle(fontSize: 10, color: Colors.grey))),
+          const SizedBox(width: 80, child: Tr('Flip', style: TextStyle(fontSize: 10, color: Colors.grey))),
           _flipBtn(Icons.flip, 'H'),
           const SizedBox(width: 4),
           _flipBtn(Icons.flip_to_front, 'V'),

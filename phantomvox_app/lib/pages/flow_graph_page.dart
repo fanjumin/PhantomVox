@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../widgets/tr.dart';
+
 
 /// Flow Graph — DAG workflow orchestration center.
 class FlowGraphPage extends StatefulWidget {
@@ -369,7 +371,7 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
           FilledButton.icon(
             onPressed: () {},
             icon: const Icon(Icons.save, size: 14),
-            label: const Text('Save Settings'),
+            label: const Tr('Save Settings'),
           ),
         ],
       ),

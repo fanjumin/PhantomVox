@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../services/project_manager.dart';
+import '../../widgets/tr.dart';
+
 
 /// Static helpers for file operations triggered from the menu bar.
 /// All methods operate on the Flutter context for dialogs & navigation.
@@ -21,7 +23,7 @@ class FileOperations {
         return StatefulBuilder(
           builder: (ctx, setDState) => AlertDialog(
             backgroundColor: const Color(0xFF1A1A2E),
-            title: const Text('New Project'),
+            title: const Tr('New Project'),
             content: SizedBox(
               width: 400,
               child: Column(
@@ -70,7 +72,7 @@ class FileOperations {
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(ctx).pop(null),
-                child: const Text('Cancel'),
+                child: const Tr('Cancel'),
               ),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
@@ -83,7 +85,7 @@ class FileOperations {
                   'fps': fps,
                   'sample_rate': sampleRate,
                 }),
-                child: const Text('Create'),
+                child: const Tr('Create'),
               ),
             ],
           ),
@@ -135,7 +137,7 @@ class FileOperations {
         return StatefulBuilder(
           builder: (ctx, setDState) => AlertDialog(
             backgroundColor: const Color(0xFF1A1A2E),
-            title: const Text('Export Video'),
+            title: const Tr('Export Video'),
             content: SizedBox(
               width: 360,
               child: Column(
@@ -162,7 +164,7 @@ class FileOperations {
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(ctx).pop(null),
-                child: const Text('Cancel'),
+                child: const Tr('Cancel'),
               ),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
@@ -185,7 +187,7 @@ class FileOperations {
                     });
                   }
                 },
-                child: const Text('Export'),
+                child: const Tr('Export'),
               ),
             ],
           ),

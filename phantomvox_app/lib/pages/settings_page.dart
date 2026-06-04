@@ -122,7 +122,7 @@ class _SettingsPageState extends State<SettingsPage>
       backgroundColor: const Color(0xFF1A1A2E),
       appBar: AppBar(
         backgroundColor: const Color(0xFF0D0D1A),
-        title: const Text('Settings'),
+        title: const Tr('Settings'),
         leading: IconButton(
           icon: const Icon(Icons.close),
           onPressed: () => Navigator.of(context).pop(),
@@ -614,7 +614,7 @@ class _SettingsPageState extends State<SettingsPage>
       if (!mounted) return;
       ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Settings applied'), duration: Duration(seconds: 1)),
+        const SnackBar(content: Tr('Settings applied'), duration: Duration(seconds: 1)),
       );
     } catch (e) {
       if (!mounted) return;

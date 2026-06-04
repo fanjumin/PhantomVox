@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../widgets/tr.dart';
 
 /// AI Agent page — multi-agent control center with mind map
 class AgentPage extends StatefulWidget {
@@ -198,8 +199,7 @@ class _AgentPageState extends State<AgentPage>
             color: const Color(0xFF0D0D1A),
             child: Row(
               children: [
-                const Text('AI Agent',
-                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                Tr('AI Agent', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
                 const Spacer(),
                 Text('Model: GPT-4o',
                     style: TextStyle(fontSize: 10, color: Colors.grey[600])),
@@ -315,8 +315,7 @@ class _AgentPageState extends State<AgentPage>
               children: [
                 Row(
                   children: [
-                    const Text('Timeline Assets',
-                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFFA5D6A7))),
+                    Tr('Timeline Assets', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFFA5D6A7))),
                     const Spacer(),
                     Text('${_timelineAssets.length} items',
                         style: TextStyle(fontSize: 9, color: Colors.grey[600])),
@@ -350,7 +349,7 @@ class _AgentPageState extends State<AgentPage>
                   child: FilledButton.tonalIcon(
                     onPressed: () {},
                     icon: const Icon(Icons.timeline, size: 14),
-                    label: const Text('Apply to Timeline', style: TextStyle(fontSize: 10)),
+                    label: Tr('Apply to Timeline', style: TextStyle(fontSize: 10)),
                     style: FilledButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 4),
                       backgroundColor: const Color(0xFF1B5E20),
@@ -409,8 +408,7 @@ class _AgentPageState extends State<AgentPage>
           color: const Color(0xFF12121E),
           padding: const EdgeInsets.only(left: 8),
           alignment: Alignment.centerLeft,
-          child: const Text('Reasoning Chain',
-              style: TextStyle(fontSize: 10, color: Colors.grey)),
+          child: Tr('Reasoning Chain', style: TextStyle(fontSize: 10, color: Colors.grey)),
         ),
         Expanded(
           child: ListView.builder(
@@ -453,8 +451,7 @@ class _AgentPageState extends State<AgentPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Image Generation',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+          Tr('Image Generation', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           TextField(
             controller: _imgPromptCtrl,
@@ -476,20 +473,20 @@ class _AgentPageState extends State<AgentPage>
                 child: FilledButton.icon(
                   onPressed: () {},
                   icon: const Icon(Icons.image, size: 16),
-                  label: const Text('Generate', style: TextStyle(fontSize: 11)),
+                  label: Tr('Generate', style: TextStyle(fontSize: 11)),
                 ),
               ),
               const SizedBox(width: 8),
               OutlinedButton.icon(
                 onPressed: () {},
                 icon: const Icon(Icons.auto_fix_high, size: 14),
-                label: const Text('AI Enhance', style: TextStyle(fontSize: 11)),
+                label: Tr('AI Enhance', style: TextStyle(fontSize: 11)),
               ),
               const SizedBox(width: 8),
               OutlinedButton.icon(
                 onPressed: () => _showImageProcessingPopup(),
                 icon: const Icon(Icons.build, size: 14),
-                label: const Text('Master Tools', style: TextStyle(fontSize: 11)),
+                label: Tr('Master Tools', style: TextStyle(fontSize: 11)),
               ),
             ],
           ),
@@ -509,8 +506,7 @@ class _AgentPageState extends State<AgentPage>
                   children: [
                     Icon(Icons.image_outlined, size: 40, color: Colors.white24),
                     SizedBox(height: 8),
-                    Text('Generated image preview',
-                        style: TextStyle(fontSize: 11, color: Colors.grey)),
+                    Tr('Generated image preview', style: TextStyle(fontSize: 11, color: Colors.grey)),
                   ],
                 ),
               ),
@@ -534,8 +530,7 @@ class _AgentPageState extends State<AgentPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Video Generation',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+          Tr('Video Generation', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           TextField(
             controller: _vidPromptCtrl,
@@ -557,14 +552,14 @@ class _AgentPageState extends State<AgentPage>
                 child: FilledButton.icon(
                   onPressed: () {},
                   icon: const Icon(Icons.videocam, size: 16),
-                  label: const Text('Generate', style: TextStyle(fontSize: 11)),
+                  label: Tr('Generate', style: TextStyle(fontSize: 11)),
                 ),
               ),
               const SizedBox(width: 8),
               OutlinedButton.icon(
                 onPressed: () {},
                 icon: const Icon(Icons.movie, size: 14),
-                label: const Text('Image to Video', style: TextStyle(fontSize: 11)),
+                label: Tr('Image to Video', style: TextStyle(fontSize: 11)),
               ),
             ],
           ),
@@ -584,8 +579,7 @@ class _AgentPageState extends State<AgentPage>
                   children: [
                     Icon(Icons.videocam_outlined, size: 40, color: Colors.white24),
                     SizedBox(height: 8),
-                    Text('Generated video preview',
-                        style: TextStyle(fontSize: 11, color: Colors.grey)),
+                    Tr('Generated video preview', style: TextStyle(fontSize: 11, color: Colors.grey)),
                   ],
                 ),
               ),
@@ -602,8 +596,7 @@ class _AgentPageState extends State<AgentPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Code Generation',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+          Tr('Code Generation', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           TextField(
             controller: _chatCtrl,  // reuse chat input for code query
@@ -665,8 +658,7 @@ class _AgentPageState extends State<AgentPage>
             padding: const EdgeInsets.only(left: 8),
             color: const Color(0xFF12121E),
             alignment: Alignment.centerLeft,
-            child: const Text('Agent Matrix',
-                style: TextStyle(fontSize: 10, color: Colors.grey)),
+            child: Tr('Agent Matrix', style: TextStyle(fontSize: 10, color: Colors.grey)),
           ),
           Expanded(
             child: GridView.count(
@@ -690,8 +682,7 @@ class _AgentPageState extends State<AgentPage>
                   Text(_selectedAgent!,
                       style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 4),
-                  const Text('Status: Active | Tasks: 3 | Progress: 60%',
-                      style: TextStyle(fontSize: 10, color: Colors.grey)),
+                  Tr('Status: Active | Tasks: 3 | Progress: 60%', style: TextStyle(fontSize: 10, color: Colors.grey)),
                   const SizedBox(height: 4),
                   Row(
                     children: [
@@ -852,8 +843,7 @@ class _ImageProcessingDialogState extends State<_ImageProcessingDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('AI Image Processing Tools',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
+            Tr('AI Image Processing Tools', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
             const SizedBox(height: 12),
             // Tool grid (8 tools)
             Wrap(
@@ -898,7 +888,7 @@ class _ImageProcessingDialogState extends State<_ImageProcessingDialog> {
             const SizedBox(height: 8),
             Row(
               children: [
-                const Text('Strength', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                Tr('Strength', style: TextStyle(fontSize: 11, color: Colors.grey)),
                 Expanded(
                   child: Slider(
                     value: _strength,
@@ -925,7 +915,7 @@ class _ImageProcessingDialogState extends State<_ImageProcessingDialog> {
                   children: [
                     Icon(Icons.image, size: 20, color: Colors.white24),
                     SizedBox(width: 8),
-                    Text('Original vs Processed', style: TextStyle(fontSize: 10, color: Colors.grey)),
+                    Tr('Original vs Processed', style: TextStyle(fontSize: 10, color: Colors.grey)),
                   ],
                 ),
               ),
@@ -939,12 +929,12 @@ class _ImageProcessingDialogState extends State<_ImageProcessingDialog> {
                   style: OutlinedButton.styleFrom(
                     side: const BorderSide(color: Color(0xFF2A2A4E)),
                   ),
-                  child: const Text('Cancel', style: TextStyle(fontSize: 11)),
+                  child: Tr('Cancel', style: TextStyle(fontSize: 11)),
                 ),
                 const SizedBox(width: 8),
                 FilledButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Apply', style: TextStyle(fontSize: 11)),
+                  child: Tr('Apply', style: TextStyle(fontSize: 11)),
                 ),
               ],
             ),

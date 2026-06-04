@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/tr.dart';
 
 /// StoryCut page — quick story editing workspace
 class StoryCutPage extends StatefulWidget {
@@ -32,8 +33,7 @@ class _StoryCutPageState extends State<StoryCutPage> {
                 const SizedBox(width: 2),
                 _toolbarBtn('Effects'),
                 const Spacer(),
-                const Text('00:04:18:12',
-                    style: TextStyle(fontSize: 11, color: Colors.white70, fontFamily: 'monospace')),
+                Tr('00:04:18:12', style: TextStyle(fontSize: 11, color: Colors.white70, fontFamily: 'monospace')),
                 const SizedBox(width: 8),
                 Container(
                   width: 2, height: 16,
@@ -55,7 +55,7 @@ class _StoryCutPageState extends State<StoryCutPage> {
                     children: [
                       Icon(Icons.auto_fix_high, size: 12, color: Color(0xFF6C63FF)),
                       SizedBox(width: 4),
-                      Text('AI Cut', style: TextStyle(fontSize: 10, color: Color(0xFF6C63FF))),
+                      Tr('AI Cut', style: TextStyle(fontSize: 10, color: Color(0xFF6C63FF))),
                     ],
                   ),
                 ),
@@ -69,11 +69,9 @@ class _StoryCutPageState extends State<StoryCutPage> {
             color: const Color(0xFF12121E),
             child: Row(
               children: [
-                const Text('Clips: 3 Minute Edit 1',
-                    style: TextStyle(fontSize: 10, color: Colors.grey)),
+                Tr('Clips: 3 Minute Edit 1', style: TextStyle(fontSize: 10, color: Colors.grey)),
                 const Spacer(),
-                const Text('Source TC: 00:04:18:12',
-                    style: TextStyle(fontSize: 10, color: Colors.grey, fontFamily: 'monospace')),
+                Tr('Source TC: 00:04:18:12', style: TextStyle(fontSize: 10, color: Colors.grey, fontFamily: 'monospace')),
                 const SizedBox(width: 16),
                 // VU level bar
                 _vuBar(),
@@ -180,8 +178,7 @@ class _StoryCutPageState extends State<StoryCutPage> {
             padding: const EdgeInsets.only(left: 8),
             color: const Color(0xFF12121E),
             alignment: Alignment.centerLeft,
-            child: const Text('Material Browser',
-                style: TextStyle(fontSize: 11, color: Colors.grey)),
+            child: Tr('Material Browser', style: TextStyle(fontSize: 11, color: Colors.grey)),
           ),
           // Search bar
           Container(
@@ -247,8 +244,7 @@ class _StoryCutPageState extends State<StoryCutPage> {
           padding: const EdgeInsets.only(left: 8),
           color: const Color(0xFF12121E),
           alignment: Alignment.centerLeft,
-          child: const Text('Viewport',
-              style: TextStyle(fontSize: 11, color: Colors.grey)),
+          child: Tr('Viewport', style: TextStyle(fontSize: 11, color: Colors.grey)),
         ),
         Expanded(
           child: Container(
@@ -286,8 +282,7 @@ class _StoryCutPageState extends State<StoryCutPage> {
                             _ctrlBtn(Icons.skip_next, 16),
                             _ctrlBtn(Icons.replay, 16),
                             const SizedBox(width: 12),
-                            const Text('01:02:58:07',
-                                style: TextStyle(fontSize: 10, color: Colors.white70, fontFamily: 'monospace')),
+                            Tr('01:02:58:07', style: TextStyle(fontSize: 10, color: Colors.white70, fontFamily: 'monospace')),
                           ],
                         ),
                       ),
@@ -305,7 +300,7 @@ class _StoryCutPageState extends State<StoryCutPage> {
                           children: [
                             Icon(Icons.auto_fix_high, size: 10, color: Colors.white),
                             SizedBox(width: 4),
-                            Text('AI Scene', style: TextStyle(fontSize: 8, color: Colors.white)),
+                            Tr('AI Scene', style: TextStyle(fontSize: 8, color: Colors.white)),
                           ],
                         ),
                       ),
@@ -349,8 +344,7 @@ class _StoryCutPageState extends State<StoryCutPage> {
             padding: const EdgeInsets.only(left: 8),
             color: const Color(0xFF12121E),
             alignment: Alignment.centerLeft,
-            child: const Text('Levels',
-                style: TextStyle(fontSize: 11, color: Colors.grey)),
+            child: Tr('Levels', style: TextStyle(fontSize: 11, color: Colors.grey)),
           ),
           Expanded(
             child: Container(
@@ -362,12 +356,10 @@ class _StoryCutPageState extends State<StoryCutPage> {
                   _levelMeter('L', -6),
                   _levelMeter('R', -8),
                   const SizedBox(height: 8),
-                  const Text('Mix',
-                      style: TextStyle(fontSize: 9, color: Colors.grey)),
+                  Tr('Mix', style: TextStyle(fontSize: 9, color: Colors.grey)),
                   _levelMeter('M', -12),
                   const Divider(color: Color(0xFF2A2A3E), height: 8),
-                  const Text('Bus 1',
-                      style: TextStyle(fontSize: 9, color: Colors.grey)),
+                  Tr('Bus 1', style: TextStyle(fontSize: 9, color: Colors.grey)),
                   _levelMeter('B', -18),
                 ],
               ),
@@ -414,8 +406,7 @@ class _StoryCutPageState extends State<StoryCutPage> {
           if (_aiBarExpanded)
             const Padding(
               padding: EdgeInsets.only(right: 8),
-              child: Text('AI QuickBar',
-                  style: TextStyle(fontSize: 9, color: Colors.grey)),
+              child: Tr('AI QuickBar', style: TextStyle(fontSize: 9, color: Colors.grey)),
             ),
         ],
       ),

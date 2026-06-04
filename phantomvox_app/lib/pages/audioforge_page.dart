@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../widgets/tr.dart';
 
 /// AudioForge page — professional audio mixing workspace + AI audio workshop
 /// Reference: DaVinci Resolve Fairlight workspace
@@ -167,16 +168,15 @@ class _AudioForgePageState extends State<AudioForgePage> {
 
           // Project name
           const SizedBox(width: 6),
-          const Text('Land of Ice and Fire - Iceland',
-              style: TextStyle(fontSize: 9, color: Colors.white54)),
+          Tr('Land of Ice and Fire - Iceland', style: TextStyle(fontSize: 9, color: Colors.white54)),
           const Spacer(),
 
           // Meter: Bus + CR
           _miniVu(Colors.cyan, 0.7),
-          const Text('Bus1', style: TextStyle(fontSize: 7, color: Colors.grey)),
+          Tr('Bus1', style: TextStyle(fontSize: 7, color: Colors.grey)),
           const SizedBox(width: 4),
           _miniVu(Colors.cyan, 0.5),
-          const Text('CR', style: TextStyle(fontSize: 7, color: Colors.grey)),
+          Tr('CR', style: TextStyle(fontSize: 7, color: Colors.grey)),
           const SizedBox(width: 8),
 
           // Loudness readings
@@ -271,8 +271,7 @@ class _AudioForgePageState extends State<AudioForgePage> {
       color: const Color(0xFF12121E),
       child: Row(
         children: [
-          const Text('01:01:57:00',
-              style: TextStyle(fontSize: 11, fontFamily: 'monospace', color: Colors.white)),
+          Tr('01:01:57:00', style: TextStyle(fontSize: 11, fontFamily: 'monospace', color: Colors.white)),
           const SizedBox(width: 8),
           _playBtn(Icons.skip_previous),
           _playBtn(Icons.play_arrow, color: const Color(0xFF4CAF50)),
@@ -285,7 +284,7 @@ class _AudioForgePageState extends State<AudioForgePage> {
               color: Colors.red.withValues(alpha: 0.3),
               borderRadius: BorderRadius.circular(4),
             ),
-            child: const Center(child: Text('REC', style: TextStyle(fontSize: 7, color: Colors.red))),
+            child: const Center(child: Tr('REC', style: TextStyle(fontSize: 7, color: Colors.red))),
           ),
           const SizedBox(width: 4),
           _playBtn(Icons.settings),
@@ -615,8 +614,7 @@ class _AudioForgePageState extends State<AudioForgePage> {
               children: [
                 const Icon(Icons.auto_fix_high, size: 12, color: Color(0xFF699EFF)),
                 const SizedBox(width: 4),
-                const Text('AI Audio Workshop',
-                    style: TextStyle(fontSize: 10, color: Colors.grey)),
+                Tr('AI Audio Workshop', style: TextStyle(fontSize: 10, color: Colors.grey)),
                 const Spacer(),
                 if (_loading)
                   const SizedBox(width: 12, height: 12,
@@ -639,7 +637,7 @@ class _AudioForgePageState extends State<AudioForgePage> {
                     // TTS row
                     Row(
                       children: [
-                        const SizedBox(width: 40, child: Text('TTS', style: TextStyle(fontSize: 9, color: Color(0xFF699EFF)))),
+                        const SizedBox(width: 40, child: Tr('TTS', style: TextStyle(fontSize: 9, color: Color(0xFF699EFF)))),
                         Expanded(
                           child: SizedBox(
                             height: 24,
@@ -675,7 +673,7 @@ class _AudioForgePageState extends State<AudioForgePage> {
                               padding: const EdgeInsets.symmetric(horizontal: 8),
                               minimumSize: Size.zero,
                             ),
-                            child: const Text('Generate', style: TextStyle(fontSize: 9)),
+                            child: Tr('Generate', style: TextStyle(fontSize: 9)),
                           ),
                         ),
                       ],
@@ -684,7 +682,7 @@ class _AudioForgePageState extends State<AudioForgePage> {
                     // Music row
                     Row(
                       children: [
-                        const SizedBox(width: 40, child: Text('Music', style: TextStyle(fontSize: 9, color: Color(0xFF9C27B0)))),
+                        const SizedBox(width: 40, child: Tr('Music', style: TextStyle(fontSize: 9, color: Color(0xFF9C27B0)))),
                         Expanded(
                           child: SizedBox(
                             height: 24,
@@ -720,7 +718,7 @@ class _AudioForgePageState extends State<AudioForgePage> {
                               padding: const EdgeInsets.symmetric(horizontal: 8),
                               minimumSize: Size.zero,
                             ),
-                            child: const Text('Generate', style: TextStyle(fontSize: 9)),
+                            child: Tr('Generate', style: TextStyle(fontSize: 9)),
                           ),
                         ),
                       ],
