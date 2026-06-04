@@ -369,7 +369,7 @@ def create_app(engine=None):
         try:
             info = editor.load(path)
             b64 = editor.to_base64()
-            return jsonify({"status": "ok", "info": info, "base64": b64})
+            return jsonify({"status": "ok", "info": info, "base64": b64, "history": editor.get_history_state()})
         except Exception as e:
             return jsonify({"error": str(e)}), 400
 
@@ -379,7 +379,7 @@ def create_app(engine=None):
         editor = _get_img_editor()
         try:
             info = editor.crop(data["x"], data["y"], data["w"], data["h"])
-            return jsonify({"status": "ok", "info": info, "base64": editor.to_base64()})
+            return jsonify({"status": "ok", "info": info, "base64": editor.to_base64(), "history": editor.get_history_state()})
         except Exception as e:
             return jsonify({"error": str(e)}), 400
 
@@ -390,7 +390,7 @@ def create_app(engine=None):
         try:
             info = editor.resize(data["width"], data["height"],
                                  data.get("keep_aspect", False))
-            return jsonify({"status": "ok", "info": info, "base64": editor.to_base64()})
+            return jsonify({"status": "ok", "info": info, "base64": editor.to_base64(), "history": editor.get_history_state()})
         except Exception as e:
             return jsonify({"error": str(e)}), 400
 
@@ -400,7 +400,7 @@ def create_app(engine=None):
         editor = _get_img_editor()
         try:
             info = editor.rotate(data.get("angle", 90), data.get("expand", True))
-            return jsonify({"status": "ok", "info": info, "base64": editor.to_base64()})
+            return jsonify({"status": "ok", "info": info, "base64": editor.to_base64(), "history": editor.get_history_state()})
         except Exception as e:
             return jsonify({"error": str(e)}), 400
 
@@ -410,7 +410,7 @@ def create_app(engine=None):
         editor = _get_img_editor()
         try:
             info = editor.flip(data.get("direction", "horizontal"))
-            return jsonify({"status": "ok", "info": info, "base64": editor.to_base64()})
+            return jsonify({"status": "ok", "info": info, "base64": editor.to_base64(), "history": editor.get_history_state()})
         except Exception as e:
             return jsonify({"error": str(e)}), 400
 
@@ -428,7 +428,7 @@ def create_app(engine=None):
                 editor.adjust_saturation(data["saturation"])
             if "sharpness" in data:
                 editor.adjust_sharpness(data["sharpness"])
-            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64()})
+            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64(), "history": editor.get_history_state()})
         except Exception as e:
             return jsonify({"error": str(e)}), 400
 
@@ -439,7 +439,7 @@ def create_app(engine=None):
         editor = _get_img_editor()
         try:
             editor.apply_filter(data.get("filter", "grayscale"))
-            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64()})
+            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64(), "history": editor.get_history_state()})
         except Exception as e:
             return jsonify({"error": str(e)}), 400
 
@@ -470,7 +470,7 @@ def create_app(engine=None):
                 y=data.get("y", 10),
                 **kwargs,
             )
-            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64()})
+            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64(), "history": editor.get_history_state()})
         except Exception as e:
             return jsonify({"error": str(e)}), 400
 
@@ -565,7 +565,7 @@ def create_app(engine=None):
         try:
             editor.blur_region(data["x"], data["y"], data["w"], data["h"],
                                data.get("radius", 20))
-            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64()})
+            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64(), "history": editor.get_history_state()})
         except Exception as e:
             return jsonify({"error": str(e)}), 400
 
@@ -619,7 +619,7 @@ def create_app(engine=None):
         editor = _get_img_editor()
         try:
             editor.denoise(data.get("strength", 3))
-            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64()})
+            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64(), "history": editor.get_history_state()})
         except Exception as e:
             return jsonify({"error": str(e)}), 400
 

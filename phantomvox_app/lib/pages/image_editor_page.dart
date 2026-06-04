@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/gestures.dart';
 import 'package:file_picker/file_picker.dart';
 import '../services/api_service.dart';
 
@@ -789,45 +790,60 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
         _displaySize = constraints.biggest;
         return Stack(
           children: [
-            // Image with zoom + pan
+            // Image with zoom + pan (scroll wheel for zoom, drag to pan when no tool active)
             Positioned.fill(
-              child: GestureDetector(
-                onScaleStart: (d) {},
-                onScaleUpdate: (d) {
-                  setState(() {
-                    _zoomLevel = (_zoomLevel * d.scale).clamp(0.1, 5.0);
-                    _panOffset += d.focalPointDelta;
-                  });
+              child: Listener(
+                onPointerSignal: (event) {
+                  // Scroll wheel zoom
+                  if (event is PointerScrollEvent) {
+                    setState(() {
+                      if (event.scrollDelta.dy < 0) {
+                        _zoomLevel = (_zoomLevel * 1.15).clamp(0.1, 5.0);
+                      } else {
+                        _zoomLevel = (_zoomLevel / 1.15).clamp(0.1, 5.0);
+                      }
+                    });
+                  }
                 },
-                child: Transform(
-                  transform: Matrix4.identity()
-                    ..translate(_panOffset.dx, _panOffset.dy)
-                    ..scale(_zoomLevel),
-                  alignment: Alignment.center,
-                  child: Center(
-                    child: FittedBox(
-                      key: _imgKey,
-                      fit: BoxFit.contain,
-                      child: GestureDetector(
-                        onPanStart: (d) {
-                          if (_toolMode == ToolMode.crop) _onCropPanStart(d);
-                          else if (_toolMode == ToolMode.brush || _toolMode == ToolMode.eraser) _onBrushStart(d);
-                          else if (_toolMode == ToolMode.shape) _onShapeStart(d);
-                        },
-                        onPanUpdate: (d) {
-                          if (_toolMode == ToolMode.crop) _onCropPanUpdate(d);
-                          else if (_toolMode == ToolMode.brush || _toolMode == ToolMode.eraser) _onBrushUpdate(d);
-                          else if (_toolMode == ToolMode.shape) _onShapeUpdate(d);
-                        },
-                        onPanEnd: (d) {
-                          if (_toolMode == ToolMode.crop) _onCropPanEnd(d);
-                          else if (_toolMode == ToolMode.brush || _toolMode == ToolMode.eraser) _onBrushEnd(d);
-                          else if (_toolMode == ToolMode.shape) _onShapeEnd(d);
-                        },
-                        onTapDown: _toolMode == ToolMode.text
-                            ? (d) => _onTextCanvasTap(d.localPosition)
-                            : null,
-                        child: Image.memory(_imageBytes!),
+                child: GestureDetector(
+                  // Only allow pan (hand) when no tool is active
+                  onPanStart: _toolMode == ToolMode.none
+                      ? (d) => _panOffset = d.localPosition - _panOffset
+                      : null,
+                  onPanUpdate: _toolMode == ToolMode.none
+                      ? (d) => setState(() => _panOffset += d.delta)
+                      : null,
+                  child: Transform(
+                    transform: Matrix4.identity()
+                      ..translate(_panOffset.dx, _panOffset.dy)
+                      ..scale(_zoomLevel),
+                    alignment: Alignment.center,
+                    child: Center(
+                      child: FittedBox(
+                        key: _imgKey,
+                        fit: BoxFit.contain,
+                        child: GestureDetector(
+                          onPanStart: (d) {
+                            if (_toolMode == ToolMode.crop) _onCropPanStart(d);
+                            else if (_toolMode == ToolMode.brush || _toolMode == ToolMode.eraser) _onBrushStart(d);
+                            else if (_toolMode == ToolMode.shape) _onShapeStart(d);
+                            else if (_toolMode == ToolMode.text && _textX == null) _onTextCanvasTap(d.localPosition);
+                          },
+                          onPanUpdate: (d) {
+                            if (_toolMode == ToolMode.crop) _onCropPanUpdate(d);
+                            else if (_toolMode == ToolMode.brush || _toolMode == ToolMode.eraser) _onBrushUpdate(d);
+                            else if (_toolMode == ToolMode.shape) _onShapeUpdate(d);
+                          },
+                          onPanEnd: (d) {
+                            if (_toolMode == ToolMode.crop) _onCropPanEnd(d);
+                            else if (_toolMode == ToolMode.brush || _toolMode == ToolMode.eraser) _onBrushEnd(d);
+                            else if (_toolMode == ToolMode.shape) _onShapeEnd(d);
+                          },
+                          onTapDown: _toolMode == ToolMode.text && _textX != null
+                              ? (d) => _onTextCanvasTap(d.localPosition)
+                              : null,
+                          child: Image.memory(_imageBytes!),
+                        ),
                       ),
                     ),
                   ),
