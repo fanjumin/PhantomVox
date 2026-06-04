@@ -6,7 +6,7 @@ import 'package:file_picker/file_picker.dart';
 import '../services/api_service.dart';
 
 /// Tool interaction modes
-enum ToolMode { none, crop, adjust, rotate }
+enum ToolMode { none, crop, adjust, rotate, text }
 
 class ImageEditorPage extends StatefulWidget {
   const ImageEditorPage({super.key});
@@ -30,7 +30,6 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
   // Image display area info (layout coords)
   final GlobalKey _imgKey = GlobalKey();
   Size? _displaySize; // actual rendered size on screen
-  Offset _imgTopLeft = Offset.zero; // top-left of image in the widget
   final FocusNode _focusNode = FocusNode();
 
   // Adjust sliders
@@ -38,16 +37,60 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
 
   Map<String, dynamic> _caps = {};
 
+  // ── Text tool state ──────────────────────────────
+  double? _textX, _textY;           // click position (image coords)
+  final TextEditingController _textCtrl = TextEditingController();
+  double _textSize = 32;
+  Color _textColor = Colors.white;
+  bool _enableStroke = false;
+  double _strokeWidth = 2;
+  Color _strokeColor = Colors.black;
+  bool _enableShadow = false;
+  double _shadowBlur = 4;
+  Color _shadowColor = Colors.black54;
+  List<Map<String, dynamic>> _fonts = [];
+  Map<String, dynamic>? _selectedFont;
+
+  // ── Undo/Redo state ─────────────────────────────
+  bool _canUndo = false;
+  bool _canRedo = false;
+
+  // Color swatches for text/stroke/shadow
+  static const List<Color> _colorSwatches = [
+    Colors.white, Colors.black, Colors.red, Colors.orange,
+    Colors.yellow, Colors.green, Colors.blue, Colors.purple,
+  ];
+
   @override
   void initState() {
     super.initState();
     _loadCaps();
+    _loadFonts();
+  }
+
+  @override
+  void dispose() {
+    _textCtrl.dispose();
+    _focusNode.dispose();
+    super.dispose();
   }
 
   Future<void> _loadCaps() async {
     try {
       final c = await _api.get('/api/v1/editor/capabilities');
       if (mounted) setState(() => _caps = c);
+    } catch (_) {}
+  }
+
+  Future<void> _loadFonts() async {
+    try {
+      final f = await _api.get('/api/v1/editor/fonts');
+      if (mounted && f is List) {
+        setState(() {
+          _fonts = f.cast<Map<String, dynamic>>();
+          _selectedFont = _fonts.isNotEmpty ? _fonts[0] : null;
+        });
+      }
     } catch (_) {}
   }
 
@@ -67,6 +110,7 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
       if (r['status'] == 'ok') {
         _info = r['info'] as Map<String, dynamic>?;
         _setImage(r['base64'] as String);
+        _refreshHistory(r);
       } else if (mounted) {
         _showMsg(r['error'] ?? 'Error');
       }
@@ -76,20 +120,62 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
     if (mounted) setState(() => _loading = false);
   }
 
+  void _refreshHistory(Map<String, dynamic> r) {
+    if (r.containsKey('history')) {
+      final h = r['history'] as Map<String, dynamic>;
+      setState(() {
+        _canUndo = h['can_undo'] == true;
+        _canRedo = h['can_redo'] == true;
+      });
+    }
+  }
+
   void _showMsg(String msg) {
     if (!mounted) return;
     ScaffoldMessenger.of(context)
         .showSnackBar(SnackBar(content: Text(msg), duration: const Duration(seconds: 2)));
   }
 
-  // ── Open / Export (native file dialogs) ───────────
+  // ── Undo / Redo ──────────────────────────────────
+
+  Future<void> _undo() async {
+    setState(() => _loading = true);
+    try {
+      final r = await _api.post('/api/v1/editor/undo', body: {});
+      if (r['status'] == 'ok') {
+        _info = r['info'] as Map<String, dynamic>?;
+        _setImage(r['base64'] as String);
+        _refreshHistory(r);
+      }
+    } catch (e) { _showMsg('$e'); }
+    if (mounted) setState(() => _loading = false);
+  }
+
+  Future<void> _redo() async {
+    setState(() => _loading = true);
+    try {
+      final r = await _api.post('/api/v1/editor/redo', body: {});
+      if (r['status'] == 'ok') {
+        _info = r['info'] as Map<String, dynamic>?;
+        _setImage(r['base64'] as String);
+        _refreshHistory(r);
+      }
+    } catch (e) { _showMsg('$e'); }
+    if (mounted) setState(() => _loading = false);
+  }
+
+  // ── Open / Export ───────────────────────────────
 
   Future<void> _openImage() async {
     final result = await FilePicker.platform.pickFiles(type: FileType.image);
     if (result == null || result.files.isEmpty) return;
     final path = result.files.first.path;
     if (path == null) return;
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _canUndo = false;
+      _canRedo = false;
+    });
     try {
       final r = await _api.post('/api/v1/editor/load', body: {'path': path});
       if (r['status'] == 'ok') {
@@ -115,12 +201,13 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
     } catch (e) { _showMsg('$e'); }
   }
 
-  // ── Tool mode management ──────────────────────────
+  // ── Tool mode management ─────────────────────────
 
   void _exitToolMode() {
     _toolMode = ToolMode.none;
     _selX = _selY = _selW = _selH = null;
     _dragHandle = null;
+    _textX = _textY = null;
   }
 
   void _enterCrop() {
@@ -172,7 +259,64 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
     setState(() => _toolMode = ToolMode.rotate);
   }
 
-  // ── Crop drag logic (image pixel coords) ──────────
+  void _enterText() {
+    if (_imageBytes == null) return;
+    if (_toolMode == ToolMode.text) { _exitToolMode(); return; }
+    _exitToolMode();
+    setState(() {
+      _toolMode = ToolMode.text;
+      _textX = _textY = null;
+    });
+  }
+
+  // ── Text: click on canvas ───────────────────────
+  void _onTextCanvasTap(DragStartDetails d) {
+    if (_toolMode != ToolMode.text) return;
+    final pos = _screenToImage(d.localPosition);
+    if (pos == null) return;
+    setState(() {
+      _textX = pos.dx;
+      _textY = pos.dy;
+      _textCtrl.clear();
+      _textSize = 32;
+      _textColor = Colors.white;
+      _enableStroke = false;
+      _enableShadow = false;
+    });
+  }
+
+  void _applyText() {
+    if (_textX == null || _textY == null || _textCtrl.text.trim().isEmpty) {
+      _showMsg('Click on the image first, then type your text.');
+      return;
+    }
+    final body = <String, dynamic>{
+      'text': _textCtrl.text.trim(),
+      'x': _textX!.round(),
+      'y': _textY!.round(),
+      'font_size': _textSize.round(),
+      'color': [_textColor.red, _textColor.green, _textColor.blue],
+      'stroke_width': _enableStroke ? _strokeWidth.round() : 0,
+    };
+    if (_enableStroke) {
+      body['stroke_color'] = [_strokeColor.red, _strokeColor.green, _strokeColor.blue];
+    }
+    if (_enableShadow) {
+      body['shadow_blur'] = _shadowBlur.round();
+      body['shadow_color'] = [_shadowColor.red, _shadowColor.green, _shadowColor.blue];
+    }
+    if (_selectedFont != null) {
+      body['font_path'] = _selectedFont!['path'];
+    }
+    _callEdit('/api/v1/editor/text', body);
+    // Stay in text mode so user can add more text
+    setState(() {
+      _textX = _textY = null;
+      _textCtrl.clear();
+    });
+  }
+
+  // ── Crop drag logic ────────────────────────────
 
   void _onCropPanStart(DragStartDetails d) {
     final pos = _screenToImage(d.localPosition);
@@ -182,7 +326,6 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
       _dragStartX = pos.dx; _dragStartY = pos.dy;
       return;
     }
-    // Inside selection: move it
     if (pos.dx >= (_selX ?? 0) && pos.dx <= (_selX ?? 0) + (_selW ?? 0) &&
         pos.dy >= (_selY ?? 0) && pos.dy <= (_selY ?? 0) + (_selH ?? 0)) {
       _dragHandle = 'move';
@@ -190,7 +333,6 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
       _dragStartY = pos.dy - (_selY ?? 0);
       return;
     }
-    // Outside: start new selection
     _dragHandle = 'new';
     _dragStartX = pos.dx; _dragStartY = pos.dy;
     _selX = pos.dx; _selY = pos.dy; _selW = 0; _selH = 0;
@@ -210,7 +352,6 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
           _selW = (cx - (_selX ?? 0.0)).abs().clamp(10.0, imgW);
           _selH = (cy - (_selY ?? 0.0)).abs().clamp(10.0, imgH);
         } else {
-          // move
           final dx = cx - (_dragStartX ?? 0.0);
           final dy = cy - (_dragStartY ?? 0.0);
           _selX = dx.clamp(0.0, imgW - (_selW ?? 0.0));
@@ -218,7 +359,6 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
         }
         return;
       }
-      // Handle drag
       double l = (_selX ?? 0).toDouble(), r = l + (_selW ?? 0).toDouble();
       double t = (_selY ?? 0).toDouble(), b = t + (_selH ?? 0).toDouble();
       if (_dragHandle == 'tl' || _dragHandle == 'ml' || _dragHandle == 'bl') l = cx;
@@ -243,7 +383,6 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
     final renderBox = _imgKey.currentContext?.findRenderObject() as RenderBox?;
     if (renderBox == null) return null;
     final size = renderBox.size;
-    // Calculate how the image fits in the container
     final scale = (size.width / imgW) < (size.height / imgH)
         ? size.width / imgW
         : size.height / imgH;
@@ -251,7 +390,6 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
     final drawH = imgH * scale;
     final ox = (size.width - drawW) / 2;
     final oy = (size.height - drawH) / 2;
-    // Convert screen pixel to image pixel
     final px = (screenPos.dx - ox) / scale;
     final py = (screenPos.dy - oy) / scale;
     if (px < 0 || py < 0 || px > imgW || py > imgH) return null;
@@ -274,7 +412,7 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
     return null;
   }
 
-  // ── Layout image coords for overlay drawing ───────
+  // ── Layout image coords for overlay drawing ─────
 
   Rect? _selectionLayoutRect() {
     if (_selX == null || _displaySize == null || _info == null) return null;
@@ -293,11 +431,26 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
     );
   }
 
-  // ── Quick actions ────────────────────────────────
+  /// Convert text click position to layout position (for crosshair indicator)
+  Offset? _textLayoutPos() {
+    if (_textX == null || _displaySize == null || _info == null) return null;
+    final imgW = (_info!['width'] as num).toDouble();
+    final imgH = (_info!['height'] as num).toDouble();
+    final ds = _displaySize!;
+    final scale = (ds.width / imgW) < (ds.height / imgH)
+        ? ds.width / imgW : ds.height / imgH;
+    final drawW = imgW * scale;
+    final drawH = imgH * scale;
+    final ox = (ds.width - drawW) / 2;
+    final oy = (ds.height - drawH) / 2;
+    return Offset(ox + _textX! * scale, oy + _textY! * scale);
+  }
+
+  // ── Quick actions ──────────────────────────────
 
   void _quickFilter(String f) => _callEdit('/api/v1/editor/filter', {'filter': f});
 
-  // ══════════════ BUILD ═════════════════════════════
+  // ══════════════ BUILD ═══════════════════════════
 
   @override
   Widget build(BuildContext context) {
@@ -308,7 +461,13 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
         title: const Text('Image Studio',
             style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
         centerTitle: false,
+        automaticallyImplyLeading: false,
         actions: [
+          // Undo / Redo
+          if (_imageBytes != null) ...{
+            _iconBtn(Icons.undo, 'Undo', _canUndo ? _undo : null),
+            _iconBtn(Icons.redo, 'Redo', _canRedo ? _redo : null),
+          },
           _btn('Open', Icons.folder_open, _openImage),
           _btn('Export', Icons.save_alt, _exportImage),
           if (_imageBytes != null) ...[
@@ -319,15 +478,29 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
       ),
       body: Column(
         children: [
-          // Toolbar
           _buildToolbar(),
-          // Status
           _buildStatusBar(),
-          // Canvas + overlay
           Expanded(child: _buildCanvas()),
-          // Bottom action panel (crop apply / adjust sliders / rotate)
           if (_toolMode != ToolMode.none) _buildActionPanel(),
         ],
+      ),
+    );
+  }
+
+  Widget _iconBtn(IconData icon, String tooltip, VoidCallback? onTap) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 2),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: onTap != null ? const Color(0xFF2A2A4E) : const Color(0xFF1A1A2E),
+            borderRadius: BorderRadius.circular(3),
+          ),
+          child: Icon(icon, size: 14,
+              color: onTap != null ? Colors.white70 : Colors.grey.shade700),
+        ),
       ),
     );
   }
@@ -343,7 +516,7 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
           _toolBtn('Resize', Icons.photo_size_select_large, _resizeDialog),
           _toolBtn('Rotate', Icons.rotate_right, _enterRotate, active: _toolMode == ToolMode.rotate),
           _toolBtn('Adjust', Icons.tune, _enterAdjust, active: _toolMode == ToolMode.adjust),
-          _toolBtn('Text', Icons.text_fields, _textDialog),
+          _toolBtn('Text', Icons.text_fields, _enterText, active: _toolMode == ToolMode.text),
           const SizedBox(width: 4),
           Container(width: 1, height: 20, color: const Color(0xFF3A3A5E)),
           const SizedBox(width: 4),
@@ -363,19 +536,32 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
   }
 
   Widget _buildStatusBar() {
+    String hint = '';
+    if (_toolMode == ToolMode.crop) {
+      hint = '  ·  Drag to select region, Enter to apply';
+    } else if (_toolMode == ToolMode.text) {
+      if (_textX == null) {
+        hint = '  ·  Click on image to place text';
+      } else {
+        hint = '  ·  Type text below, adjust properties, then Apply';
+      }
+    }
+    String undoLabel = '';
+    if (_canUndo) undoLabel = '  [Undo avail]';
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       color: const Color(0xFF12121E),
       child: Row(children: [
         Text(_status, style: const TextStyle(fontSize: 10, color: Colors.grey)),
-        if (_loading) ...[
+        if (_loading) ...{
           const SizedBox(width: 8),
           const SizedBox(width: 12, height: 12,
               child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF6C63FF))),
-        ],
-        if (_toolMode == ToolMode.crop)
-          const Text('  ·  Drag to select region, Enter to apply',
-              style: TextStyle(fontSize: 10, color: Colors.orange)),
+        },
+        Text(undoLabel, style: const TextStyle(fontSize: 10, color: Color(0xFF6C63FF))),
+        if (hint.isNotEmpty)
+          Text(hint, style: const TextStyle(fontSize: 10, color: Colors.orange)),
       ]),
     );
   }
@@ -405,7 +591,8 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
                 child: Image.memory(_imageBytes!),
               ),
             ),
-            // Crop overlay
+
+            // ── Crop overlay ──
             if (_toolMode == ToolMode.crop)
               Positioned.fill(
                 child: GestureDetector(
@@ -420,7 +607,30 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
                   ),
                 ),
               ),
-            // Keyboard listener
+
+            // ── Text crosshair indicator ──
+            if (_toolMode == ToolMode.text && _textX != null)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: CustomPaint(
+                    painter: _TextCrosshairPainter(
+                      position: _textLayoutPos(),
+                    ),
+                  ),
+                ),
+              ),
+
+            // ── Text click handler ──
+            if (_toolMode == ToolMode.text)
+              Positioned.fill(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onPanStart: _onTextCanvasTap,
+                  child: const SizedBox.expand(),
+                ),
+              ),
+
+            // ── Keyboard listener (crop Enter/Esc) ──
             if (_toolMode == ToolMode.crop)
               Positioned.fill(
                 child: KeyboardListener(
@@ -504,12 +714,206 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
             ],
           ),
         );
+      case ToolMode.text:
+        return _buildTextPanel();
       default:
         return const SizedBox.shrink();
     }
   }
 
-  // ── Resize dialog (needs specific values, keep dialog) ──
+  // ── Text property panel ──────────────────────────
+
+  Widget _buildTextPanel() {
+    if (_textX == null) return const SizedBox.shrink();
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
+      color: const Color(0xFF1A1A2E),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Text input
+            TextField(
+              controller: _textCtrl,
+              maxLines: 2,
+              minLines: 1,
+              style: const TextStyle(color: Colors.white, fontSize: 12),
+              decoration: InputDecoration(
+                hintText: 'Type your text here...',
+                hintStyle: const TextStyle(color: Colors.grey, fontSize: 12),
+                filled: true,
+                fillColor: const Color(0xFF2A2A4E),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: BorderSide.none),
+              ),
+            ),
+            const SizedBox(height: 6),
+
+            // Font size
+            Row(children: [
+              const SizedBox(width: 60, child: Text('Font Size', style: TextStyle(fontSize: 10, color: Colors.grey))),
+              Expanded(child: Slider(
+                value: _textSize, min: 8, max: 120, divisions: 112,
+                activeColor: const Color(0xFF6C63FF),
+                onChanged: (v) => setState(() => _textSize = v),
+                label: _textSize.round().toString(),
+              )),
+              SizedBox(width: 30, child: Text('${_textSize.round()}', style: const TextStyle(fontSize: 10, color: Colors.white70))),
+            ]),
+
+            // Font selector
+            if (_fonts.isNotEmpty) ...{
+              Row(children: [
+                const SizedBox(width: 60, child: Text('Font', style: TextStyle(fontSize: 10, color: Colors.grey))),
+                Expanded(
+                  child: DropdownButton<String>(
+                    value: _selectedFont?['name'] as String?,
+                    dropdownColor: const Color(0xFF16213E),
+                    isExpanded: true,
+                    style: const TextStyle(color: Colors.white, fontSize: 11),
+                    underline: const SizedBox(),
+                    onChanged: (v) {
+                      if (v == null) return;
+                      setState(() {
+                        _selectedFont = _fonts.firstWhere(
+                          (f) => f['name'] == v,
+                          orElse: () => _fonts.first,
+                        );
+                      });
+                    },
+                    items: _fonts.map((f) => DropdownMenuItem(
+                      value: f['name'] as String,
+                      child: Text(f['name'] as String, style: const TextStyle(fontSize: 11, color: Colors.white)),
+                    )).toList(),
+                  ),
+                ),
+              ]),
+              const SizedBox(height: 4),
+            },
+
+            // Color swatches
+            Row(children: [
+              const SizedBox(width: 60, child: Text('Color', style: TextStyle(fontSize: 10, color: Colors.grey))),
+              ..._colorSwatches.map((c) => GestureDetector(
+                onTap: () => setState(() => _textColor = c),
+                child: Container(
+                  margin: const EdgeInsets.only(right: 4),
+                  width: 18, height: 18,
+                  decoration: BoxDecoration(
+                    color: c,
+                    borderRadius: BorderRadius.circular(3),
+                    border: Border.all(
+                      color: c == _textColor ? const Color(0xFF6C63FF) : Colors.grey.shade600,
+                      width: c == _textColor ? 2 : 1,
+                    ),
+                  ),
+                ),
+              )),
+            ]),
+            const SizedBox(height: 6),
+
+            // Stroke toggle
+            Row(children: [
+              SizedBox(
+                width: 18, height: 18,
+                child: Checkbox(
+                  value: _enableStroke,
+                  onChanged: (v) => setState(() => _enableStroke = v ?? false),
+                  activeColor: const Color(0xFF6C63FF),
+                  side: const BorderSide(color: Colors.grey, width: 1),
+                ),
+              ),
+              const SizedBox(width: 6),
+              const Text('Stroke', style: TextStyle(fontSize: 10, color: Colors.grey)),
+              if (_enableStroke) ...{
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: 80,
+                  child: Slider(
+                    value: _strokeWidth, min: 1, max: 10, divisions: 9,
+                    activeColor: const Color(0xFF6C63FF),
+                    onChanged: (v) => setState(() => _strokeWidth = v),
+                  ),
+                ),
+                SizedBox(width: 20, child: Text('${_strokeWidth.round()}', style: const TextStyle(fontSize: 10, color: Colors.white70))),
+                const SizedBox(width: 4),
+                ..._colorSwatches.take(4).map((c) => GestureDetector(
+                  onTap: () => setState(() => _strokeColor = c),
+                  child: Container(
+                    margin: const EdgeInsets.only(right: 3),
+                    width: 14, height: 14,
+                    decoration: BoxDecoration(
+                      color: c,
+                      borderRadius: BorderRadius.circular(2),
+                      border: Border.all(
+                        color: c == _strokeColor ? const Color(0xFF6C63FF) : Colors.grey.shade600,
+                        width: c == _strokeColor ? 2 : 1,
+                      ),
+                    ),
+                  ),
+                )),
+              },
+            ]),
+            const SizedBox(height: 4),
+
+            // Shadow toggle
+            Row(children: [
+              SizedBox(
+                width: 18, height: 18,
+                child: Checkbox(
+                  value: _enableShadow,
+                  onChanged: (v) => setState(() => _enableShadow = v ?? false),
+                  activeColor: const Color(0xFF6C63FF),
+                  side: const BorderSide(color: Colors.grey, width: 1),
+                ),
+              ),
+              const SizedBox(width: 6),
+              const Text('Shadow', style: TextStyle(fontSize: 10, color: Colors.grey)),
+              if (_enableShadow) ...{
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: 80,
+                  child: Slider(
+                    value: _shadowBlur, min: 1, max: 20, divisions: 19,
+                    activeColor: const Color(0xFF6C63FF),
+                    onChanged: (v) => setState(() => _shadowBlur = v),
+                  ),
+                ),
+                SizedBox(width: 20, child: Text('${_shadowBlur.round()}', style: const TextStyle(fontSize: 10, color: Colors.white70))),
+                const SizedBox(width: 4),
+                ..._colorSwatches.take(4).map((c) => GestureDetector(
+                  onTap: () => setState(() => _shadowColor = c),
+                  child: Container(
+                    margin: const EdgeInsets.only(right: 3),
+                    width: 14, height: 14,
+                    decoration: BoxDecoration(
+                      color: c,
+                      borderRadius: BorderRadius.circular(2),
+                      border: Border.all(
+                        color: c == _shadowColor ? const Color(0xFF6C63FF) : Colors.grey.shade600,
+                        width: c == _shadowColor ? 2 : 1,
+                      ),
+                    ),
+                  ),
+                )),
+              },
+            ]),
+            const SizedBox(height: 6),
+
+            // Apply + Cancel
+            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              _actBtn('Cancel', () { _exitToolMode(); setState(() {}); }),
+              const SizedBox(width: 12),
+              _actBtn('Apply Text', _applyText),
+            ]),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Resize dialog ─────────────────────────────
 
   void _resizeDialog() {
     final wC = TextEditingController(text: '${_info?['width'] ?? 800}');
@@ -537,35 +941,7 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
     );
   }
 
-  // ── Text dialog ──────────────────────────────────
-
-  void _textDialog() {
-    final tC = TextEditingController();
-    final sC = TextEditingController(text: '24');
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF16213E),
-        title: const Text('Add Text', style: TextStyle(color: Colors.white, fontSize: 14)),
-        content: Column(mainAxisSize: MainAxisSize.min, children: [
-          _field('Text', tC), _field('Font size', sC),
-        ]),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel', style: TextStyle(color: Colors.grey, fontSize: 12))),
-          TextButton(onPressed: () {
-            Navigator.pop(ctx);
-            _callEdit('/api/v1/editor/text', {
-              'text': tC.text, 'x': 10, 'y': 10,
-              'font_size': int.tryParse(sC.text) ?? 24,
-            });
-          }, child: const Text('Add', style: TextStyle(color: Color(0xFF6C63FF), fontSize: 12))),
-        ],
-      ),
-    );
-  }
-
-  // ── Widget helpers ───────────────────────────────
+  // ── Widget helpers ─────────────────────────────
 
   Widget _btn(String label, IconData icon, VoidCallback onTap) {
     return Padding(
@@ -668,7 +1044,6 @@ class _CropOverlayPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Dark overlay outside selection
     final overlay = Paint()..color = const Color(0x88000000);
     if (selection != null) {
       canvas.drawRect(Rect.fromLTWH(0, 0, imageSize.width, selection!.top), overlay);
@@ -676,14 +1051,12 @@ class _CropOverlayPainter extends CustomPainter {
       canvas.drawRect(Rect.fromLTWH(0, selection!.top, selection!.left, selection!.height), overlay);
       canvas.drawRect(Rect.fromLTWH(selection!.right, selection!.top, imageSize.width - selection!.right, selection!.height), overlay);
 
-      // Selection border
       final border = Paint()
         ..color = Colors.white
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.5;
       canvas.drawRect(selection!, border);
 
-      // Corner handles
       const hs = 6.0;
       final handle = Paint()..color = const Color(0xFF6C63FF);
       for (final corner in [
@@ -692,7 +1065,6 @@ class _CropOverlayPainter extends CustomPainter {
       ]) {
         canvas.drawRect(Rect.fromCenter(center: corner, width: hs * 2, height: hs * 2), handle);
       }
-      // Edge mid handles
       final mid = selection!.center;
       for (final pt in [
         Offset(mid.dx, selection!.top), Offset(mid.dx, selection!.bottom),
@@ -708,4 +1080,31 @@ class _CropOverlayPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _CropOverlayPainter old) =>
       old.selection != selection || old.imageSize != imageSize;
+}
+
+// ═════════════════════════════════════════════════════
+// Text crosshair painter
+// ═════════════════════════════════════════════════════
+
+class _TextCrosshairPainter extends CustomPainter {
+  final Offset? position;
+
+  _TextCrosshairPainter({required this.position});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (position == null) return;
+    final cross = Paint()
+      ..color = const Color(0xFF6C63FF)
+      ..strokeWidth = 1.5;
+    const len = 12.0;
+    final p = position!;
+    canvas.drawLine(Offset(p.dx - len, p.dy), Offset(p.dx + len, p.dy), cross);
+    canvas.drawLine(Offset(p.dx, p.dy - len), Offset(p.dx, p.dy + len), cross);
+    canvas.drawCircle(p, 3, Paint()..color = const Color(0x806C63FF));
+  }
+
+  @override
+  bool shouldRepaint(covariant _TextCrosshairPainter old) =>
+      old.position != position;
 }

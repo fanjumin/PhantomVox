@@ -122,8 +122,21 @@ def apply_invert(img: Image.Image) -> Image.Image:
 def add_text(img: Image.Image, text: str, x: int, y: int,
              font_path: Optional[str] = None, font_size: int = 24,
              color: Tuple[int, int, int] = (255, 255, 255),
-             opacity: float = 1.0) -> Image.Image:
-    """Add text to image."""
+             opacity: float = 1.0,
+             stroke_width: int = 0,
+             stroke_color: Tuple[int, int, int] = (0, 0, 0),
+             shadow_blur: int = 0,
+             shadow_color: Tuple[int, int, int] = (0, 0, 0),
+             shadow_offset: Tuple[int, int] = (2, 2)) -> Image.Image:
+    """Add text to image with optional stroke (border) and shadow.
+
+    Args:
+        stroke_width: Outline thickness in px. 0 = no outline.
+        stroke_color: RGB color for the outline.
+        shadow_blur: Shadow blur radius. 0 = no shadow.
+        shadow_color: RGB color for the shadow.
+        shadow_offset: (dx, dy) shadow offset in px.
+    """
     img = img.copy()
     if img.mode != "RGBA":
         img = img.convert("RGBA")
@@ -134,8 +147,25 @@ def add_text(img: Image.Image, text: str, x: int, y: int,
                                   font_size)
     except (OSError, IOError):
         font = ImageFont.load_default()
+
     alpha = int(255 * opacity)
-    draw.text((x, y), text, font=font, fill=(*color, alpha))
+
+    # Draw shadow layer first
+    if shadow_blur > 0:
+        shadow_layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
+        shadow_draw = ImageDraw.Draw(shadow_layer)
+        sx, sy = shadow_offset
+        shadow_draw.text((x + sx, y + sy), text, font=font,
+                         fill=(*shadow_color, alpha))
+        shadow_layer = shadow_layer.filter(
+            PILFilter.GaussianBlur(radius=shadow_blur))
+        overlay = Image.alpha_composite(overlay, shadow_layer)
+
+    # Draw text (with stroke / outline support)
+    draw.text((x, y), text, font=font, fill=(*color, alpha),
+              stroke_width=stroke_width,
+              stroke_fill=(*stroke_color, alpha) if stroke_width > 0 else None)
+
     return Image.alpha_composite(img, overlay).convert("RGB")
 
 

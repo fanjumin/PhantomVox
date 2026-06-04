@@ -445,21 +445,97 @@ def create_app(engine=None):
 
     @app.route("/api/v1/editor/text", methods=["POST"])
     def editor_text():
-        """Add text overlay. Required: text. Optional: x, y, font_size, color (RGB), opacity."""
+        """Add text overlay. Supports font_size, color, opacity, stroke, shadow."""
         data = request.get_json(silent=True) or {}
         editor = _get_img_editor()
         try:
+            kwargs = dict(
+                font_size=data.get("font_size", 24),
+                color=tuple(data.get("color", [255, 255, 255])),
+                opacity=data.get("opacity", 1.0),
+                stroke_width=data.get("stroke_width", 0),
+                shadow_blur=data.get("shadow_blur", 0),
+            )
+            if data.get("font_path"):
+                kwargs["font_path"] = data["font_path"]
+            if data.get("stroke_color"):
+                kwargs["stroke_color"] = tuple(data["stroke_color"])
+            if data.get("shadow_color"):
+                kwargs["shadow_color"] = tuple(data["shadow_color"])
+            if data.get("shadow_offset"):
+                kwargs["shadow_offset"] = tuple(data["shadow_offset"])
             editor.add_text(
                 data["text"],
                 x=data.get("x", 10),
                 y=data.get("y", 10),
-                font_size=data.get("font_size", 24),
-                color=tuple(data.get("color", [255, 255, 255])),
-                opacity=data.get("opacity", 1.0),
+                **kwargs,
             )
             return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64()})
         except Exception as e:
             return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/undo", methods=["POST"])
+    def editor_undo():
+        """Undo last editor operation."""
+        editor = _get_img_editor()
+        try:
+            editor.undo()
+            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64(),
+                            "history": editor.get_history_state()})
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/redo", methods=["POST"])
+    def editor_redo():
+        """Redo last undone operation."""
+        editor = _get_img_editor()
+        try:
+            editor.redo()
+            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64(),
+                            "history": editor.get_history_state()})
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/history", methods=["GET"])
+    def editor_history():
+        """Get undo/redo state."""
+        editor = _get_img_editor()
+        return jsonify(editor.get_history_state())
+
+    @app.route("/api/v1/editor/fonts", methods=["GET"])
+    def editor_fonts():
+        """List available fonts (Chinese + English) for text tool."""
+        import subprocess
+        try:
+            result = subprocess.run(
+                ["fc-list", ":lang=zh", "-f", "%{file}|%{family[0]}\n"],
+                capture_output=True, text=True, timeout=3
+            )
+            fonts = []
+            seen = set()
+            for line in result.stdout.strip().split("\n"):
+                if not line.strip():
+                    continue
+                parts = line.split("|", 1)
+                path = parts[0]
+                name = parts[1] if len(parts) > 1 else path.split("/")[-1]
+                if name not in seen and path.endswith((".ttf", ".ttc", ".otf")):
+                    seen.add(name)
+                    fonts.append({"name": name, "path": path})
+            # Add common English fonts
+            for extra_path in [
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                "/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf",
+                "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+            ]:
+                if os.path.exists(extra_path):
+                    fname = os.path.basename(extra_path).replace(".ttf", "")
+                    if fname not in seen:
+                        fonts.append({"name": fname, "path": extra_path})
+                        seen.add(fname)
+            return jsonify(fonts[:30])
+        except Exception as e:
+            return jsonify({"error": str(e), "fonts": []}), 200
 
     @app.route("/api/v1/editor/watermark", methods=["POST"])
     def editor_watermark():
