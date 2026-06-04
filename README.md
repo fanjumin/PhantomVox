@@ -1,4 +1,4 @@
-# PhantomVox AI v0.2.0
+# PhantomVox AI v0.2.1
 
 **Where AI Meets Creativity** — an intelligent audio-video creation suite powered by multi-agent AI.
 
