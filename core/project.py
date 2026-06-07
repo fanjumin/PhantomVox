@@ -1,4 +1,4 @@
-"""PhantomVox AI — 核心数据模型"""
+"""PhantomVox AI — Core Data Models"""
 
 from dataclasses import dataclass, field, asdict
 from typing import Dict, List
@@ -6,7 +6,7 @@ from typing import Dict, List
 
 @dataclass
 class Asset:
-    """媒体资源"""
+    """Media asset"""
     id: str
     path: str
     type: str  # video, audio, image, music
@@ -15,7 +15,7 @@ class Asset:
 
 @dataclass
 class TimelineClip:
-    """时间线片段"""
+    """Timeline clip"""
     asset_id: str
     start_time: float
     duration: float
@@ -25,7 +25,7 @@ class TimelineClip:
 
 @dataclass
 class Project:
-    """视频项目"""
+    """Video project"""
     id: str
     name: str
     timeline: List[TimelineClip] = field(default_factory=list)

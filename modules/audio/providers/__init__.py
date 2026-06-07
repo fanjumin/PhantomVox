@@ -1,10 +1,10 @@
-"""Provider 接口基类"""
+"""Provider interface base class"""
 from abc import ABC, abstractmethod
 from typing import Dict, List
 
 
 class TTSProvider(ABC):
-    """TTS 提供者接口"""
+    """TTS provider interface"""
     name: str = ""
 
     @abstractmethod
@@ -18,7 +18,7 @@ class TTSProvider(ABC):
 
 
 class MusicProvider(ABC):
-    """音乐生成提供者接口"""
+    """Music generation provider interface"""
     name: str = ""
 
     @abstractmethod

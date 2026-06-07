@@ -1,15 +1,15 @@
-"""PhantomVox AI — 核心引擎
+"""PhantomVox AI — Core Engine
 
-职责：
-  - 模块注册与生命周期管理
-  - 内置基础设施：i18n 国际化 + hardware 硬件检测
-  - 事件分发 (locale_changed)
-  - 翻译快捷接口
+Responsibilities:
+  - Module registration and lifecycle management
+  - Built-in infrastructure: i18n internationalization + hardware detection
+  - Event dispatching (locale_changed)
+  - Translation shortcut interface
 
-规则：
-  - 所有顶层 import 在文件头，绝对禁止 inline import
-  - 新增模块只需 engine.register("name", instance)
-  - 无需在 engine 中硬编码模块列表
+Rules:
+  - All top-level imports at the file header, inline imports strictly forbidden
+  - New modules only need engine.register("name", instance)
+  - No need to hardcode a module list in engine
 """
 
 from typing import Any, Callable, Dict, Optional, List
@@ -20,28 +20,28 @@ from modules.hardware import HardwareDetector
 
 
 class Engine:
-    """PhantomVox AI 核心引擎"""
+    """PhantomVox AI Core Engine"""
 
     def __init__(self, locale: Optional[str] = None):
-        # 模块容器 (开放注册)
+        # Module container (open registration)
         self._modules: Dict[str, Any] = {}
         self._locale_listeners: List[Callable[[str, str], None]] = []
 
-        # ── 基础设施: i18n ─────────────────────────────
+        # ── Infrastructure: i18n ─────────────────────────────
         self._i18n = I18nManager()
         if locale:
             self._i18n.set_locale(locale)
         self._i18n.on_locale_changed(self._on_locale_changed)
         self._modules["i18n"] = self._i18n
 
-        # ── 基础设施: hardware ──────────────────────────
+        # ── Infrastructure: hardware ──────────────────────────
         self._hardware = HardwareDetector()
         self._modules["hardware"] = self._hardware
 
-        # ── 项目状态 ────────────────────────────────────
+        # ── Project state ────────────────────────────────────
         self._project: Optional[Project] = None
 
-    # ── 属性 ────────────────────────────────────────────
+    # ── Properties ────────────────────────────────────────────
 
     @property
     def i18n(self) -> I18nManager:
@@ -59,14 +59,14 @@ class Engine:
     def project(self, p: Project):
         self._project = p
 
-    # ── 模块注册 ────────────────────────────────────────
+    # ── Module registration ────────────────────────────────────────
 
     def register(self, name: str, instance: Any):
-        """注册一个模块。name 任意唯一标识即可。"""
+        """Register a module. Any unique name is fine."""
         self._modules[name] = instance
 
     def get(self, name: str) -> Any:
-        """获取已注册的模块，不存在返回 None"""
+        """Get a registered module, return None if not found"""
         return self._modules.get(name)
 
     def has(self, name: str) -> bool:
@@ -76,13 +76,13 @@ class Engine:
     def modules(self) -> Dict[str, Any]:
         return dict(self._modules)
 
-    # ── 翻译快捷 ────────────────────────────────────────
+    # ── Translation shortcut ────────────────────────────────────────
 
     def t(self, key: str, **kwargs) -> str:
-        """engine.t('menu.file.new') — 全局翻译快捷"""
+        """engine.t('menu.file.new') — Global translation shortcut"""
         return self._i18n.t(key, **kwargs)
 
-    # ── 事件 ────────────────────────────────────────────
+    # ── Events ────────────────────────────────────────────
 
     def _on_locale_changed(self, old: str, new: str):
         for cb in self._locale_listeners:
@@ -92,10 +92,10 @@ class Engine:
                 pass
 
     def on_locale_changed(self, callback: Callable[[str, str], None]):
-        """注册语言切换监听器: callback(old, new)"""
+        """Register a locale change listener: callback(old, new)"""
         self._locale_listeners.append(callback)
 
-    # ── 生命周期 ────────────────────────────────────────
+    # ── Lifecycle ────────────────────────────────────────
 
     def __repr__(self) -> str:
         n = len(self._modules)

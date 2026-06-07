@@ -1,4 +1,4 @@
-"""语言元数据配置"""
+"""Locale metadata configuration"""
 
 LOCALE_METADATA = {
     "zh_CN": {
@@ -95,7 +95,7 @@ LOCALE_METADATA = {
 
 
 def list_locales():
-    """返回可用语言列表 (从 locales/*.json 发现)"""
+    """Return available locale list (discovered from locales/*.json)"""
     from pathlib import Path
     files = sorted((Path(__file__).parent / "locales").glob("*.json"))
     result = []

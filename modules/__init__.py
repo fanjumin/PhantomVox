@@ -1,1 +1,1 @@
-"""PhantomVox AI 功能模块"""
+"""PhantomVox AI — Functional modules"""

@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:file_picker/file_picker.dart';
 import 'image_studio_api.dart';
 import 'image_studio_painter.dart';
@@ -67,6 +68,9 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
   String _opLabel = '';
   CanvasCancelToken? _cancelToken;
 
+  // -- Fonts --
+  List<Map<String, dynamic>> _fonts = [];
+
   // -- InteractiveViewer --
   final TransformationController _tc = TransformationController();
   double _vpW = 0, _vpH = 0; // viewport size (set by LayoutBuilder)
@@ -84,17 +88,30 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
     // Don't auto-create a canvas — wait for user to open an image or create one.
     _loading = false;
     _setupScrollZoom();
+    _loadFonts();
+  }
+
+  Future<void> _loadFonts() async {
+    try {
+      final r = await _api.get('/api/v1/editor/fonts');
+      final fonts = List<Map<String, dynamic>>.from(r['fonts'] ?? []);
+      if (_mountedFlag) {
+        _safeSetState(() {
+          _fonts = fonts;
+          // Set a reasonable default if current font not in list
+          final names = fonts.map((f) => f['family'] as String).toSet();
+          if (!names.contains(_fontFamily)) {
+            final pre = ['Noto Sans', 'DejaVu Sans', 'Liberation Sans', 'FreeSans', 'sans-serif'];
+            for (final p in pre) {
+              if (names.contains(p)) { _fontFamily = p; break; }
+            }
+          }
+        });
+      }
+    } catch (_) {}
   }
 
   void _setupScrollZoom() {
-    // Flutter Web: native mouse wheel → canvas zoom.
-    html.window.onWheel.listen((e) {
-      if (!_mountedFlag) return;
-      final dy = e.deltaY;
-      if (dy != 0.0) {
-        _zoomByFactor(dy < 0 ? 1.1 : 1 / 1.1);
-      }
-    });
     // Enter → apply crop, Escape → cancel crop
     html.window.onKeyDown.listen((e) {
       if (!_mountedFlag) return;
@@ -535,7 +552,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
       _textMode = true;
       _textPos = Offset(
         imgPos.dx.clamp(0, (_previewImage?.width ?? 800) - _textW - 1),
-        imgPos.dy.clamp(0, (_previewImage?.height ?? 600) - _textH - 1),
+        imgPos.dy.clamp(22, (_previewImage?.height ?? 600) - _textH - 1),
       );
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -559,7 +576,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
     final shc = [_textShadowColor.red, _textShadowColor.green, _textShadowColor.blue];
     final r = await _api.post('/api/v1/editor/text', {
       'text': txt, 'x': pos.dx.round(), 'y': pos.dy.round(),
-      'font_size': _fontSize, 'color': c, 'opacity': _opacity,
+      'font_size': _fontSize, 'font_family': _fontFamily, 'color': c, 'opacity': _opacity,
       'stroke_width': _textStrokeWidth, 'stroke_color': sc,
       'shadow_blur': _textShadowBlur, 'shadow_color': shc,
       'preview_only': true,
@@ -634,25 +651,17 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
   }
 
   // -----------------------------------------------------------------------
-  // Inline text drag (text box move + resize)
+  // Inline text drag (text box resize)
   // -----------------------------------------------------------------------
-  void _onTextDragStart(DragStartDetails d) {}
-
-  void _onTextDragMove(DragUpdateDetails d) {
+  void _onTextResize(DragUpdateDetails d) {
     if (_textPos == null) return;
     final scale = _tc.value.getMaxScaleOnAxis();
     final pixelDelta = d.delta / scale;
-    final maxW = _previewImage?.width.toDouble() ?? 800;
-    final maxH = _previewImage?.height.toDouble() ?? 600;
     _safeSetState(() {
-      _textPos = Offset(
-        (_textPos!.dx + pixelDelta.dx).clamp(0, maxW - _textW),
-        (_textPos!.dy + pixelDelta.dy).clamp(0, maxH - _textH),
-      );
+      _textW = (_textW + pixelDelta.dx).clamp(60, 1200);
+      _textH = (_textH + pixelDelta.dy).clamp(24, 800);
     });
   }
-
-  void _onTextDragEnd(DragEndDetails d) {}
 
   // -----------------------------------------------------------------------
   // Build
@@ -1184,42 +1193,53 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
   }
 
   /// Pick a color and call [onPicked] with the result.
+  /// Palette-only color picker — no numeric input.
   Future<void> _pickColorCustom(void Function(Color) onPicked) async {
-    int r = _primaryColor.red, g = _primaryColor.green, b = _primaryColor.blue;
-    final rC = TextEditingController(text: '$r');
-    final gC = TextEditingController(text: '$g');
-    final bC = TextEditingController(text: '$b');
-    final picked = await showDialog<Color>(
+    final picked = await _showPaletteDialog();
+    if (picked != null) {
+      _safeSetState(() => onPicked(picked));
+    }
+  }
+
+  /// Show a palette swatch dialog and return the chosen color (or null).
+  Future<Color?> _showPaletteDialog() {
+    return showDialog<Color>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1A1A2E),
         title: const Text('Pick Color',
             style: TextStyle(color: Colors.white, fontSize: 11)),
         content: SizedBox(
-          width: 180,
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            _colorRow('R', rC, (v) {
-              final n = int.tryParse(v);
-              if (n != null) { r = n.clamp(0, 255); }
-            }),
-            _colorRow('G', gC, (v) {
-              final n = int.tryParse(v);
-              if (n != null) { g = n.clamp(0, 255); }
-            }),
-            _colorRow('B', bC, (v) {
-              final n = int.tryParse(v);
-              if (n != null) { b = n.clamp(0, 255); }
-            }),
-            const SizedBox(height: 8),
-            Container(
-              width: double.infinity, height: 20,
-              decoration: BoxDecoration(
-                color: Color.fromARGB(255, r, g, b),
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: Colors.grey),
+          width: 220,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Wrap(
+                spacing: 2,
+                runSpacing: 2,
+                children: _allPaletteSwatches().map((c) => GestureDetector(
+                  onTap: () => Navigator.pop(ctx, c),
+                  child: Container(
+                    width: 22, height: 22,
+                    decoration: BoxDecoration(
+                      color: c,
+                      border: Border.all(color: Colors.grey[700]!, width: 0.5),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                )).toList(),
               ),
-            ),
-          ]),
+              const SizedBox(height: 8),
+              Container(
+                height: 24,
+                decoration: BoxDecoration(
+                  color: _primaryColor,
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: Colors.grey),
+                ),
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -1227,38 +1247,34 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
               child: const Text('Cancel',
                   style: TextStyle(color: Colors.grey))),
           TextButton(
-              onPressed: () => Navigator.pop(ctx, Color.fromARGB(255, r, g, b)),
+              onPressed: () => Navigator.pop(ctx, _primaryColor),
               child: const Text('Select',
                   style: TextStyle(color: Color(0xFF6C63FF)))),
         ],
       ),
     );
-    if (picked != null) {
-      _safeSetState(() => onPicked(picked));
-    }
   }
 
-  Widget _colorRow(String label, TextEditingController ctrl, ValueChanged<String> onChanged) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(children: [
-        Text('$label:', style: const TextStyle(fontSize: 10, color: Colors.grey, fontFamily: 'monospace')),
-        const SizedBox(width: 8),
-        SizedBox(
-          width: 60,
-          child: TextField(
-            controller: ctrl,
-            style: const TextStyle(color: Colors.white, fontSize: 12, fontFamily: 'monospace'),
-            decoration: const InputDecoration(
-              isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-              border: OutlineInputBorder(),
-            ),
-            keyboardType: TextInputType.number,
-            onChanged: onChanged,
-          ),
-        ),
-      ]),
-    );
+  /// Shared palette swatch list used by both color pickers.
+  List<Color> _allPaletteSwatches() {
+    return [
+      // Grays
+      Colors.white, const Color(0xFFEEEEEE), const Color(0xFFCCCCCC),
+      const Color(0xFFAAAAAA), const Color(0xFF888888),
+      const Color(0xFF666666), const Color(0xFF444444), Colors.black,
+      // Warm
+      Colors.red, Colors.deepOrange, Colors.orange, Colors.amber, Colors.yellow,
+      // Cool
+      Colors.lime, Colors.green, Colors.teal, Colors.cyan,
+      // Blue family
+      Colors.lightBlue, Colors.blue, Colors.indigo,
+      // Purple family
+      Colors.purple, Colors.deepPurple,
+      // Pinks
+      Colors.pink, Colors.pinkAccent,
+      // Browns
+      Colors.brown, Colors.blueGrey,
+    ];
   }
 
   // -----------------------------------------------------------------------
@@ -1283,7 +1299,13 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
       final canPanZoom = _currentTool == 'select';
       final canScaleZoom = _currentTool == 'select' || _currentTool == 'crop';
 
-      return ClipRect(
+      return Listener(
+        onPointerSignal: (event) {
+          if (event is PointerScrollEvent && event.scrollDelta.dy != 0) {
+            _zoomByFactor(event.scrollDelta.dy < 0 ? 1.1 : 1 / 1.1);
+          }
+        },
+        child: ClipRect(
         child: InteractiveViewer(
           transformationController: _tc,
           boundaryMargin: const EdgeInsets.all(200),
@@ -1316,7 +1338,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
                       shapePreview: _shapePreview,
                       imageSize: Size(iw, ih),
                       zoomScale: _tc.value.getMaxScaleOnAxis(),
-                      textContent: _textMode ? _textCtrl.text : null,
+                      textContent: null,  // no overlay preview — TextField handles all text display
                       textPosition: _textPos,
                       textColor: _primaryColor,
                       textSize: _fontSize.toDouble(),
@@ -1338,78 +1360,121 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
                     onPointerUp: _onPointerUp,
                   ),
                 ),
-                // Inline text editing overlay
-                if (_textMode && _textPos != null)
+                // Inline text editing overlay — three separate Positioned siblings
+                // at the Canvas Stack level (not wrapped together) to avoid
+                // HTML renderer platform view z-order issues:
+                // https://docs.flutter.dev/platform-integration/web/renderers#html-renderer
+                if (_textMode && _textPos != null) ...[
+                  // 1) TextField — standalone, no GestureDetector wrapping
                   Positioned(
                     left: _textPos!.dx,
                     top: _textPos!.dy,
                     width: _textW,
                     height: _textH,
-                    child: Stack(
-                      children: [
-                        Positioned.fill(
-                          child: TextField(
-                            controller: _textCtrl,
-                            focusNode: _textFocus,
-                            autofocus: true,
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: _fontSize.toDouble(),
-                            ),
-                            decoration: InputDecoration(
-                              filled: true,
-                              fillColor: const Color(0x221A1A2E), // near-transparent so text preview shows through
-                              contentPadding: const EdgeInsets.all(4),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(2),
-                                borderSide: const BorderSide(
-                                    color: Color(0xFF6C63FF), width: 1),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(2),
-                                borderSide: const BorderSide(
-                                    color: Color(0xFF6C63FF), width: 1.5),
-                              ),
-                              isDense: true,
-                            ),
-                            onChanged: (_) => _safeSetState(() {}),
-                            onSubmitted: (_) => _confirmText(),
-                          ),
+                    child: TextField(
+                      controller: _textCtrl,
+                      focusNode: _textFocus,
+                      autofocus: true,
+                      style: TextStyle(
+                        color: _primaryColor.withOpacity(_opacity),
+                        fontSize: _fontSize.toDouble(),
+                      ),
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: const Color(0x221A1A2E),
+                        contentPadding: const EdgeInsets.all(4),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(2),
+                          borderSide: const BorderSide(
+                              color: Color(0xFF6C63FF), width: 1),
                         ),
-                        // Drag handle
-                        Positioned(
-                          right: 0,
-                          top: 0,
-                          child: GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onPanUpdate: _onTextDragMove,
-                            child: Container(
-                              width: 16,
-                              height: 16,
-                              decoration: const BoxDecoration(
-                                color: Color(0xFF6C63FF),
-                                borderRadius: BorderRadius.only(
-                                  topRight: Radius.circular(1),
-                                  bottomLeft: Radius.circular(4),
-                                ),
-                              ),
-                              child: const Icon(
-                                Icons.drag_indicator,
-                                size: 10,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(2),
+                          borderSide: const BorderSide(
+                              color: Color(0xFF6C63FF), width: 1.5),
                         ),
-                      ],
+                        isDense: true,
+                      ),
+                      onChanged: (_) => _safeSetState(() {}),
+                      onSubmitted: (_) => _confirmText(),
                     ),
                   ),
-              ],
-            ),
-          ),
-        ),
-      );
-    });
+                  // 2) Move bar — above text box, rendered at Flutter canvas level
+                  Positioned(
+                    left: _textPos!.dx,
+                    top: _textPos!.dy - 22,
+                    width: _textW,
+                    height: 22,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onPanUpdate: (d) {
+                        final scale = _tc.value.getMaxScaleOnAxis();
+                        final pixelDelta = d.delta / scale;
+                        final iw = _previewImage?.width ?? 800;
+                        final ih = _previewImage?.height ?? 600;
+                        _safeSetState(() {
+                          _textPos = Offset(
+                            (_textPos!.dx + pixelDelta.dx).clamp(0, iw - _textW - 1),
+                            (_textPos!.dy + pixelDelta.dy).clamp(22, ih - _textH - 1),
+                          );
+                        });
+                      },
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF6C63FF).withOpacity(0.85),
+                          borderRadius: const BorderRadius.only(
+                            topLeft: Radius.circular(4),
+                            topRight: Radius.circular(4),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.drag_indicator,
+                                size: 14, color: Colors.white70),
+                            Text(
+                              _textCtrl.text.isEmpty ? 'Drag to move' : _textCtrl.text,
+                              style: const TextStyle(fontSize: 9, color: Colors.white70),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  // 3) Resize handle — bottom-right corner, at Flutter canvas level
+                  Positioned(
+                    left: _textPos!.dx + _textW - 24,
+                    top: _textPos!.dy + _textH - 24,
+                    width: 24,
+                    height: 24,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onPanUpdate: _onTextResize,
+                      child: Container(
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF6C63FF),
+                          borderRadius: BorderRadius.only(
+                            topLeft: Radius.circular(6),
+                            bottomRight: Radius.circular(3),
+                          ),
+                        ),
+                        child: const Icon(
+                          Icons.drag_indicator,
+                          size: 16,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],   // Stack children
+            ),     // Stack
+          ),       // SizedBox
+        ),         // InteractiveViewer
+      ),           // ClipRect
+    );             // Listener (return)
+    });            // LayoutBuilder
   }
 
   // -----------------------------------------------------------------------
@@ -1547,50 +1612,70 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
                 ),
                 Text('$_brushSize', style: const TextStyle(fontSize: 8, color: Colors.white)),
               ]),
-            // Text tool properties — all text fields for precise input
+            // Text tool properties — visual controls (no number input)
             if (_currentTool == 'text') ...[
               const SizedBox(height: 4),
-              // Font size
-              _txtField('Font', _fontSize.toString(), (v) {
-                final n = int.tryParse(v);
-                if (n != null) _fontSize = n.clamp(1, 500);
-              }),
-              // Color (RGB fields next to swatch)
+              // Font family dropdown
               Row(children: [
-                const Text('Color', style: TextStyle(fontSize: 8, color: Colors.grey)),
+                const Text('Font', style: TextStyle(fontSize: 8, color: Colors.grey)),
                 const SizedBox(width: 4),
-                GestureDetector(
-                  onTap: _pickColor,
+                Expanded(
                   child: Container(
-                    width: 14, height: 14,
+                    height: 18,
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
                     decoration: BoxDecoration(
-                      color: _primaryColor,
-                      border: Border.all(color: Colors.grey),
+                      border: Border.all(color: Colors.grey[600]!),
                       borderRadius: BorderRadius.circular(2),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: _fontFamily,
+                        isExpanded: true,
+                        dropdownColor: const Color(0xFF1A1A2E),
+                        style: const TextStyle(fontSize: 9, color: Colors.white),
+                        items: _fonts.isEmpty
+                            ? [const DropdownMenuItem(value: 'sans-serif', child: Text('Loading...', style: TextStyle(fontSize: 9)))]
+                            : _fonts.map<DropdownMenuItem<String>>((f) {
+                                final name = f['family'] as String? ?? f['name'] as String? ?? 'Unknown';
+                                return DropdownMenuItem(
+                                  value: name,
+                                  child: Text(name, style: const TextStyle(fontSize: 9), overflow: TextOverflow.ellipsis),
+                                );
+                              }).toList(),
+                        onChanged: (v) {
+                          if (v != null) _safeSetState(() => _fontFamily = v);
+                        },
+                      ),
                     ),
                   ),
                 ),
-                const SizedBox(width: 4),
-                _miniTxt('R', '${_primaryColor.red}', 20, (v) {
-                  final n = int.tryParse(v);
-                  if (n != null) _primaryColor = _primaryColor.withRed(n.clamp(0, 255));
-                }),
-                _miniTxt('G', '${_primaryColor.green}', 20, (v) {
-                  final n = int.tryParse(v);
-                  if (n != null) _primaryColor = _primaryColor.withGreen(n.clamp(0, 255));
-                }),
-                _miniTxt('B', '${_primaryColor.blue}', 20, (v) {
-                  final n = int.tryParse(v);
-                  if (n != null) _primaryColor = _primaryColor.withBlue(n.clamp(0, 255));
-                }),
               ]),
               const SizedBox(height: 4),
-              // Stroke width + color
+              // Font size with common presets + slider
               Row(children: [
-                _miniTxt('Str', '$_textStrokeWidth', 20, (v) {
-                  final n = int.tryParse(v);
-                  if (n != null) _textStrokeWidth = n.clamp(0, 100);
-                }),
+                const Text('Size', style: TextStyle(fontSize: 8, color: Colors.grey)),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Slider(
+                    value: _fontSize.toDouble(), min: 8, max: 200, divisions: 96,
+                    label: '$_fontSize',
+                    onChanged: (v) => _safeSetState(() => _fontSize = v.round()),
+                  ),
+                ),
+                Text('$_fontSize', style: const TextStyle(fontSize: 9, color: Colors.white)),
+              ]),
+              // Border (stroke width slider + color swatch)
+              Row(children: [
+                const Text('Border', style: TextStyle(fontSize: 8, color: Colors.grey)),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Slider(
+                    value: _textStrokeWidth.toDouble(), min: 0, max: 20, divisions: 20,
+                    label: '$_textStrokeWidth',
+                    onChanged: (v) => _safeSetState(() => _textStrokeWidth = v.round()),
+                  ),
+                ),
+                Text('$_textStrokeWidth', style: const TextStyle(fontSize: 9, color: Colors.white)),
                 const SizedBox(width: 4),
                 GestureDetector(
                   onTap: () => _pickColorCustom((c) => _textStrokeColor = c),
@@ -1605,12 +1690,18 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
                 ),
               ]),
               const SizedBox(height: 4),
-              // Shadow blur + color
+              // Shadow (blur slider + color swatch)
               Row(children: [
-                _miniTxt('Shad', '$_textShadowBlur', 20, (v) {
-                  final n = int.tryParse(v);
-                  if (n != null) _textShadowBlur = n.clamp(0, 100);
-                }),
+                const Text('Shadow', style: TextStyle(fontSize: 8, color: Colors.grey)),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Slider(
+                    value: _textShadowBlur.toDouble(), min: 0, max: 30, divisions: 15,
+                    label: '$_textShadowBlur',
+                    onChanged: (v) => _safeSetState(() => _textShadowBlur = v.round()),
+                  ),
+                ),
+                Text('$_textShadowBlur', style: const TextStyle(fontSize: 9, color: Colors.white)),
                 const SizedBox(width: 4),
                 GestureDetector(
                   onTap: () => _pickColorCustom((c) => _textShadowColor = c),
@@ -1625,11 +1716,19 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
                 ),
               ]),
               const SizedBox(height: 4),
-              // Opacity
-              _txtField('Opacity', (_opacity * 100).round().toString(), (v) {
-                final n = int.tryParse(v);
-                if (n != null) _opacity = n.clamp(0, 100) / 100.0;
-              }),
+              // Opacity slider
+              Row(children: [
+                const Text('Opacity', style: TextStyle(fontSize: 8, color: Colors.grey)),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Slider(
+                    value: _opacity, min: 0.0, max: 1.0, divisions: 20,
+                    label: '${(_opacity * 100).round()}%',
+                    onChanged: (v) => _safeSetState(() => _opacity = v),
+                  ),
+                ),
+                Text('${(_opacity * 100).round()}%', style: const TextStyle(fontSize: 9, color: Colors.white)),
+              ]),
             ],
             // Shape type (for shape tool)
             if (_currentTool == 'shape') ...[
@@ -1957,85 +2056,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
   }
 
   Future<void> _pickColor() async {
-    final p = await showDialog<Color>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A2E),
-        title: const Text('Pick Color',
-            style: TextStyle(color: Colors.white, fontSize: 11)),
-        content: SizedBox(
-          width: 220,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Hex input
-              TextField(
-                style: const TextStyle(color: Colors.white, fontSize: 12),
-                decoration: const InputDecoration(
-                  labelText: 'Hex #',
-                  labelStyle: TextStyle(color: Colors.grey, fontSize: 10),
-                  border: OutlineInputBorder(),
-                  isDense: true,
-                  contentPadding: EdgeInsets.symmetric(
-                      horizontal: 6, vertical: 6),
-                ),
-                onChanged: (v) {
-                  final h = int.tryParse(v.replaceAll('#', ''), radix: 16);
-                  if (h != null) {
-                    // Preview will be updated on Select
-                  }
-                },
-              ),
-              const SizedBox(height: 8),
-              // Quick palette
-              Wrap(
-                spacing: 2,
-                runSpacing: 2,
-                children: [
-                  Colors.white, Colors.black,
-                  Colors.red, Colors.green, Colors.blue,
-                  Colors.yellow, Colors.orange, Colors.purple,
-                  Colors.cyan, Colors.pink, Colors.teal, Colors.brown,
-                  Colors.amber, Colors.indigo, Colors.lime, Colors.deepOrange,
-                ].map((c) => GestureDetector(
-                  onTap: () => Navigator.pop(ctx, c),
-                  child: Container(
-                    width: 22,
-                    height: 22,
-                    decoration: BoxDecoration(
-                      color: c,
-                      border: Border.all(
-                          color: Colors.grey[700]!, width: 0.5),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                )).toList(),
-              ),
-              const SizedBox(height: 8),
-              // Preview + Select
-              Container(
-                height: 24,
-                decoration: BoxDecoration(
-                  color: _primaryColor,
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: Colors.grey),
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel',
-                  style: TextStyle(color: Colors.grey))),
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, _primaryColor),
-              child: const Text('Select',
-                  style: TextStyle(color: Color(0xFF6C63FF)))),
-        ],
-      ),
-    );
+    final p = await _showPaletteDialog();
     if (p != null) _safeSetState(() => _primaryColor = p);
   }
 

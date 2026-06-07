@@ -1,59 +1,59 @@
-"""PhantomVox AI — 核心接口定义
+"""PhantomVox AI — Core Interface Definitions
 
-所有模块接口使用 Protocol (PEP 544)，实现 duck typing。
-新增功能模块时在此追加 Protocol，不要修改已有接口签名。
+All module interfaces use Protocol (PEP 544) for duck typing.
+When adding new feature modules, append Protocols here; do not modify existing interface signatures.
 """
 
 from typing import Protocol, Dict, List, Optional
 
 
 class Timeline(Protocol):
-    """时间线接口 — 音视频片段的轨道管理"""
+    """Timeline interface — track management for audio/video clips"""
     def add_clip(self, asset_path: str, start_time: float, duration: float, track: int = 0) -> str: ...
     def get_state(self) -> Dict: ...
 
 
 class VideoProcessor(Protocol):
-    """视频处理接口 — 剪切/合并/转码"""
+    """Video processing interface — cut/merge/transcode"""
     def cut(self, input_path: str, output_path: str, start: float, duration: float) -> bool: ...
     def merge(self, clips: List[str], output_path: str) -> bool: ...
     def transcode(self, input_path: str, output_path: str, preset: str = "default") -> bool: ...
 
 
 class AudioProcessor(Protocol):
-    """音频处理接口 — TTS/变声/混音"""
+    """Audio processing interface — TTS/voice-clone/mix"""
     def text_to_speech(self, text: str, voice_id: str = "default", output_path: str = None) -> str: ...
     def voice_clone(self, reference_audio: str, text: str, output_path: str = None) -> str: ...
     def mix(self, tracks: List[str], output_path: str) -> bool: ...
 
 
 class MusicGenerator(Protocol):
-    """音乐生成接口 — AI 作曲"""
+    """Music generation interface — AI composition"""
     def generate(self, prompt: str, duration: float, style: str = "default") -> str: ...
 
 
 class AIChatAgent(Protocol):
-    """AI Agent 接口 — 智能对话与指令解析"""
+    """AI Agent interface — intelligent conversation and instruction parsing"""
     def process(self, instruction: str, context: Dict) -> Dict: ...
     def suggest(self, context: Dict) -> str: ...
 
 
 class ProjectManager(Protocol):
-    """项目管理接口 — 加载/保存/迁移"""
+    """Project management interface — load/save/migrate"""
     def save(self, path: str) -> bool: ...
     def load(self, path: str) -> bool: ...
     def export(self, path: str, format: str = "json") -> bool: ...
 
 
 class AgentPanel(Protocol):
-    """AI 面板接口 — 5 个子面板通用"""
+    """AI Panel interface — common for all 5 sub-panels"""
     name: str
     description: str
     def execute(self, params: Dict) -> Dict: ...
 
 
 class AgentProtocol(Protocol):
-    """AI 智能体接口 — 8 个 agent 通用"""
+    """AI Agent interface — common for all 8 agents"""
     name: str
     role: str
     description: str
@@ -62,7 +62,7 @@ class AgentProtocol(Protocol):
 
 
 class ConfigManagerProtocol(Protocol):
-    """模型配置接口 — 读写持久化配置"""
+    """Model config interface — read/write persisted configuration"""
     def get(self, *keys: str): ...
     def set(self, *keys_and_value) -> bool: ...
     def get_all(self) -> dict: ...

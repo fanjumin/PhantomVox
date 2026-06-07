@@ -1,6 +1,6 @@
-"""MusicGen — Meta 本地音乐生成 (桩)
+"""MusicGen — Meta local music generation (stub)
 
-需要 PyTorch + audiocraft 才能实际运行。
+Requires PyTorch + audiocraft to actually run.
 """
 
 from typing import Dict, List, Optional
@@ -19,7 +19,7 @@ class MusicGenProvider(MusicProvider):
 
     def __init__(self, model_size: str = "small"):
         self._model_size = model_size
-        self._available = False  # 需要安装 PyTorch
+        self._available = False  # Requires PyTorch installation
 
     def generate(self, prompt: str, style: str = "default",
                  duration: float = 30) -> Dict:

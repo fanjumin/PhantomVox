@@ -1,4 +1,4 @@
-"""硬件检测模块 — PhantomVox AI 硬件评估与模型等级映射"""
+"""Hardware Detection Module — PhantomVox AI hardware assessment and model tier mapping"""
 
 from .hardware import (
     HardwareDetector, HardwareSpec,

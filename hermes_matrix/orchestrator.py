@@ -14,7 +14,7 @@ client = openai.OpenAI(
 
 
 class HermesMatrix:
-    """Hermes Matrix v4 - 仅 Backend + 增量修正"""
+    """Hermes Matrix v4 - Backend only + Incremental fix"""
 
     def __init__(self, project_root: str):
         self.project_root = Path(project_root).resolve()
@@ -36,19 +36,19 @@ class HermesMatrix:
             return ""
 
     def execute(self, requirement: str, max_rounds: int = 4):
-        print("🚀 Hermes Matrix v4（仅 Backend + 增量修正）启动\n")
+        print("🚀 Hermes Matrix v4 (Backend only + Incremental fix) started\n")
         self.state["requirement"] = requirement
 
         for r in range(1, max_rounds + 1):
-            print(f"\n{'='*60}\n第 {r} 轮\n{'='*60}")
+            print(f"\n{'='*60}\nRound {r}\n{'='*60}")
 
             if r == 1:
-                print("📐 生成 API Spec...")
+                print("📐 Generating API Spec...")
                 spec_sys = "Output ONLY valid OpenAPI 3.1 JSON. No extra text."
                 self.state["api_spec"] = self._call("deepseek-v4-pro", spec_sys, requirement, json_mode=True, temp=0.1)
 
-            print("💻 生成后端代码...")
-            # 增量模式：把上一轮代码也传给 Coder，让它基于已有代码修补
+            print("💻 Generating backend code...")
+            # Incremental mode: pass previous code to Coder so it can patch based on existing code
             prev_code = self.state.get("backend_code", "")
             prev_feedback = self.state.get("last_feedback", "")
 
@@ -88,7 +88,7 @@ Output ONLY the complete Python FastAPI code. No markdown."""
             backend_input = f"Requirement: {requirement}"
             self.state["backend_code"] = self._call("deepseek-v4-flash", backend_sys, backend_input, temp=0.3)
 
-            print("🔍 安全审查...")
+            print("🔍 Security review...")
             sec_sys = ("You are a security reviewer. Focus on REAL exploitable bugs only. "
                        "Return JSON: {\"status\": \"APPROVED\" or \"REJECTED\", "
                        "\"vulnerabilities\": []}")
@@ -103,27 +103,27 @@ Output ONLY the complete Python FastAPI code. No markdown."""
                 approved = False
 
             if approved and not vulns:
-                print("\n✅ 安全审查通过！保存文件...")
+                print("\nSecurity review passed! Saving files...")
                 self._save_files()
                 return
             else:
                 summary = " | ".join(str(v) for v in vulns)
                 self.state["last_feedback"] = summary
-                print(f"⚠️ 第 {r} 轮未通过")
-                print(f"   问题: {summary}")
+                print(f"Round {r} did not pass")
+                print(f"   Issues: {summary}")
 
-        print("\n❌ 达到最大轮次仍未通过。")
+        print("\nMax rounds reached without passing.")
 
     def _save_files(self):
         self.backend_dir.mkdir(parents=True, exist_ok=True)
         code = self.state["backend_code"].replace("```python", "").replace("```", "").strip()
         (self.backend_dir / "main.py").write_text(code, encoding="utf-8")
-        print("✅ backend/main.py 已保存")
+        print("backend/main.py saved")
 
 
 if __name__ == "__main__":
     project_root = Path(__file__).parent.parent
     matrix = HermesMatrix(str(project_root))
 
-    requirement = "实现 JWT 用户登录模块，后端 FastAPI，支持 Refresh Token 轮换（废弃旧 token），必须使用环境变量 SECRET_KEY，不能硬编码。"
+    requirement = "Implement JWT user login module with FastAPI backend. Support Refresh Token rotation (invalidate old token). Must use environment variable SECRET_KEY, no hardcoding."
     matrix.execute(requirement, max_rounds=4)

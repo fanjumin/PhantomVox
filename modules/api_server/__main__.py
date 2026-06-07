@@ -1,6 +1,6 @@
 """PhantomVox AI Server — CLI entry point
 
-启动: python3 -m modules.api_server
+Start: python3 -m modules.api_server
 """
 
 from . import main

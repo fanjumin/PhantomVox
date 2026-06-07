@@ -1,20 +1,20 @@
-"""PhantomVox Audio Engine — 音频模型编排层
+"""PhantomVox Audio Engine — Audio model orchestration layer
 
-职责：
-  - 管理 TTS / 音乐生成提供者
-  - 硬件感知：自动跳过当前机器不可运行的模型
-  - 统一接口: tts(text, voice, ...) / music(prompt, style, ...)
+Responsibilities:
+  - Manage TTS / music generation providers
+  - Hardware awareness: automatically skip models not runnable on current machine
+  - Unified interface: tts(text, voice, ...) / music(prompt, style, ...)
 
-用法：
+Usage:
   engine.register("audio", AudioEngine(hardware_detector))
-  engine.get("audio").tts("你好", voice="edge_tts")
+  engine.get("audio").tts("Hello", voice="edge_tts")
 """
 
 from typing import Optional, Dict, List, Any
 
 
 class AudioEngine:
-    """音频模型编排引擎"""
+    """Audio model orchestration engine"""
 
     def __init__(self, hardware=None):
         self._hardware = hardware
@@ -23,21 +23,21 @@ class AudioEngine:
         self._default_tts = "edge_tts"
         self._default_music = "suno"
 
-    # ── 注册 ──────────────────────────────────────────
+    # ── Registration ─────────────────────────────────────
 
     def register_tts(self, name: str, provider):
-        """注册 TTS 提供者"""
+        """Register a TTS provider"""
         self._tts_providers[name] = provider
 
     def register_music(self, name: str, provider):
-        """注册音乐生成提供者"""
+        """Register a music generation provider"""
         self._music_providers[name] = provider
 
     # ── TTS ───────────────────────────────────────────
 
     def tts(self, text: str, voice: str = None,
             provider: str = None, output_path: str = None) -> Dict:
-        """文本转语音"""
+        """Text-to-speech"""
         name = provider or self._default_tts
         prov = self._tts_providers.get(name)
         if not prov:
@@ -58,7 +58,7 @@ class AudioEngine:
             return {"provider": name, "status": "error", "error": str(e)}
 
     def tts_voices(self, provider: str = None) -> List[Dict]:
-        """获取可用的语音列表"""
+        """List available voices"""
         name = provider or self._default_tts
         prov = self._tts_providers.get(name)
         if not prov:
@@ -76,7 +76,7 @@ class AudioEngine:
 
     def music(self, prompt: str, style: str = None,
               provider: str = None, duration: float = 30) -> Dict:
-        """音乐生成"""
+        """Generate music"""
         name = provider or self._default_music
         prov = self._music_providers.get(name)
         if not prov:
@@ -97,7 +97,7 @@ class AudioEngine:
             return {"provider": name, "status": "error", "error": str(e)}
 
     def music_styles(self, provider: str = None) -> List[str]:
-        """获取可用风格列表"""
+        """List available style options"""
         name = provider or self._default_music
         prov = self._music_providers.get(name)
         if not prov:

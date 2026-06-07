@@ -1,14 +1,14 @@
-"""Suno AI — 在线音乐生成 (API 包装)
+"""Suno AI — Online music generation (API wrapper)
 
-注意: 需要 Suno API Key 才能实际调用。
-当前为 mock 实现，返回模拟数据。
+Note: Requires a Suno API key to actually call.
+Currently a mock implementation returning simulated data.
 """
 
 from typing import Dict, List, Optional
 
 from . import MusicProvider
 
-# 常用音乐风格
+# Common music styles
 STYLES = [
     "pop", "rock", "jazz", "classical", "electronic",
     "hiphop", "rnb", "folk", "ambient", "cinematic",
@@ -26,9 +26,9 @@ class SunoProvider(MusicProvider):
 
     def generate(self, prompt: str, style: str = "default",
                  duration: float = 30) -> Dict:
-        """生成音乐
+        """Generate music
 
-        无 API Key 时返回 mock 数据。
+        Returns mock data when no API key is configured.
         """
         if self._mock:
             style_name = style if style != "default" else "pop"
@@ -41,7 +41,7 @@ class SunoProvider(MusicProvider):
                 "mock_audio": True,
             }
 
-        # TODO: 实现真实 Suno API 调用
+        # TODO: Implement real Suno API call
         raise NotImplementedError("Real Suno API integration pending API key")
 
     def list_styles(self) -> List[str]:

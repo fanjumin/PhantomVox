@@ -1,6 +1,6 @@
-"""PhantomVox AI — 音频模型引擎 (TTS + Music)
+"""PhantomVox AI — Audio Model Engine (TTS + Music)
 
-通过 engine.register("audio", audio_engine) 注册到核心引擎。
+Register via engine.register("audio", audio_engine) with the core engine.
 """
 
 from .audio_engine import AudioEngine

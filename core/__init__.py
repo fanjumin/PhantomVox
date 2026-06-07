@@ -1,1 +1,1 @@
-"""PhantomVox AI 核心层"""
+"""PhantomVox AI — Core layer"""

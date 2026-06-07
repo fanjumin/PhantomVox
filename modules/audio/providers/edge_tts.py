@@ -1,7 +1,7 @@
-"""Edge-TTS 提供者 — Microsoft 免费在线 TTS
+"""Edge-TTS provider — Microsoft free online TTS
 
-安装: pip install edge-tts
-文档: https://github.com/rany2/edge-tts
+Install: pip install edge-tts
+Docs: https://github.com/rany2/edge-tts
 """
 
 import asyncio
@@ -17,7 +17,7 @@ from . import TTSProvider
 class EdgeTTSProvider(TTSProvider):
     name = "edge_tts"
 
-    # 常用语音列表 (中英文为主)
+    # Common voice list (primarily Chinese/English)
     DEFAULT_VOICES = [
         {"id": "zh-CN-XiaoxiaoNeural",  "name": "Xiaoxiao",  "gender": "Female", "locale": "zh-CN"},
         {"id": "zh-CN-YunxiNeural",     "name": "Yunxi",     "gender": "Male",   "locale": "zh-CN"},
@@ -38,7 +38,7 @@ class EdgeTTSProvider(TTSProvider):
         {"id": "ru-RU-SvetlanaNeural",  "name": "Svetlana",  "gender": "Female", "locale": "ru-RU"},
     ]
 
-    # 语音别名映射 (短名称 → 完整ID)
+    # Voice alias mapping (short name → full ID)
     ALIASES = {
         "xiaoxiao":  "zh-CN-XiaoxiaoNeural",
         "yunxi":     "zh-CN-YunxiNeural",
@@ -55,17 +55,17 @@ class EdgeTTSProvider(TTSProvider):
         voice_lower = voice.strip().lower()
         if voice_lower in self.ALIASES:
             return self.ALIASES[voice_lower]
-        # 直接传完整 ID
+        # Pass full voice ID directly
         return voice
 
     def synthesize(self, text: str, voice: str = "default",
                    output_path: Optional[str] = None) -> Dict:
-        """合成语音
+        """Synthesize speech
 
         Args:
-            text: 要合成的文本
-            voice: 语音 ID 或别名 (默认 zh-CN-XiaoxiaoNeural)
-            output_path: 输出路径，None 则保存到临时文件
+            text: Text to synthesize
+            voice: Voice ID or alias (default zh-CN-XiaoxiaoNeural)
+            output_path: Output path, None saves to a temp file
 
         Returns:
             {"output_path": str, "voice": str, "duration_sec": float}
@@ -79,14 +79,14 @@ class EdgeTTSProvider(TTSProvider):
             fd, output_path = tempfile.mkstemp(suffix=".mp3")
             os.close(fd)
 
-        # edge-tts 是异步的，用 asyncio.run 包装
+        # edge-tts is async, wrap with asyncio.run
         async def _run():
             communicate = edge_tts.Communicate(text=text, voice=voice_id)
             await communicate.save(output_path)
 
         asyncio.run(_run())
 
-        # 粗略估计时长 (中文约 3.5字/秒，英文约 4字/秒)
+        # Rough duration estimate (~3.5 chars/sec for Chinese, ~4 chars/sec for English)
         char_count = len(text)
         estimated_sec = max(char_count / 3.5, 1.0)
 

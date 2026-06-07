@@ -1,21 +1,22 @@
 """
-hardware.py — PhantomVox AI 硬件检测模块
+hardware.py — PhantomVox AI Hardware Detection Module
 
-检测当前机器硬件规格，与模型等级 (Tier 1~4) 进行匹配，
-帮助用户了解哪些模型能跑、哪些需要升级。
+Detects current machine hardware specifications and matches them against
+model tiers (Tier 1~4) to help users understand which models can run
+and what needs upgrading.
 
-检测项：
-  - CPU 核心数 / 线程数 / 型号
-  - 内存总量 / 可用量
-  - GPU 型号 / 显存 (nvidia-smi / AMD / Apple Silicon)
-  - 磁盘剩余空间
-  - 操作系统信息
+Detection items:
+  - CPU cores / threads / model
+  - Total / available RAM
+  - GPU model / VRAM (nvidia-smi / AMD / Apple Silicon)
+  - Available disk space
+  - Operating system information
 
-模型等级：
-  T1 — CPU 可用 (>=8核, >=16GB RAM), 无 GPU 要求
-  T2 — 入门 GPU (>=6GB VRAM)
-  T3 — 中端 GPU (>=12GB VRAM)
-  T4 — 高端 GPU (>=24GB VRAM)
+Model tiers:
+  T1 — CPU-capable (>=8 cores, >=16GB RAM), no GPU required
+  T2 — Entry GPU (>=6GB VRAM)
+  T3 — Mid-range GPU (>=12GB VRAM)
+  T4 — High-end GPU (>=24GB VRAM)
 """
 
 import os
@@ -27,51 +28,51 @@ from pathlib import Path
 from dataclasses import dataclass, field, asdict
 from typing import Dict, List, Optional, Tuple
 
-# ── 模型硬件等级定义 ──────────────────────────────────────
+# ── Model hardware tier definitions ──────────────────────────────────────
 
-# 每个模型名称 -> (tier, type)
+# Each model name -> (tier, type)
 # tier: 1-4, type: "local" or "online"
 MODEL_TIER_MAP: Dict[str, Tuple[int, str]] = {
     # ── TTS ──────────────────────────────────────────
-    "edge_tts":       (1, "online"),   # 纯在线，无硬件要求
-    "moss_tts":       (1, "local"),    # 轻量 CPU 可用
-    "bark":           (1, "local"),    # CPU 可跑但慢，16G 内存
-    "f5_tts":         (2, "local"),    # 需 GPU 6G+
-    "gpt_sovits":     (2, "local"),    # 小模型 6G，大模型 12G
+    "edge_tts":       (1, "online"),   # Purely online, no hardware required
+    "moss_tts":       (1, "local"),    # Lightweight, CPU-capable
+    "bark":           (1, "local"),    # CPU-capable but slow, 16GB RAM
+    "f5_tts":         (2, "local"),    # Requires GPU 6G+
+    "gpt_sovits":     (2, "local"),    # Small model 6G, large model 12G
     "cosyvoice":      (2, "local"),    # 6G+
     "voicecraft":     (3, "local"),    # 12G+
     "amphion":        (2, "local"),    # 6G+
 
     # ── Music Gen ────────────────────────────────────
-    "musicgen_small": (1, "local"),    # CPU 勉强可跑
+    "musicgen_small": (1, "local"),    # CPU barely capable
     "musicgen_medium":(2, "local"),    # 6G+
     "musicgen_large": (3, "local"),    # 12G+
     "audiocraft":     (2, "local"),    # 6G+
     "stable_audio":   (2, "local"),    # 6G+
-    "riffusion":      (1, "local"),    # 轻量，CPU 可跑
-    "suno":           (1, "online"),   # 在线
-    "udio":           (1, "online"),   # 在线
+    "riffusion":      (1, "local"),    # Lightweight, CPU-capable
+    "suno":           (1, "online"),   # Online
+    "udio":           (1, "online"),   # Online
 
     # ── Singing ──────────────────────────────────────
     "gpt_sovits_sing":(3, "local"),    # 12G+
 }
 
 
-# ── 等级阈值 ─────────────────────────────────────────────
+# ── Tier thresholds ─────────────────────────────────────────────
 
 TIER_THRESHOLDS = [
     # (tier_name, min_cores, min_ram_gb, min_vram_gb)
-    ("tier_1",  4,  8,  0),    # 最低运行
-    ("tier_1",  8, 16,  0),    # 推荐 CPU
-    ("tier_2",  8, 16,  6),    # 入门 GPU
-    ("tier_3",  8, 32, 12),    # 中端 GPU
-    ("tier_4", 16, 64, 24),    # 高端 GPU
+    ("tier_1",  4,  8,  0),    # Minimum runtime
+    ("tier_1",  8, 16,  0),    # Recommended CPU
+    ("tier_2",  8, 16,  6),    # Entry GPU
+    ("tier_3",  8, 32, 12),    # Mid-range GPU
+    ("tier_4", 16, 64, 24),    # High-end GPU
 ]
 
 TIER_LABELS = ["", "T1 (CPU)", "T2 (Entry GPU)", "T3 (Mid GPU)", "T4 (High GPU)"]
 
 
-# ── 数据结构 ────────────────────────────────────────────
+# ── Data structures ────────────────────────────────────────────
 
 @dataclass
 class HardwareSpec:
@@ -91,7 +92,7 @@ class HardwareSpec:
         return asdict(self)
 
     def max_tier(self) -> int:
-        """返回本机支持的最高模型等级 (1-4)"""
+        """Return the highest model tier (1-4) supported by this machine"""
         tier = 1
         for label, cores, ram, vram in TIER_THRESHOLDS:
             ok = True
@@ -111,7 +112,7 @@ class HardwareSpec:
         return min(tier, 4)  # cap at 4
 
     def can_run_model(self, model_key: str) -> Tuple[bool, str]:
-        """检查某个模型能否在本机运行。返回 (可运行, 说明)"""
+        """Check if a given model can run on this machine. Returns (can_run, explanation)"""
         info = MODEL_TIER_MAP.get(model_key)
         if info is None:
             return (False, f"Unknown model: {model_key}")
@@ -122,7 +123,7 @@ class HardwareSpec:
         if current_tier >= required_tier:
             return (True, f"Tier {current_tier} >= required T{required_tier}")
         else:
-            # 提示缺什么
+            # Hint what is missing
             needed = TIER_THRESHOLDS[required_tier]
             hints = []
             if self.cpu_cores < needed[1]:
@@ -136,7 +137,7 @@ class HardwareSpec:
             return (False, f"Needs T{required_tier}: " + "; ".join(hints))
 
     def upgrade_suggestions(self) -> List[str]:
-        """返回达到更高等级需要的升级建议"""
+        """Return upgrade suggestions to reach higher tiers"""
         current = self.max_tier()
         suggestions = []
         if current < 2:
@@ -153,13 +154,13 @@ class HardwareSpec:
         return suggestions
 
 
-# ── 检测器 ──────────────────────────────────────────────
+# ── Detector ──────────────────────────────────────────────
 
 class HardwareDetector:
-    """硬件检测器 — 探测当前机器配置并匹配模型等级"""
+    """Hardware detector — probes current machine configuration and matches model tiers"""
 
     def detect(self) -> HardwareSpec:
-        """执行完整的硬件检测"""
+        """Execute full hardware detection"""
         spec = HardwareSpec()
         spec.python_version = sys.version
         self._detect_cpu(spec)
@@ -170,7 +171,7 @@ class HardwareDetector:
         return spec
 
     def report(self, spec: Optional[HardwareSpec] = None) -> dict:
-        """生成结构化的硬件报告 (含等级评估)"""
+        """Generate structured hardware report (includes tier assessment)"""
         if spec is None:
             spec = self.detect()
         tier = spec.max_tier()
@@ -192,7 +193,7 @@ class HardwareDetector:
             }
         return report
 
-    # ── 各子检测 ─────────────────────────────────────
+    # ── Individual checks ────────────────────────────
 
     def _detect_cpu(self, spec: HardwareSpec):
         try:
@@ -259,7 +260,7 @@ class HardwareDetector:
             pass
 
     def _detect_gpu(self, spec: HardwareSpec):
-        """检测 NVIDIA GPU (nvidia-smi)"""
+        """Detect NVIDIA GPU (nvidia-smi)"""
         try:
             r = subprocess.run(
                 ["nvidia-smi", "--query-gpu=name,memory.total",
@@ -279,7 +280,7 @@ class HardwareDetector:
                         spec.gpu_vram_gb.append(vram)
         except Exception:
             pass
-        # 尝试 AMD ROCm / Apple Metal 检测
+        # Attempt AMD ROCm / Apple Metal detection
         if not spec.gpu_models:
             try:
                 if sys.platform == "darwin":
@@ -306,7 +307,7 @@ class HardwareDetector:
         spec.os_version = platform.release()
 
 
-# ── 快捷函数 ─────────────────────────────────────────────
+# ── Convenience functions ────────────────────────────────
 
 _detector_instance: Optional[HardwareDetector] = None
 

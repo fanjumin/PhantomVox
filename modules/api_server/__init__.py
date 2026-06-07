@@ -1,7 +1,7 @@
-"""PhantomVox AI Server — HTTP API 包装引擎
+"""PhantomVox AI Server — HTTP API wrapper engine
 
-启动:  python3 -m modules.api_server
-端口:  8899 (默认)
+Start:  python3 -m modules.api_server
+Port:   8899 (default)
 """
 
 import json
@@ -10,19 +10,19 @@ import os
 
 from flask import Flask, jsonify, request
 
-# ── 将项目根目录加入 path ────────────────────────────
+# ── Add project root to path ───────────────────────────────
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 
 def create_app(engine=None):
-    """Flask 应用工厂"""
+    """Flask application factory"""
     if engine is None:
         from core.engine import Engine
         engine = Engine()
 
-    # ── 音频引擎 ──────────────────────────────────────
+    # ── Audio engine ──────────────────────────────────────────
     from modules.audio import AudioEngine
     from modules.audio.providers.edge_tts import EdgeTTSProvider
     from modules.audio.providers.suno import SunoProvider
@@ -69,7 +69,7 @@ def create_app(engine=None):
     app = Flask(__name__)
     app.engine = engine
 
-    # ── CORS 允许 Flutter 跨域请求 ──────────────────────
+    # ── CORS — allow Flutter cross-origin requests ─────────────
 
     @app.after_request
     def add_cors(resp):
@@ -78,13 +78,13 @@ def create_app(engine=None):
         resp.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
         return resp
 
-    # ── 健康检查 ──────────────────────────────────────
+    # ── Health check ───────────────────────────────────────────
 
     @app.route("/api/v1/health")
     def health():
         return jsonify({"status": "ok", "service": "phantomvox-ai-server"})
 
-    # ── 系统信息 ──────────────────────────────────────
+    # ── System info ────────────────────────────────────────────
 
     @app.route("/api/v1/info")
     def info():
@@ -107,7 +107,7 @@ def create_app(engine=None):
             },
         })
 
-    # ── 硬件检测 ──────────────────────────────────────
+    # ── Hardware detection ─────────────────────────────────────
 
     @app.route("/api/v1/hardware")
     def hardware():
@@ -122,7 +122,7 @@ def create_app(engine=None):
         ok, reason = spec.can_run_model(model_key)
         return jsonify({"model": model_key, "can_run": ok, "reason": reason})
 
-    # ── 国际化 ────────────────────────────────────────
+    # ── Internationalization ───────────────────────────────────
 
     @app.route("/api/v1/locale")
     def locale_current():
@@ -155,7 +155,7 @@ def create_app(engine=None):
         e.i18n.set_locale(loc)
         return jsonify({"old": old, "new": loc})
 
-    # ── 翻译查询 ──────────────────────────────────────
+    # ── Translation query ──────────────────────────────────────
 
     @app.route("/api/v1/translate/<path:key>")
     def translate(key):
@@ -694,7 +694,7 @@ Rules:
         })
         return jsonify(result)
 
-    # ── 模型配置 ──────────────────────────────────────
+    # ── Model config ───────────────────────────────────────────
 
     @app.route("/api/v1/models")
     def models_list():
@@ -1185,18 +1185,16 @@ Rules:
             fs = int(_validate_factor(data.get("font_size", 24), 24, 1, 500))
             color = _validate_color(data.get("color", [255, 255, 255]))
             opacity = _validate_factor(data.get("opacity", 1.0), 1.0, 0.0, 1.0)
+            font_family = data.get("font_family", "sans-serif")
             sw = int(_validate_factor(data.get("stroke_width", 0), 0, 0, 100))
             sc_raw = data.get("stroke_color")
             sc = _validate_color(sc_raw) if sc_raw else None
             sb = int(_validate_factor(data.get("shadow_blur", 0), 0, 0, 100))
             shc_raw = data.get("shadow_color")
             shc = _validate_color(shc_raw) if shc_raw else (0, 0, 0)
-            layer_idx = data.get("layer", -1)
+            layer_idx = data.get("layer", 0)
             if 0 <= layer_idx < len(doc.layers):
-                doc.layers[layer_idx].image = add_text(doc.layers[layer_idx].image, txt, x, y, font_size=fs, color=color, opacity=opacity, stroke_width=sw, stroke_color=sc, shadow_blur=sb, shadow_color=shc)
-            else:
-                for layer in doc.layers:
-                    layer.image = add_text(layer.image, txt, x, y, font_size=fs, color=color, opacity=opacity, stroke_width=sw, stroke_color=sc, shadow_blur=sb, shadow_color=shc)
+                doc.layers[layer_idx].image = add_text(doc.layers[layer_idx].image, txt, x, y, font_size=fs, color=color, opacity=opacity, font_family=font_family, stroke_width=sw, stroke_color=sc, shadow_blur=sb, shadow_color=shc)
             return jsonify(_doc_response(doc))
         except Exception as e:
             return jsonify({"error": str(e)}), 400
@@ -1574,18 +1572,32 @@ Rules:
 
     @app.route("/api/v1/editor/fonts")
     def editor_fonts():
-        FONTS = [
-            {"name": "Hershey Simplex", "family": "hershey", "file": "simplex", "style": "regular"},
-            {"name": "Hershey Plain", "family": "hershey", "file": "plain", "style": "regular"},
-            {"name": "Hershey Duplex", "family": "hershey", "file": "duplex", "style": "regular"},
-            {"name": "Hershey Complex", "family": "hershey", "file": "complex", "style": "regular"},
-            {"name": "Hershey Triplex", "family": "hershey", "file": "triplex", "style": "regular"},
-            {"name": "Hershey Script Simplex", "family": "hershey", "file": "script_simplex", "style": "regular"},
-            {"name": "Hershey Script Complex", "family": "hershey", "file": "script_complex", "style": "regular"},
-            {"name": "Italic Complex", "family": "hershey", "file": "complex_italic", "style": "italic"},
-            {"name": "Italic Triplex", "family": "hershey", "file": "triplex_italic", "style": "italic"},
-        ]
-        return jsonify({"fonts": FONTS})
+        from modules.image_studio.tools import get_system_fonts
+        sf = get_system_fonts()
+        fonts = []
+        for name, path in sorted(sf.items()):
+            ext = os.path.splitext(path)[1].lower()
+            style = "regular"
+            fn_lower = path.lower()
+            if "bold" in fn_lower and "italic" in fn_lower:
+                style = "bold_italic"
+            elif "bold" in fn_lower:
+                style = "bold"
+            elif "italic" in fn_lower or "oblique" in fn_lower:
+                style = "italic"
+            elif "light" in fn_lower:
+                style = "light"
+            elif "medium" in fn_lower:
+                style = "medium"
+            fonts.append({
+                "name": name,
+                "family": name,
+                "file": path,
+                "style": style,
+                "format": ext.lstrip("."),
+                "has_cjk": "cjk" in path.lower() or "wenquan" in path.lower() or "arphic" in path.lower(),
+            })
+        return jsonify({"fonts": fonts})
 
     @app.route("/api/v1/editor/preview", methods=["POST"])
     def editor_preview():
@@ -1607,7 +1619,7 @@ Rules:
     return app
 
 def main():
-    """启动 AI Server"""
+    """Start the AI Server"""
     import argparse
 
     parser = argparse.ArgumentParser(description="PhantomVox AI Server")

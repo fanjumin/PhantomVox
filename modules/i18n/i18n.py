@@ -1,21 +1,21 @@
 """
-i18n.py - PhantomVox AI 系统级国际化核心
+i18n.py - PhantomVox AI system-level i18n core
 
-架构设计：
-  I18nManager (单例)
-    ├── 加载 JSON 词库 (懒加载)
-    ├── 键解析: dot 路径 + 扁平化兼容
-    ├── 插值: {placeholder} 模板语法
-    ├── 复数: key.one / key.many + count 自动选择
-    ├── 回退链: 目标语言 → en (fallback) → 键名
-    ├── 事件: locale_changed 监听器模式
-    ├── 检测: locale.getdefaultlocale()
-    └── 持久化: 用户偏好 JSON
+Architecture:
+  I18nManager (singleton)
+    ├── Load JSON locale files (lazy loading)
+    ├── Key resolution: dot-path + flat key compatibility
+    ├── Interpolation: {placeholder} template syntax
+    ├── Pluralization: key.one / key.many + auto-select by count
+    ├── Fallback chain: target language -> en (fallback) -> key name
+    ├── Events: locale_changed listener pattern
+    ├── Detection: locale.getdefaultlocale()
+    └── Persistence: user preference JSON
 
-用法:
-    _("menu.file.new")                     → "新建项目"
-    _("welcome", name="PhantomVox")        → "欢迎使用 PhantomVox"
-    _("timeline.clips", count=5)           → "5 个片段"
+Usage:
+    _("menu.file.new")                     -> "New Project"
+    _("welcome", name="PhantomVox")        -> "Welcome to PhantomVox"
+    _("timeline.clips", count=5)           -> "5 clips"
 """
 
 import json
@@ -29,34 +29,34 @@ _LOCALE_DIR = Path(__file__).parent / "locales"
 _USER_PREF_PATH = Path.home() / ".phantomvox" / "locale.json"
 _FALLBACK_LOCALE = "en"
 
-# ── 单例 ──────────────────────────────────────────────────────
+# ── Singleton ─────────────────────────────────────────────────
 
 _instance: Optional["I18nManager"] = None
 
 
 def I18n() -> "I18nManager":
-    """获取全局单例 (lazy init)"""
+    """Get global singleton (lazy init)"""
     global _instance
     if _instance is None:
         _instance = I18nManager()
     return _instance
 
 
-# ── 快捷函数 ───────────────────────────────────────────────────
+# ── Convenience functions ─────────────────────────────────────
 
 def _(*args, **kwargs) -> str:
-    """全局快捷翻译函数。
+    """Global shortcut translation function.
     _(key)              → str
-    _(key, count=N)     → 自动复数
-    _(key, name="X")    → 插值 {name}
+    _(key, count=N)     → auto-plural
+    _(key, name="X")    → interpolation {name}
     """
     return I18n().t(*args, **kwargs)
 
 
-# ── 主类 ──────────────────────────────────────────────────────
+# ── Main class ────────────────────────────────────────────────
 
 class I18nManager:
-    """国际化管理器 (单例)"""
+    """Internationalization Manager (singleton)"""
 
     def __init__(self):
         self._cache: Dict[str, Dict[str, str]] = {}       # locale -> flat dict
@@ -70,7 +70,7 @@ class I18nManager:
         if not self._current:
             self._current = locale_id
 
-    # ── 公共 API ────────────────────────────────────────────
+    # ── Public API ──────────────────────────────────────────
 
     @property
     def current(self) -> str:
@@ -78,30 +78,30 @@ class I18nManager:
 
     @property
     def available(self) -> List[str]:
-        """列出所有可用语言 (发现 locales/*.json)"""
+        """List all available locales (discovered from locales/*.json)"""
         files = sorted(_LOCALE_DIR.glob("*.json"))
         return [f.stem for f in files]
 
     def t(self, key: str, **kwargs) -> str:
-        """翻译 + 插值 + 复数"""
+        """Translate + interpolate + pluralize"""
         self._ensure_loaded(self._current)
         self._ensure_loaded(_FALLBACK_LOCALE)
 
         raw_key = key
         interp_params = dict(kwargs)  # copy for interpolation later
-        # 复数检测: 如果有 count 参数, 尝试 key.one / key.many
+        # Plural detection: if count param exists, try key.one / key.many
         count = kwargs.pop("count", None)
         if count is not None:
             interp_params["count"] = count  # ensure count is available for interpolation
             plural_key = f"{key}.many" if count > 1 else f"{key}.one"
             raw_key = plural_key
 
-        # 当前语言 → 回退 (en) → 键名
+        # Current language -> fallback (en) -> key name
         val = self._resolve(raw_key, self._current)
         if val is None:
             val = self._resolve(raw_key, _FALLBACK_LOCALE)
         if val is None:
-            # 尝试去掉复数后缀回退到基础键
+            # Try stripping plural suffix and fallback to base key
             if count is not None:
                 val = self._resolve(key, self._current)
                 if val is None:
@@ -109,18 +109,18 @@ class I18nManager:
             if val is None:
                 val = raw_key
 
-        # 插值
+        # Interpolation
         if interp_params:
             val = self._interpolate(val, interp_params)
 
         return val
 
     def set_locale(self, locale_id: str, persist: bool = True):
-        """切换语言"""
+        """Switch locale"""
         if locale_id not in self.available:
             available = ", ".join(self.available)
             raise ValueError(
-                f"不支持的语言: '{locale_id}'。可用: [{available}]"
+                f"Unsupported locale: '{locale_id}'. Available: [{available}]"
             )
         old = self._current
         self._current = locale_id
@@ -130,24 +130,24 @@ class I18nManager:
             cb(old, locale_id)
 
     def on_locale_changed(self, callback: Callable[[str, str], None]):
-        """注册语言切换监听器: callback(old_locale, new_locale)"""
+        """Register locale change listener: callback(old_locale, new_locale)"""
         self._listeners.append(callback)
 
     def reload(self):
-        """重新加载所有词库 (热更新)"""
+        """Reload all locale files (hot reload)"""
         self._cache.clear()
         self._raw.clear()
         self._loaded.clear()
         self._ensure_loaded(self._current)
 
-    # ── 内部 ────────────────────────────────────────────────
+    # ── Internal ──────────────────────────────────────────────
 
     def _ensure_loaded(self, locale_id: str):
         if locale_id in self._loaded:
             return
         path = _LOCALE_DIR / f"{locale_id}.json"
         if not path.exists():
-            return  # 静默忽略, fallback 链兜底
+            return  # Silently ignore, fallback chain catches it
         with open(path, "r", encoding="utf-8") as f:
             raw = json.load(f)
         self._raw[locale_id] = raw
@@ -155,7 +155,7 @@ class I18nManager:
         self._loaded.add(locale_id)
 
     def _flatten(self, data: dict, prefix: str = "") -> Dict[str, str]:
-        """递归拍平嵌套字典: {"menu": {"file": {"new": "..."}}} → "menu.file.new" """
+        """Flatten nested dict recursively: {"menu": {"file": {"new": "..."}}} → "menu.file.new" """
         result = {}
         for key, val in data.items():
             full = f"{prefix}.{key}" if prefix else key
@@ -178,14 +178,14 @@ class I18nManager:
         return self._INTERP_RE.sub(_replacer, template)
 
     def _detect_system_locale(self) -> str:
-        """检测系统语言 (Linux locale)"""
-        # 尝试环境变量
+        """Detect system language (Linux locale)"""
+        # Try environment variables
         lang = os.environ.get("LANG", "") or os.environ.get("LC_ALL", "")
         if lang:
             parts = lang.split(".")
             lang_id = parts[0].replace("-", "_")
             return self._best_match(lang_id)
-        # 尝试 Python locale
+        # Try Python locale
         try:
             code, _ = locale.getdefaultlocale()
             if code:
@@ -200,10 +200,10 @@ class I18nManager:
 
     def _best_match(self, locale_id: str) -> str:
         available = set(self.available)
-        # 精确匹配
+        # Exact match
         if locale_id in available:
             return locale_id
-        # 语言前缀匹配: zh_CN → zh, en_US → en
+        # Language prefix match: zh_CN -> zh, en_US -> en
         lang_prefix = locale_id.split("_")[0]
         for avail in available:
             if avail.startswith(lang_prefix):

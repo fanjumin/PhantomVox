@@ -892,7 +892,7 @@ class _FlowGraphPageState extends State<FlowGraphPage> {
         Expanded(
           child: _chatMessages.isEmpty
             ? Center(
-                child: Text('Describe what you want to create.\ne.g. "都市办公室爱情短剧"',
+                child: Text('Describe what you want to create.\ne.g. "Urban office romance short drama"',
                     style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
               )
             : ListView.builder(

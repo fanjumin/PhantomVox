@@ -23,7 +23,7 @@ PROVIDER_ENDPOINTS: dict = {
     "deepseek": "https://api.deepseek.com/v1/chat/completions",
     "mistral": "https://api.mistral.ai/v1/chat/completions",
     "xai": "https://api.x.ai/v1/chat/completions",
-    # Chinese (国内)
+    # Chinese (domestic)
     "alibaba": "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
     "zhipu": "https://open.bigmodel.cn/api/paas/v4/chat/completions",
     "baidu": "https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/completions",

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PhantomVox AI — 魅影音画 智能创作套件入口"""
+"""PhantomVox AI — Intelligent Audio-Video Creation Suite Entry Point"""
 
 import sys
 import argparse
@@ -10,7 +10,7 @@ from modules.hardware import TIER_LABELS
 
 
 def cmd_info(engine: Engine):
-    """显示系统信息"""
+    """Display system information"""
     spec = engine.hardware.detect()
     tier = spec.max_tier()
 
@@ -33,7 +33,7 @@ def cmd_info(engine: Engine):
 
 
 def cmd_locale(engine: Engine, args: argparse.Namespace):
-    """语言管理"""
+    """Language management"""
     if args.list:
         print(f"\n  {engine.t('model.tts_models')} ({len(engine.i18n.available)}):")
         for loc in engine.i18n.available:
@@ -54,7 +54,7 @@ def cmd_locale(engine: Engine, args: argparse.Namespace):
 
 
 def cmd_hardware(engine: Engine, args: argparse.Namespace):
-    """硬件检测报告"""
+    """Hardware detection report"""
     if args.check:
         model_key = args.check
         spec = engine.hardware.detect()
@@ -64,7 +64,7 @@ def cmd_hardware(engine: Engine, args: argparse.Namespace):
         print(f"  {reason}")
         return
 
-    # 完整报告
+    # Full report
     r = engine.hardware.report()
     spec = r["spec"]
 
@@ -78,7 +78,7 @@ def cmd_hardware(engine: Engine, args: argparse.Namespace):
     print(f"  {engine.t('hardware.model_tier_map')}: {r['max_tier_label']}")
     print()
 
-    # 模型兼容性
+    # Model compatibility
     print(f"  --- {engine.t('hardware.model_tier_map')} ---")
     for name, info in sorted(r["can_run_models"].items()):
         status = "✓" if info["can_run"] else "✗"
@@ -115,10 +115,10 @@ def main():
 
     args = parser.parse_args()
 
-    # ── 启动引擎 ──────────────────────────────────────
+    # ── Start engine ──────────────────────────────────────
     engine = Engine(locale=args.locale)
 
-    # ── 注册音频引擎 ──────────────────────────────────
+    # ── Register audio engine ──────────────────────────────────
     from modules.audio import AudioEngine
     from modules.audio.providers.edge_tts import EdgeTTSProvider
     from modules.audio.providers.suno import SunoProvider
@@ -130,7 +130,7 @@ def main():
     audio.register_music("musicgen_small", MusicGenProvider(model_size="small"))
     engine.register("audio", audio)
 
-    # ── 注册 Agent 引擎 ─────────────────────────────────
+    # ── Register Agent engine ─────────────────────────────────
     from modules.agent import AgentEngine
     from modules.agent.panels.chat import ChatPanel, ThinkPanel, ImageGenPanel, VideoGenPanel, CodeGenPanel
 
@@ -142,22 +142,22 @@ def main():
     agent_engine.register_panel("code_gen", CodeGenPanel())
     engine.register("agent", agent_engine)
 
-    # ── 注册模型配置 ───────────────────────────────────
+    # ── Register model config ───────────────────────────────────
     from modules.modelconfig import ConfigManager
     config_mgr = ConfigManager()
     engine.register("config", config_mgr)
 
-    # ── Timeline 引擎 ────────────────────────────────────
+    # ── Timeline engine ────────────────────────────────────
     from modules.timeline import TimelineEngine
     timeline_engine = TimelineEngine()
     engine.register("timeline", timeline_engine)
 
-    # ── CodeGen 引擎 (P6) ───────────────────────────────
+    # ── CodeGen engine (P6) ───────────────────────────────
     from modules.codegen import CodeGenEngine
     codegen_engine = CodeGenEngine()
     engine.register("codegen", codegen_engine)
 
-    # ── VideoGen 引擎 (P6) ──────────────────────────────
+    # ── VideoGen engine (P6) ──────────────────────────────
     from modules.videogen import VideoGenEngine
     videogen_engine = VideoGenEngine()
     engine.register("videogen", videogen_engine)
@@ -171,7 +171,7 @@ def main():
     elif args.command == "hardware":
         cmd_hardware(engine, args)
     else:
-        # 默认: 显示帮助
+        # Default: show help
         parser.print_help()
         print(f"\n  {engine.t('app.name')} — {engine.t('app.tagline')}")
         print(f"  {'─' * 40}")

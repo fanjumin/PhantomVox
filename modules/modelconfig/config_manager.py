@@ -194,20 +194,20 @@ class ConfigManager:
             ModelRegistryEntry("mistral-large", "Mistral Large", "mistral", "llm", 1, False, "Mistral top-tier, multilingual"),
             ModelRegistryEntry("deepseek-v4", "DeepSeek V4", "deepseek", "llm", 1, False, "DeepSeek latest flagship"),
             ModelRegistryEntry("deepseek-r1", "DeepSeek R1", "deepseek", "llm", 1, False, "DeepSeek reasoning model"),
-            # ── LLM — Chinese ───────────────────────────────
-            ModelRegistryEntry("qwen2.5-72b", "Qwen2.5 72B", "alibaba", "llm", 1, False, "通义千问旗舰, strong Chinese"),
-            ModelRegistryEntry("qwen2.5-32b", "Qwen2.5 32B", "alibaba", "llm", 1, False, "通义千问均衡版"),
-            ModelRegistryEntry("qwen-vl-plus", "Qwen-VL-Plus", "alibaba", "llm", 1, False, "通义千问视觉版"),
-            ModelRegistryEntry("glm-4-plus", "GLM-4-Plus", "zhipu", "llm", 1, False, "智谱旗舰, 工具调用强"),
-            ModelRegistryEntry("glm-4-air", "GLM-4-Air", "zhipu", "llm", 1, False, "智谱轻量版, 高性价比"),
-            ModelRegistryEntry("glm-4v-plus", "GLM-4V-Plus", "zhipu", "llm", 1, False, "智谱视觉版"),
-            ModelRegistryEntry("ernie-4.5-turbo", "ERNIE 4.5 Turbo", "baidu", "llm", 1, False, "百度文心旗舰加速版"),
-            ModelRegistryEntry("doubao-pro", "Doubao Pro", "bytedance", "llm", 1, False, "字节豆包旗舰"),
-            ModelRegistryEntry("baichuan4", "Baichuan 4", "baichuan", "llm", 1, False, "百川智能旗舰"),
-            ModelRegistryEntry("minimax-01", "MiniMax-01", "minimax", "llm", 1, False, "MiniMax旗舰, 长上下文"),
-            ModelRegistryEntry("yi-lightning", "Yi-Lightning", "01ai", "llm", 1, False, "零一万物快速版"),
-            ModelRegistryEntry("step-2", "Step-2", "stepfun", "llm", 1, False, "阶跃星辰旗舰"),
-            ModelRegistryEntry("spark-4.0", "Spark 4.0", "iflytek", "llm", 1, False, "讯飞星火旗舰"),
+            # ── LLM — Chinese providers ─────────────────────
+            ModelRegistryEntry("qwen2.5-72b", "Qwen2.5 72B", "alibaba", "llm", 1, False, "Qwen flagship, strong Chinese"),
+            ModelRegistryEntry("qwen2.5-32b", "Qwen2.5 32B", "alibaba", "llm", 1, False, "Qwen balanced edition"),
+            ModelRegistryEntry("qwen-vl-plus", "Qwen-VL-Plus", "alibaba", "llm", 1, False, "Qwen vision edition"),
+            ModelRegistryEntry("glm-4-plus", "GLM-4-Plus", "zhipu", "llm", 1, False, "Zhipu flagship, strong tool calling"),
+            ModelRegistryEntry("glm-4-air", "GLM-4-Air", "zhipu", "llm", 1, False, "Zhipu lightweight, high cost-performance"),
+            ModelRegistryEntry("glm-4v-plus", "GLM-4V-Plus", "zhipu", "llm", 1, False, "Zhipu vision edition"),
+            ModelRegistryEntry("ernie-4.5-turbo", "ERNIE 4.5 Turbo", "baidu", "llm", 1, False, "Baidu ERNIE flagship turbo"),
+            ModelRegistryEntry("doubao-pro", "Doubao Pro", "bytedance", "llm", 1, False, "ByteDance Doubao flagship"),
+            ModelRegistryEntry("baichuan4", "Baichuan 4", "baichuan", "llm", 1, False, "Baichuan Intelligence flagship"),
+            ModelRegistryEntry("minimax-01", "MiniMax-01", "minimax", "llm", 1, False, "MiniMax flagship, long context"),
+            ModelRegistryEntry("yi-lightning", "Yi-Lightning", "01ai", "llm", 1, False, "01.AI Yi fast edition"),
+            ModelRegistryEntry("step-2", "Step-2", "stepfun", "llm", 1, False, "StepFun flagship"),
+            ModelRegistryEntry("spark-4.0", "Spark 4.0", "iflytek", "llm", 1, False, "iFlytek Spark flagship"),
 
             # ── Image — International ────────────────────────
             ModelRegistryEntry("dall-e-3", "DALL-E 3", "openai", "image", 1, False, "OpenAI high quality"),
@@ -216,23 +216,23 @@ class ConfigManager:
             ModelRegistryEntry("sdxl-turbo", "SDXL Turbo", "stability", "image", 2, True, "Fast local generation (6GB)"),
             ModelRegistryEntry("flux-1-pro", "FLUX.1 Pro", "blackforest", "image", 1, False, "Black Forest Lab professional"),
             ModelRegistryEntry("flux-1-schnell", "FLUX.1 Schnell", "blackforest", "image", 2, True, "Fast open-source, 4-step"),
-            # ── Image — Chinese ─────────────────────────────
-            ModelRegistryEntry("cogview-4", "CogView-4", "zhipu", "image", 1, False, "智谱图像生成"),
-            ModelRegistryEntry("qwen-vl-max", "Qwen-VL-Max", "alibaba", "image", 1, False, "通义千问图生"),
-            ModelRegistryEntry("step-1v", "Step-1V", "stepfun", "image", 1, False, "阶跃星辰图像"),
-            ModelRegistryEntry("minimax-image", "MiniMax-Image", "minimax", "image", 1, False, "MiniMax图像生成"),
+            # ── Image — Chinese providers ────────────────────
+            ModelRegistryEntry("cogview-4", "CogView-4", "zhipu", "image", 1, False, "Zhipu image generation"),
+            ModelRegistryEntry("qwen-vl-max", "Qwen-VL-Max", "alibaba", "image", 1, False, "Qwen image generation"),
+            ModelRegistryEntry("step-1v", "Step-1V", "stepfun", "image", 1, False, "StepFun image"),
+            ModelRegistryEntry("minimax-image", "MiniMax-Image", "minimax", "image", 1, False, "MiniMax image generation"),
 
             # ── Video — International ────────────────────────
             ModelRegistryEntry("runway-gen4", "Runway Gen-4", "runway", "video", 1, False, "High quality text/video-to-video"),
             ModelRegistryEntry("sora", "Sora", "openai", "video", 1, False, "OpenAI video generation"),
             ModelRegistryEntry("pika-2.0", "Pika 2.0", "pika", "video", 1, False, "Video editing & generation"),
             ModelRegistryEntry("movie-gen", "Movie Gen", "meta", "video", 4, True, "Meta open-source (enterprise GPU)"),
-            # ── Video — Chinese ──────────────────────────────
-            ModelRegistryEntry("kling-2.0", "Kling 2.0", "kuaishou", "video", 1, False, "可灵AI旗舰视频"),
-            ModelRegistryEntry("kling-1.6", "Kling 1.6", "kuaishou", "video", 1, False, "可灵AI经典版"),
-            ModelRegistryEntry("vidu-2.0", "Vidu 2.0", "shengshu", "video", 1, False, "生数科技视频生成"),
-            ModelRegistryEntry("cogvideox", "CogVideoX", "zhipu", "video", 3, True, "智谱开源视频 (16GB VRAM)"),
-            ModelRegistryEntry("jimeng", "Jimeng", "bytedance", "video", 1, False, "字节即梦AI"),
+            # ── Video — Chinese providers ─────────────────────
+            ModelRegistryEntry("kling-2.0", "Kling 2.0", "kuaishou", "video", 1, False, "Kling AI flagship video"),
+            ModelRegistryEntry("kling-1.6", "Kling 1.6", "kuaishou", "video", 1, False, "Kling AI classic"),
+            ModelRegistryEntry("vidu-2.0", "Vidu 2.0", "shengshu", "video", 1, False, "Shengshu video generation"),
+            ModelRegistryEntry("cogvideox", "CogVideoX", "zhipu", "video", 3, True, "Zhipu open-source video (16GB VRAM)"),
+            ModelRegistryEntry("jimeng", "Jimeng", "bytedance", "video", 1, False, "ByteDance Jimeng AI"),
 
             # ── TTS — International ───────────────────────────
             ModelRegistryEntry("edge-tts", "Edge-TTS", "microsoft", "tts", 1, False, "Microsoft online, 200+ voices, 15 languages"),
@@ -241,11 +241,11 @@ class ConfigManager:
             ModelRegistryEntry("elevenlabs-turbo", "ElevenLabs Turbo", "elevenlabs", "tts", 1, False, "Fast, natural, 29 languages"),
             ModelRegistryEntry("elevenlabs-multi", "ElevenLabs Multilingual", "elevenlabs", "tts", 1, False, "Best multilingual quality"),
             ModelRegistryEntry("google-tts", "Google Cloud TTS", "google", "tts", 1, False, "Google WaveNet, 220+ voices"),
-            # ── TTS — Chinese ────────────────────────────────
-            ModelRegistryEntry("cosyvoice-2", "CosyVoice 2", "alibaba", "tts", 2, True, "阿里开源, 情感控制 (6GB VRAM)"),
-            ModelRegistryEntry("fish-speech-1.5", "Fish-Speech 1.5", "fishaudio", "tts", 2, True, "Fish开源, 高自然度"),
-            ModelRegistryEntry("gpt-sovits", "GPT-SoVITS", "local", "tts", 3, True, "语音克隆+TTS (12GB VRAM)"),
-            ModelRegistryEntry("chattts", "ChatTTS", "local", "tts", 1, True, "对话式TTS, CPU可跑"),
+            # ── TTS — Chinese providers ───────────────────────
+            ModelRegistryEntry("cosyvoice-2", "CosyVoice 2", "alibaba", "tts", 2, True, "Alibaba open-source, emotional control (6GB VRAM)"),
+            ModelRegistryEntry("fish-speech-1.5", "Fish-Speech 1.5", "fishaudio", "tts", 2, True, "Fish open-source, high naturalness"),
+            ModelRegistryEntry("gpt-sovits", "GPT-SoVITS", "local", "tts", 3, True, "Voice clone + TTS (12GB VRAM)"),
+            ModelRegistryEntry("chattts", "ChatTTS", "local", "tts", 1, True, "Conversational TTS, CPU-capable"),
 
             # ── Music — International ─────────────────────────
             ModelRegistryEntry("suno-v4", "Suno V4", "suno", "music", 1, False, "Best online music generation"),
@@ -254,8 +254,8 @@ class ConfigManager:
             ModelRegistryEntry("musicgen-medium", "MusicGen Medium", "meta", "music", 2, True, "Requires 6GB VRAM"),
             ModelRegistryEntry("musicgen-large", "MusicGen Large", "meta", "music", 3, True, "Best quality local (12GB)"),
             ModelRegistryEntry("stable-audio-2", "Stable Audio 2.0", "stability", "music", 1, False, "Online audio generation"),
-            # ── Music — Chinese ──────────────────────────────
-            ModelRegistryEntry("seed-music", "Seed-Music", "bytedance", "music", 1, False, "字节音乐生成"),
+            # ── Music — Chinese providers ─────────────────────
+            ModelRegistryEntry("seed-music", "Seed-Music", "bytedance", "music", 1, False, "ByteDance music generation"),
 
             # ── Restore / Enhancement ─────────────────────────
             ModelRegistryEntry("gfpgan", "GFPGAN", "tencent", "restore", 2, True, "Face restoration (6GB VRAM)"),
