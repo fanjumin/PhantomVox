@@ -26,55 +26,107 @@ _FONT_DIRS = [
 
 _SYSTEM_FONTS: dict[str, str] = {}  # family → ttf_path
 
+# Ordered preference for font weights (lower index = more preferred)
+_WEIGHT_PREFERENCE = ["Regular", "Medium", "Book", "Normal", "Roman", "Light"]
+
+
+def _family_priority(family: str, style: str) -> int:
+    """Return lower number for more preferred font variants."""
+    # Prefer Simplified Chinese (SC) over JP/TW/HK/KR for Noto CJK
+    base = 0
+    if "SC" in family:
+        base = -10
+    # Prefer Regular weight
+    for i, w in enumerate(_WEIGHT_PREFERENCE):
+        if w in style:
+            return base + i
+    return base + 99
+
 
 def _discover_fonts() -> dict[str, str]:
-    """Scan system font directories and return {family_name: file_path}."""
+    """Scan system font directories using fc-list for accurate family names."""
+    import subprocess as _subprocess
     fonts: dict[str, str] = {}
-    for d in _FONT_DIRS:
-        if not os.path.isdir(d):
-            continue
-        for ext in ("*.ttf", "*.ttc", "*.otf"):
-            for fp in glob.glob(os.path.join(d, "**", ext), recursive=True):
-                try:
-                    # Use Pillow to read the font and get its family name
-                    pil_font = ImageFont.truetype(fp, 14)
-                    # Try to get name via getattr (Pillow API)
-                    family = Path(fp).stem
-                    # Prefer shorter names for well-known fonts
-                    fp_lower = fp.lower()
-                    if "noto" in fp_lower:
-                        for kw in ["sans", "serif", "mono"]:
-                            if kw in fp_lower:
-                                if "cjk" in fp_lower:
-                                    family = f"Noto {kw.capitalize()} CJK"
-                                else:
-                                    family = f"Noto {kw.capitalize()}"
-                                # Prefer regular weight
-                                if "regular" in fp_lower or "medium" in fp_lower:
-                                    pass  # prefer this
-                                elif f"noto{kw}" in fonts:
-                                    continue  # already have a better match
-                    elif "dejavu" in fp_lower:
-                        for kw in ["sans", "serif", "mono"]:
-                            if kw in fp_lower:
-                                family = f"DejaVu {kw.capitalize()}"
-                    elif "droid" in fp_lower:
-                        family = "Droid Sans"
-                    elif "wenquanyi" in fp_lower or "文泉驿" in fp_lower:  # WenQuanYi font family
-                        family = "WenQuanYi"
-                    elif "arphic" in fp_lower:
-                        family = "AR PL Fonts"
-                    elif "unifont" in fp_lower:
-                        family = "Unifont"
-                    fonts[family] = fp
-                except Exception:
-                    continue
-    # Ensure common families have at least one entry
-    if not any("sans" in k.lower() for k in fonts):
-        # Fallback to any available TTF
-        for fp in glob.glob("/usr/share/fonts/**/*.ttf", recursive=True):
-            fonts["sans-serif"] = fp
-            break
+    try:
+        result = _subprocess.run(
+            ["fc-list", "--format=%{family[0]}|%{file}|%{style}\n"],
+            capture_output=True, text=True, timeout=10,
+        )
+        # Collect all family→(file, style) entries, prefer Regular weight
+        entries: dict[str, list[tuple[str, str]]] = {}
+        for line in result.stdout.strip().split("\n"):
+            line = line.strip()
+            if not line:
+                continue
+            parts = line.split("|")
+            if len(parts) >= 2:
+                family = parts[0]
+                path = parts[1]
+                style = parts[2] if len(parts) >= 3 else "Regular"
+                entries.setdefault(family, []).append((path, style))
+
+        # For each family, pick the best variant
+        for family, variants in entries.items():
+            variants.sort(key=lambda v: _family_priority(family, v[1]))
+            best_path = variants[0][0]
+            # Skip symbol/emoji-only fonts
+            if family in fonts:
+                continue
+            # Deduplicate: if the same file path is already registered under
+            # a different family name, keep whichever has higher priority
+            existing = None
+            for k, v_path in fonts.items():
+                if v_path == best_path:
+                    existing = k
+                    break
+            if existing is not None:
+                # Keep the one with higher priority (lower index in variants)
+                existing_priority = _family_priority(existing, "Regular")
+                new_priority = _family_priority(family, variants[0][1])
+                if new_priority < existing_priority:
+                    fonts[family] = best_path
+                    del fonts[existing]
+            else:
+                fonts[family] = best_path
+    except (FileNotFoundError, _subprocess.TimeoutExpired, Exception):
+        pass
+
+    # Fallback: scan directories directly if fc-list is unavailable
+    if not fonts:
+        for d in _FONT_DIRS:
+            if not os.path.isdir(d):
+                continue
+            for ext in ("*.ttf", "*.ttc", "*.otf"):
+                for fp in glob.glob(os.path.join(d, "**", ext), recursive=True):
+                    try:
+                        pil_font = ImageFont.truetype(fp, 14)
+                        family = Path(fp).stem
+                        fonts[family] = fp
+                    except Exception:
+                        continue
+
+    # Ensure at least one CJK-capable font is available
+    cjk_terms = ["cjk", "arphic", "uming", "ukai", "wenquan", "droid", "wqy"]
+    has_cjk = any(
+        any(t in f.lower() or t in fp.lower() for t in cjk_terms)
+        for f, fp in fonts.items()
+    )
+    if not has_cjk:
+        for d in _FONT_DIRS:
+            if not os.path.isdir(d):
+                continue
+            for fp in glob.glob(os.path.join(d, "**", "*"), recursive=True):
+                fp_lower = fp.lower()
+                if any(t in fp_lower for t in cjk_terms) and fp_lower.endswith(("ttf", "ttc", "otf")):
+                    try:
+                        f = ImageFont.truetype(fp, 14)
+                        fonts[Path(fp).stem] = fp
+                        break
+                    except Exception:
+                        continue
+            if has_cjk:
+                break
+
     return fonts
 
 

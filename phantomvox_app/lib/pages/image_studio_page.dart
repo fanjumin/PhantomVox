@@ -556,7 +556,9 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
       );
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_mountedFlag) _textFocus.requestFocus();
+      if (_mountedFlag) {
+        FocusScope.of(context).requestFocus(_textFocus);
+      }
     });
   }
 
@@ -1060,22 +1062,22 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
         if (_currentTool == 'text' && _textMode) ...[
           const SizedBox(width: 8),
           SizedBox(
-            width: 14,
-            height: 14,
+            width: 20,
+            height: 20,
             child: IconButton(
               padding: EdgeInsets.zero,
-              iconSize: 12,
+              iconSize: 14,
               icon: const Icon(Icons.check, color: Colors.green),
               onPressed: _confirmText,
-              tooltip: 'Confirm text',
+              tooltip: 'Confirm (Enter)',
             ),
           ),
           SizedBox(
-            width: 14,
-            height: 14,
+            width: 20,
+            height: 20,
             child: IconButton(
               padding: EdgeInsets.zero,
-              iconSize: 12,
+              iconSize: 14,
               icon: const Icon(Icons.close, color: Colors.red),
               onPressed: () => _safeSetState(() {
                 _textMode = false;
@@ -1338,15 +1340,6 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
                       shapePreview: _shapePreview,
                       imageSize: Size(iw, ih),
                       zoomScale: _tc.value.getMaxScaleOnAxis(),
-                      textContent: null,  // no overlay preview — TextField handles all text display
-                      textPosition: _textPos,
-                      textColor: _primaryColor,
-                      textSize: _fontSize.toDouble(),
-                      textStrokeWidth: _textStrokeWidth,
-                      textStrokeColor: _textStrokeColor,
-                      textShadowBlur: _textShadowBlur,
-                      textShadowColor: _textShadowColor,
-                      textOpacity: _opacity,
                     ),
                     size: Size(iw, ih),
                   ),
@@ -1360,46 +1353,89 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
                     onPointerUp: _onPointerUp,
                   ),
                 ),
-                // Inline text editing overlay — three separate Positioned siblings
-                // at the Canvas Stack level (not wrapped together) to avoid
-                // HTML renderer platform view z-order issues:
-                // https://docs.flutter.dev/platform-integration/web/renderers#html-renderer
-                if (_textMode && _textPos != null) ...[
-                  // 1) TextField — standalone, no GestureDetector wrapping
-                  Positioned(
-                    left: _textPos!.dx,
-                    top: _textPos!.dy,
-                    width: _textW,
-                    height: _textH,
+                // Text editing overlay + IME-aware TextField
+                // TextField is always rendered (not conditional) so the DOM
+                // element stays alive and Chinese IME connection persists.
+                // Positioned off-screen when not editing.
+                // Visual elements (box, BorderedText, move bar, resize handle)
+                // only show when _textMode is true.
+                // IME TextField — always in the tree
+                Positioned(
+                  left: _textMode ? _textPos!.dx : -9999,
+                  top: _textMode ? _textPos!.dy : -9999,
+                  width: _textMode ? _textW : 0,
+                  height: _textMode ? _textH : 0,
+                  child: IgnorePointer(
+                    ignoring: !_textMode,
                     child: TextField(
                       controller: _textCtrl,
                       focusNode: _textFocus,
-                      autofocus: true,
                       style: TextStyle(
-                        color: _primaryColor.withOpacity(_opacity),
+                        color: Colors.transparent,
                         fontSize: _fontSize.toDouble(),
+                        fontFamily: _fontFamily,
                       ),
-                      decoration: InputDecoration(
-                        filled: true,
-                        fillColor: const Color(0x221A1A2E),
-                        contentPadding: const EdgeInsets.all(4),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(2),
-                          borderSide: const BorderSide(
-                              color: Color(0xFF6C63FF), width: 1),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(2),
-                          borderSide: const BorderSide(
-                              color: Color(0xFF6C63FF), width: 1.5),
-                        ),
+                      cursorColor: _textMode ? const Color(0xFF6C63FF) : Colors.transparent,
+                      cursorWidth: 1.5,
+                      decoration: const InputDecoration(
+                        filled: false,
+                        border: InputBorder.none,
                         isDense: true,
+                        contentPadding: EdgeInsets.fromLTRB(4, 2, 4, 2),
                       ),
                       onChanged: (_) => _safeSetState(() {}),
                       onSubmitted: (_) => _confirmText(),
                     ),
                   ),
-                  // 2) Move bar — above text box, rendered at Flutter canvas level
+                ),
+                // Visual text box + BorderedText preview (only when editing)
+                if (_textMode) ...[
+                  Positioned(
+                    left: _textPos!.dx,
+                    top: _textPos!.dy,
+                    width: _textW,
+                    height: _textH,
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Positioned.fill(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: const Color(0x221A1A2E),
+                              border: Border.all(
+                                color: const Color(0xFF6C63FF), width: 1,
+                              ),
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                        ),
+                        if (_textCtrl.text.isNotEmpty)
+                          Positioned.fill(
+                            child: Padding(
+                              padding: const EdgeInsets.all(2),
+                              child: BorderedText(
+                                text: _textCtrl.text,
+                                fontSize: _fontSize.toDouble(),
+                                fillColor: _primaryColor.withOpacity(_opacity),
+                                strokeColor: _textStrokeColor.withOpacity(_opacity),
+                                strokeWidth: _textStrokeWidth.toDouble(),
+                                fontFamily: _fontFamily,
+                                shadows: _textShadowBlur > 0
+                                    ? [
+                                        Shadow(
+                                          color: _textShadowColor.withOpacity(_opacity * 0.5),
+                                          blurRadius: _textShadowBlur.toDouble(),
+                                          offset: const Offset(2, 2),
+                                        ),
+                                      ]
+                                    : null,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  // Move bar
                   Positioned(
                     left: _textPos!.dx,
                     top: _textPos!.dy - 22,
@@ -1430,8 +1466,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(Icons.drag_indicator,
-                                size: 14, color: Colors.white70),
+                            const Icon(Icons.drag_indicator, size: 14, color: Colors.white70),
                             Text(
                               _textCtrl.text.isEmpty ? 'Drag to move' : _textCtrl.text,
                               style: const TextStyle(fontSize: 9, color: Colors.white70),
@@ -1442,7 +1477,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
                       ),
                     ),
                   ),
-                  // 3) Resize handle — bottom-right corner, at Flutter canvas level
+                  // Resize handle
                   Positioned(
                     left: _textPos!.dx + _textW - 24,
                     top: _textPos!.dy + _textH - 24,
@@ -1460,9 +1495,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
                           ),
                         ),
                         child: const Icon(
-                          Icons.drag_indicator,
-                          size: 16,
-                          color: Colors.white,
+                          Icons.drag_indicator, size: 16, color: Colors.white,
                         ),
                       ),
                     ),
@@ -2134,5 +2167,64 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
     } catch (e) {
       _showSnack('$e', isError: true);
     }
+  }
+}
+
+/// Bordered text widget — official Flutter Stack + two Text approach.
+/// Uses TextStyle.foreground with PaintingStyle.stroke for outline and
+/// TextStyle.color for fill. Both Text widgets share the same layout
+/// constraints so glyphs never misalign.
+class BorderedText extends StatelessWidget {
+  const BorderedText({
+    super.key,
+    required this.text,
+    required this.fontSize,
+    this.fillColor = Colors.white,
+    this.strokeColor = Colors.black,
+    this.strokeWidth = 4.0,
+    this.fontFamily,
+    this.shadows,
+  });
+
+  final String text;
+  final double fontSize;
+  final Color fillColor;
+  final Color strokeColor;
+  final double strokeWidth;
+  final String? fontFamily;
+  final List<Shadow>? shadows;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        // Stroke layer — official foreground + PaintingStyle.stroke
+        Text(
+          text,
+          style: TextStyle(
+            fontSize: fontSize,
+            fontFamily: fontFamily,
+            foreground: Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = strokeWidth
+              ..strokeCap = StrokeCap.round
+              ..strokeJoin = StrokeJoin.round
+              ..color = strokeColor,
+            shadows: shadows,
+          ),
+        ),
+        // Fill layer
+        Text(
+          text,
+          style: TextStyle(
+            fontSize: fontSize,
+            fontFamily: fontFamily,
+            color: fillColor,
+            shadows: shadows,
+          ),
+        ),
+      ],
+    );
   }
 }

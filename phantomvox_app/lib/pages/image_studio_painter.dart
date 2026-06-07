@@ -2,15 +2,6 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 /// Renders tool overlays on the image canvas.
-///
-/// Text preview uses Flutter's official [TextPainter] API:
-///   https://api.flutter.dev/flutter/painting/TextPainter-class.html
-///
-/// Text stroke uses [TextStyle.foreground] with [PaintingStyle.stroke]:
-///   https://api.flutter.dev/flutter/painting/TextStyle/foreground.html
-///
-/// Text shadow uses [TextStyle.shadows]:
-///   https://api.flutter.dev/flutter/painting/TextStyle/shadows.html
 class EditorOverlayPainter extends CustomPainter {
   final List<Offset>? drawPoints;
   final String currentTool;
@@ -21,17 +12,6 @@ class EditorOverlayPainter extends CustomPainter {
   final Size imageSize;
   final double zoomScale;
 
-  // Text preview fields (official TextPainter API)
-  final String? textContent;
-  final Offset? textPosition;
-  final Color textColor;
-  final double textSize;
-  final int textStrokeWidth;
-  final Color textStrokeColor;
-  final int textShadowBlur;
-  final Color textShadowColor;
-  final double textOpacity;
-
   EditorOverlayPainter({
     this.drawPoints,
     this.currentTool = 'select',
@@ -41,16 +21,6 @@ class EditorOverlayPainter extends CustomPainter {
     this.shapePreview,
     required this.imageSize,
     this.zoomScale = 1.0,
-    // Text preview defaults
-    this.textContent,
-    this.textPosition,
-    this.textColor = Colors.white,
-    this.textSize = 24,
-    this.textStrokeWidth = 0,
-    this.textStrokeColor = Colors.black,
-    this.textShadowBlur = 0,
-    this.textShadowColor = Colors.black54,
-    this.textOpacity = 1.0,
   });
 
   @override
@@ -58,7 +28,6 @@ class EditorOverlayPainter extends CustomPainter {
     _drawBrushPreview(canvas);
     _drawCropOverlay(canvas);
     _drawShapePreview(canvas);
-    _drawTextPreview(canvas);
   }
 
   // -----------------------------------------------------------------------
@@ -140,73 +109,6 @@ class EditorOverlayPainter extends CustomPainter {
   }
 
   // -----------------------------------------------------------------------
-  // Text preview — official TextPainter API
-  //   https://api.flutter.dev/flutter/painting/TextPainter-class.html
-  // -----------------------------------------------------------------------
-  void _drawTextPreview(Canvas canvas) {
-    if (textContent == null || textContent!.isEmpty || textPosition == null) {
-      return;
-    }
-    final pos = textPosition!;
-    final adjustedColor = textColor.withOpacity(textOpacity);
-    final adjustedStrokeColor = textStrokeColor.withOpacity(textOpacity);
-
-    // Build text style with shadows
-    // https://api.flutter.dev/flutter/painting/TextStyle/shadows.html
-    final List<Shadow> shadows;
-    if (textShadowBlur > 0) {
-      shadows = [
-        Shadow(
-          color: textShadowColor.withOpacity(textOpacity * 0.5),
-          blurRadius: textShadowBlur.toDouble(),
-          offset: const Offset(2, 2),
-        ),
-      ];
-    } else {
-      shadows = [];
-    }
-
-    final baseStyle = TextStyle(
-      color: adjustedColor,
-      fontSize: textSize,
-      shadows: shadows.isNotEmpty ? shadows : null,
-      decoration: TextDecoration.none,
-    );
-
-    // 1) Draw stroke text (if strokeWidth > 0)
-    //    Uses TextStyle.foreground with PaintingStyle.stroke:
-    //    https://api.flutter.dev/flutter/painting/TextStyle/foreground.html
-    if (textStrokeWidth > 0) {
-      final strokeStyle = baseStyle.copyWith(
-        color: Colors.transparent,
-        foreground: Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = textStrokeWidth.toDouble()
-          ..strokeCap = StrokeCap.round
-          ..strokeJoin = StrokeJoin.round
-          ..color = adjustedStrokeColor,
-      );
-      _paintText(canvas, textContent!, strokeStyle, pos);
-    }
-
-    // 2) Draw fill text on top
-    final fillStyle = baseStyle.copyWith(
-      foreground: Paint()..color = adjustedColor,
-    );
-    _paintText(canvas, textContent!, fillStyle, pos);
-  }
-
-  void _paintText(Canvas canvas, String text, TextStyle style, Offset position) {
-    // https://api.flutter.dev/flutter/painting/TextPainter-class.html
-    final tp = TextPainter(
-      text: TextSpan(text: text, style: style),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    tp.paint(canvas, position);
-    tp.dispose();
-  }
-
-  // -----------------------------------------------------------------------
   // Helpers
   // -----------------------------------------------------------------------
   List<Offset> _handleOffsets(Rect r) {
@@ -226,15 +128,6 @@ class EditorOverlayPainter extends CustomPainter {
         cropRect != old.cropRect ||
         shapePreview != old.shapePreview ||
         imageSize != old.imageSize ||
-        zoomScale != old.zoomScale ||
-        textContent != old.textContent ||
-        textPosition != old.textPosition ||
-        textColor != old.textColor ||
-        textSize != old.textSize ||
-        textStrokeWidth != old.textStrokeWidth ||
-        textStrokeColor != old.textStrokeColor ||
-        textShadowBlur != old.textShadowBlur ||
-        textShadowColor != old.textShadowColor ||
-        textOpacity != old.textOpacity;
+        zoomScale != old.zoomScale;
   }
 }
