@@ -3,7 +3,7 @@
   "nodes": {
     "root": {
       "id": "root",
-      "label": "测试第二次生成",
+      "label": "产品宣传片",
       "node_type": "topic",
       "description": "",
       "status": "pending",
@@ -13,14 +13,15 @@
       "children": [
         "n1",
         "n2",
-        "n3"
+        "n3",
+        "n4"
       ],
       "ai_generated": false,
       "metadata": {}
     },
     "n1": {
       "id": "n1",
-      "label": "开场序幕",
+      "label": "开场-痛点引入",
       "node_type": "scene",
       "description": "",
       "status": "pending",
@@ -37,20 +38,49 @@
     },
     "n1a": {
       "id": "n1a",
-      "label": "寂静的清晨街道",
+      "label": "用户日常困境",
       "node_type": "beat",
       "description": "",
       "status": "pending",
       "progress": 0.0,
       "agent": "",
       "parent_id": "n1",
+      "children": [
+        "n1a1",
+        "n1a2"
+      ],
+      "ai_generated": false,
+      "metadata": {}
+    },
+    "n1a1": {
+      "id": "n1a1",
+      "label": "特写：焦虑表情",
+      "node_type": "sub_beat",
+      "description": "",
+      "status": "pending",
+      "progress": 0.0,
+      "agent": "",
+      "parent_id": "n1a",
+      "children": [],
+      "ai_generated": false,
+      "metadata": {}
+    },
+    "n1a2": {
+      "id": "n1a2",
+      "label": "慢镜头：效率低下",
+      "node_type": "sub_beat",
+      "description": "",
+      "status": "pending",
+      "progress": 0.0,
+      "agent": "",
+      "parent_id": "n1a",
       "children": [],
       "ai_generated": false,
       "metadata": {}
     },
     "n1b": {
       "id": "n1b",
-      "label": "主角的日常习惯",
+      "label": "问题放大-数据冲击",
       "node_type": "beat",
       "description": "",
       "status": "pending",
@@ -63,8 +93,8 @@
     },
     "n1c": {
       "id": "n1c",
-      "label": "意外事件触发 [AI]",
-      "node_type": "missing",
+      "label": "情绪共鸣点",
+      "node_type": "beat",
       "description": "",
       "status": "pending",
       "progress": 0.0,
@@ -76,7 +106,7 @@
     },
     "n2": {
       "id": "n2",
-      "label": "核心冲突展开",
+      "label": "产品亮相-解决方案",
       "node_type": "scene",
       "description": "",
       "status": "pending",
@@ -93,33 +123,91 @@
     },
     "n2a": {
       "id": "n2a",
-      "label": "对手初次交锋",
+      "label": "产品惊艳出场",
       "node_type": "beat",
       "description": "",
       "status": "pending",
       "progress": 0.0,
       "agent": "",
       "parent_id": "n2",
+      "children": [
+        "n2a1",
+        "n2a2"
+      ],
+      "ai_generated": false,
+      "metadata": {}
+    },
+    "n2a1": {
+      "id": "n2a1",
+      "label": "光影特效环绕",
+      "node_type": "sub_beat",
+      "description": "",
+      "status": "pending",
+      "progress": 0.0,
+      "agent": "",
+      "parent_id": "n2a",
+      "children": [],
+      "ai_generated": false,
+      "metadata": {}
+    },
+    "n2a2": {
+      "id": "n2a2",
+      "label": "核心功能展示",
+      "node_type": "sub_beat",
+      "description": "",
+      "status": "pending",
+      "progress": 0.0,
+      "agent": "",
+      "parent_id": "n2a",
       "children": [],
       "ai_generated": false,
       "metadata": {}
     },
     "n2b": {
       "id": "n2b",
-      "label": "关键信息泄露",
+      "label": "使用场景演示",
       "node_type": "beat",
       "description": "",
       "status": "pending",
       "progress": 0.0,
       "agent": "",
       "parent_id": "n2",
+      "children": [
+        "n2b1",
+        "n2b2"
+      ],
+      "ai_generated": false,
+      "metadata": {}
+    },
+    "n2b1": {
+      "id": "n2b1",
+      "label": "对比：困难变简单",
+      "node_type": "sub_beat",
+      "description": "",
+      "status": "pending",
+      "progress": 0.0,
+      "agent": "",
+      "parent_id": "n2b",
+      "children": [],
+      "ai_generated": false,
+      "metadata": {}
+    },
+    "n2b2": {
+      "id": "n2b2",
+      "label": "用户满意微笑",
+      "node_type": "sub_beat",
+      "description": "",
+      "status": "pending",
+      "progress": 0.0,
+      "agent": "",
+      "parent_id": "n2b",
       "children": [],
       "ai_generated": false,
       "metadata": {}
     },
     "n2c": {
       "id": "n2c",
-      "label": "盟友意外现身",
+      "label": "技术参数快闪",
       "node_type": "beat",
       "description": "",
       "status": "pending",
@@ -132,7 +220,7 @@
     },
     "n3": {
       "id": "n3",
-      "label": "高潮与结局",
+      "label": "价值深化-信任建立",
       "node_type": "scene",
       "description": "",
       "status": "pending",
@@ -142,27 +230,43 @@
       "children": [
         "n3a",
         "n3b",
-        "n3c"
+        "n3c",
+        "n3d"
       ],
       "ai_generated": false,
       "metadata": {}
     },
     "n3a": {
       "id": "n3a",
-      "label": "最终对决准备",
+      "label": "用户见证/口碑",
       "node_type": "beat",
       "description": "",
       "status": "pending",
       "progress": 0.0,
       "agent": "",
       "parent_id": "n3",
+      "children": [
+        "n3a1"
+      ],
+      "ai_generated": false,
+      "metadata": {}
+    },
+    "n3a1": {
+      "id": "n3a1",
+      "label": "真实人物采访片段",
+      "node_type": "sub_beat",
+      "description": "",
+      "status": "pending",
+      "progress": 0.0,
+      "agent": "",
+      "parent_id": "n3a",
       "children": [],
       "ai_generated": false,
       "metadata": {}
     },
     "n3b": {
       "id": "n3b",
-      "label": "反转与真相揭露",
+      "label": "品牌故事/使命",
       "node_type": "beat",
       "description": "",
       "status": "pending",
@@ -175,7 +279,20 @@
     },
     "n3c": {
       "id": "n3c",
-      "label": "情感收尾 [AI]",
+      "label": "独特卖点强化",
+      "node_type": "beat",
+      "description": "",
+      "status": "pending",
+      "progress": 0.0,
+      "agent": "",
+      "parent_id": "n3",
+      "children": [],
+      "ai_generated": false,
+      "metadata": {}
+    },
+    "n3d": {
+      "id": "n3d",
+      "label": "缺失的创意元素 [AI]",
       "node_type": "missing",
       "description": "",
       "status": "pending",
@@ -185,13 +302,85 @@
       "children": [],
       "ai_generated": false,
       "metadata": {}
+    },
+    "n4": {
+      "id": "n4",
+      "label": "结尾-行动号召",
+      "node_type": "scene",
+      "description": "",
+      "status": "pending",
+      "progress": 0.0,
+      "agent": "",
+      "parent_id": "root",
+      "children": [
+        "n4a",
+        "n4b",
+        "n4c"
+      ],
+      "ai_generated": false,
+      "metadata": {}
+    },
+    "n4a": {
+      "id": "n4a",
+      "label": "情感高潮-升华",
+      "node_type": "beat",
+      "description": "",
+      "status": "pending",
+      "progress": 0.0,
+      "agent": "",
+      "parent_id": "n4",
+      "children": [],
+      "ai_generated": false,
+      "metadata": {}
+    },
+    "n4b": {
+      "id": "n4b",
+      "label": "品牌Slogan展示",
+      "node_type": "beat",
+      "description": "",
+      "status": "pending",
+      "progress": 0.0,
+      "agent": "",
+      "parent_id": "n4",
+      "children": [
+        "n4b1"
+      ],
+      "ai_generated": false,
+      "metadata": {}
+    },
+    "n4b1": {
+      "id": "n4b1",
+      "label": "大字幕+背景音乐",
+      "node_type": "sub_beat",
+      "description": "",
+      "status": "pending",
+      "progress": 0.0,
+      "agent": "",
+      "parent_id": "n4b",
+      "children": [],
+      "ai_generated": false,
+      "metadata": {}
+    },
+    "n4c": {
+      "id": "n4c",
+      "label": "购买/联系方式",
+      "node_type": "beat",
+      "description": "",
+      "status": "pending",
+      "progress": 0.0,
+      "agent": "",
+      "parent_id": "n4",
+      "children": [],
+      "ai_generated": false,
+      "metadata": {}
     }
   },
   "counts": {
     "topic": 1,
-    "scene": 3,
-    "beat": 7,
-    "missing": 2
+    "scene": 4,
+    "beat": 12,
+    "sub_beat": 8,
+    "missing": 1
   },
   "has_ai_suggestions": false
 }

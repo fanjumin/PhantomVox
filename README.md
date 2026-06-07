@@ -1,4 +1,4 @@
-# PhantomVox AI v0.3.5
+# PhantomVox AI v0.3.6
 
 **Where AI Meets Creativity** — an intelligent audio-video creation suite powered by multi-agent AI.
 
@@ -8,17 +8,16 @@ Built with **Flutter** (desktop UI) + **Python** (AI server), targeting Linux/Wi
 
 | # | Workspace | Status | Description |
 |---|-----------|--------|-------------|
-| 1 | **Flow Graph** | ✅ v0.3.5 | **Tree-based creative flow editor** — Chat-driven generation (自然语言→完整树), collapsible tree, node detail panel, AI Expand, version management (snapshots + restore), Import/Export/Save/Delete, 4-level tree (topic→scene→beat→sub_beat) |
-| 2 | **Image Studio** | ✅ v0.3.5 | **AI-powered image editor** — Crop, Resize, Rotate, Flip, Text (drag-to-box), Brush, Eraser (freehand), Shapes (rect/circle/line/arrow), Filters (blur/emboss/edge/sharpen/sepia), Adjust (brightness/contrast/saturation/blur), Denoise, CLAHE, White Balance, Undo/Redo (30-step), Zoom (scroll wheel) + Pan, OpenCV suite (smart_denoise, sharpen, inpaint, super_resolve, lineart, HDR tone), AI Enhance pipeline, AI Face Restore |
-| 3 | **AI Agent** | ✅ v0.3.0 | Multi-agent control center — Chat, Think, Image Gen, Video Gen, Code Gen panels + 8-agent matrix |
-| 4 | **StoryCut** | ✅ v0.3.0 | Story-driven quick cut — media browser, viewport, dual-layer timeline, AI QuickBar |
-| 5 | **ProEdit** | ✅ v0.3.0 | Precision editing — media pool + toolbox, 6-tab inspector, 5-track timeline, mixer |
-| 6 | **Palette** | ✅ v0.3.0 | Color grading — reference gallery, 15-node graph, 4-tab color tools (Wheels/Warper/Picker/Scopes) |
-| 7 | **AudioForge** | ✅ v0.3.0 | Audio mixing — Fairlight-style meter bar, track list, wave timeline, 5-channel mixer, AI workshop |
-| 8 | **EffectLab** | ✅ v0.3.0 | VFX compositing — dual viewport, Renderer3D1 inspector, frame timeline, node canvas |
-| 9 | **Dashboard** | ✅ v0.3.0 | Launch page — welcome banner, recent projects, hardware report, AI quick cards, quick chat |
+|| 1 | **Flow Graph** | ✅ v0.3.6 | **Tree-based creative flow editor** — Chat-driven generation (自然语言→完整树), collapsible tree, node detail panel, AI Expand, version management (snapshots + restore), Import/Export/Save/Delete, 4-level tree (topic→scene→beat→sub_beat) |
+|| 2 | **AI Agent** | ✅ v0.3.0 | Multi-agent control center — Chat, Think, Image Gen, Video Gen, Code Gen panels + 8-agent matrix |
+|| 3 | **StoryCut** | ✅ v0.3.0 | Story-driven quick cut — media browser, viewport, dual-layer timeline, AI QuickBar |
+|| 4 | **ProEdit** | ✅ v0.3.0 | Precision editing — media pool + toolbox, 6-tab inspector, 5-track timeline, mixer |
+|| 5 | **Palette** | ✅ v0.3.0 | Color grading — reference gallery, 15-node graph, 4-tab color tools (Wheels/Warper/Picker/Scopes) |
+|| 6 | **AudioForge** | ✅ v0.3.0 | Audio mixing — Fairlight-style meter bar, track list, wave timeline, 5-channel mixer, AI workshop |
+|| 7 | **EffectLab** | ✅ v0.3.0 | VFX compositing — dual viewport, Renderer3D1 inspector, frame timeline, node canvas |
+|| 8 | **Dashboard** | ✅ v0.3.0 | Launch page — welcome banner, recent projects, hardware report, AI quick cards, quick chat |
 
-### Flow Graph — Key Features (v0.3.5)
+### Flow Graph — Key Features (v0.3.6)
 
 | Feature | Description |
 |---------|-------------|
@@ -46,11 +45,6 @@ modules/                — Python AI Server
     mindmap.py          — FlowGraph tree CRUD + persistence
     llm_client.py       — Unified LLM client (15 providers)
     agents/director.py  — Director agent with AI Expand
-  image_editor/         — Image Studio engine
-    __init__.py         — ImageEditor with undo/redo (30-step history)
-    tools.py            — Image processing tools (crop, text, brush, shape, filters)
-    cv_tools.py         — OpenCV suite (smart_denoise, sharpen, inpaint, super_resolve, lineart, HDR)
-    ai_providers.py     — AI enhance pipeline + face restore
   audio/                — TTS (Edge-TTS), Music (Suno/MusicGen stubs)
   codegen/              — NL→FFmpeg code generation (43 templates, 7 categories)
   hardware/             — Hardware detection & model tier mapping (T1–T4)
@@ -92,9 +86,8 @@ cd phantomvox_app/build/linux/x64/release/bundle
 | TTS | synthesize, voices, providers | ✅ real (Edge-TTS) |
 | Music | generate, styles, providers | ✅ stub |
 | Agent | chat, think, image, video, code, matrix, workflow | ✅ |
-| **Flow Graph** | **root, node, reorder, save, import, export, delete, generate, expand, versions, versions/save, versions/restore** | **✅ v0.3.5** |
-| **Image Studio** | **load, crop, resize, rotate, flip, adjust, filter, text, blur-region, denoise, draw, shape, remove-bg, undo, redo, smart-sharpen, clahe, auto-wb, upscale, inpaint-erase, lineart, hdr, ai-enhance, ai-restore, fonts, history** | **✅ v0.3.5** |
-| CodeGen | generate, categories, templates | ✅ 43 templates |
+|| **Flow Graph** | **root, node, reorder, save, import, export, delete, generate, expand, versions, versions/save, versions/restore** | **✅ v0.3.6** |\r|| **Auth** | **/register, /login, /refresh, /users/me** | **✅ v0.3.6 (JWT + token rotation)** |
+|| CodeGen | generate, categories, templates | ✅ 43 templates |
 | VideoGen | generate, styles | ✅ stub |
 | Timeline | CRUD, tracks, clips, effects, render | ✅ |
 | Models | list, config, api_keys | ✅ |

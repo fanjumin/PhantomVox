@@ -437,8 +437,7 @@ class PhantomVoxMenuBar extends StatelessWidget implements PreferredSizeWidget {
                 leadingIcon: const Icon(Icons.swap_horiz, size: 14),
                 menuChildren: [
                   _pageItem('Flow Graph', 0, LogicalKeyboardKey.digit7, currentPageIndex, onPageSwitch),
-                  _pageItem('Image Studio', 1, LogicalKeyboardKey.digit8, currentPageIndex, onPageSwitch),
-                  _pageItem('AI Agent', 2, LogicalKeyboardKey.digit6, currentPageIndex, onPageSwitch),
+                  _pageItem('AI Agent', 1, LogicalKeyboardKey.digit6, currentPageIndex, onPageSwitch),
                   _pageItem('StoryCut', 3, LogicalKeyboardKey.digit1, currentPageIndex, onPageSwitch),
                   _pageItem('ProEdit', 4, LogicalKeyboardKey.digit2, currentPageIndex, onPageSwitch),
                   _pageItem('Palette', 5, LogicalKeyboardKey.digit3, currentPageIndex, onPageSwitch),

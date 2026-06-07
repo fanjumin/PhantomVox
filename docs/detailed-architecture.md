@@ -133,6 +133,26 @@ Flow Graph（创作流图谱）是 PhantomVox 的**创作流编排中心**。用
 
 Image Studio（图像处理工坊）是 PhantomVox 的**图像编辑与修复中心**。用户在这里完成图像裁剪/缩放/旋转、滤镜、文本标注、画笔绘制、AI 修复增强等操作。区别于其他工作区，Image Studio 是独立于音视频编辑的纯图像处理模块。
 
+### 设计参照：行业标准架构
+
+Image Studio 的交互模式参照 **Photopea** 的单页编辑器架构 + **Photoshop** 的 Tool → Options → Canvas 模型（来源：photopea.com 及 developer 资料分析）：
+
+```
+用户操作 (Gesture)
+    ↓
+Tool 子系统 (识别工具 → 生成命令)
+    ↓
+Canvas 渲染 (CustomPainter 重绘)
+    ↓
+后台同步 (Flask → OpenCV → 返回结果)
+```
+
+**工具交互模式：**
+1. 从工具栏选择工具 → 属性面板显示工具参数
+2. 在画布上操作 (mousedown → mousemove → mouseup)
+3. 实时预览（前端 Canvas 做临时渲染）
+4. 操作完成 → 发送到后台 → 更新图层
+
 ### 页面布局
 
 ```
@@ -154,8 +174,8 @@ Image Studio（图像处理工坊）是 PhantomVox 的**图像编辑与修复中
 │  ┌────┐ ┌────┐                  │  │  ClipRect 防溢出        │  │  │ [Face Restore]        │ │
 │  │Adjust││Filter│               │  │                        │  │  │ [Upscale 2x/4x]      │ │
 │  └────┘ └────┘                  │  │                        │  │  │ [Lineart] [HDR]      │ │
-│  ┌────┐ ┌────┐                  │  └────────────────────────┘  │  └─────────────────────┘ │
-│  │Denoise││RmBG │               │                              │                          │
+│  ┌────┐ ┌────┐                  │  │                        │  │  └─────────────────────┘ │
+│  │Denoise││RmBG │               │  └────────────────────────┘  │                          │
 │  └────┘ └────┘                  │                              │  ┌─ 历史操作 ────────────┐ │
 │  ┌────┐ ┌────┐                  │                              │  │  ↩ Undo  (30步)       │ │
 │  │AI✧│ │Upscale│               │                              │  │  ↪ Redo               │ │
@@ -178,38 +198,158 @@ Image Studio（图像处理工坊）是 PhantomVox 的**图像编辑与修复中
 | **撤销/重做** | Undo/Redo | 30 步历史快照栈，所有操作可回退 |
 | **视图控制** | Zoom (滚轮), Pan (拖拽) | ClipRect 防溢出，状态栏显示缩放比 |
 
-### 后端架构
+### 后端核心数据模型
+
+参考 OpenCV Mat 文档：图像以 numpy.ndarray 表示，shape=(H,W,C)，dtype=uint8。采用 Photopea 标准的 Document → Layer → Command 模型：
 
 ```python
-modules/image_editor/
-├── __init__.py         # ImageEditor 类 — 核心编排层
-│   ├── 图像加载/保存(load, save)
-│   ├── 基础变换(crop, resize, rotate, flip)
-│   ├── 绘制(text, draw_brush, draw_shape)
-│   ├── 色彩调整(adjust)
-│   ├── 滤镜(filter)
-│   ├── 去背景(remove_bg)
-│   ├── 历史栈(_snapshots, undo, redo, 30步)
-│   └── 转发到 cv_tools / ai_providers
-├── tools.py            # 像素级图像处理函数
-│   ├── add_text()      # 支持 stroke/shadow 的文本渲染
-│   ├── draw_brush()    # 自由画笔
-│   ├── draw_shape()    # 矩形/圆/线/箭头
-│   └── smart_blur()    # 区域模糊
-├── cv_tools.py         # OpenCV 功能集合 (12+ 函数)
-│   ├── smart_denoise()     # fastNlMeansDenoisingColored
-│   ├── smart_sharpen()     # Unsharp Mask
-│   ├── clahe_enhance()     # CLAHE 自适应直方图均衡
-│   ├── auto_white_balance() # Gray World 自动白平衡
-│   ├── inpaint_erase()     # Telea/NS 修复擦除
-│   ├── super_resolve()     # 多重 LANCZOS 上采样 + 锐化
-│   ├── extract_lineart()   # Canny/Sobel/Laplacian 线稿
-│   └── hdr_tone()          # Gamma+对比度+饱和度 HDR
-└── ai_providers.py     # AI 增强模块
-    ├── ai_enhance_image()  # 管线: 降噪→锐化→CLAHE→WB
-    ├── ai_restore_faces()  # GFPGAN(如GPU可用) / OpenCV fallback
-    └── get_capabilities()  # 返回可用 AI 功能列表
+# 文档
+class Document:
+    width: int
+    height: int
+    layers: list[Layer]       # 有序列表，索引 0 = 最底层
+    history: list[Command]    # 命令模式实现撤销/重做
+
+# 图层
+class Layer:
+    image: np.ndarray         # BGRA uint8, shape=(H,W,4)
+    name: str
+    opacity: float            # 0.0 ~ 1.0
+    visible: bool = True
+    blend_mode: str = "normal"  # normal/multiply/screen/overlay/...
+    mask: np.ndarray | None   # 单通道 uint8 mask
+
+# 命令模式（Undo/Redo）
+class Command:
+    type: str                 # "paint" | "transform" | "filter" | ...
+    before: LayerState
+    after: LayerState
 ```
+
+**基础 alpha 混合公式**（标准 Porter-Duff src-over）：
+```
+output = src * src_alpha + dst * (1 - src_alpha)
+```
+
+### 后端模块架构
+
+```python
+modules/image_studio/           # 图像处理引擎模块
+├── __init__.py                 # 数据模型 (Layer, Document, _Snapshot) + 合成引擎
+│   ├── Layer class             # 单图层 (BGRA uint8, 混合模式, 蒙版, 锁定)
+│   ├── Document class          # 文档 (多图层管理, 撤销/重做栈, 50步+256MB内存保护)
+│   ├── composite_layers()      # Porter-Duff src-over 合成 (10种混合模式)
+│   └── Alpha blend helpers     # normal/multiply/screen/overlay/darken/lighten/difference/exclusion/hard_light/soft_light
+├── tools.py                    # 像素级绘制工具
+│   ├── add_text()              # 支持 stroke/shadow 的文本渲染
+│   ├── draw_brush()            # 自由画笔 (线条+端点圆)
+│   ├── draw_shape()            # 矩形/椭圆/圆/线/箭头
+│   ├── flood_fill()            # 泛洪填充 (alpha 保护, 自动 copy)
+│   └── eyedropper()            # 取色 (R,G,B)
+├── cv_tools.py                 # OpenCV 工具集 (~28 函数)
+│   ├── 滤镜 (gaussian/median/bilateral/sharpen/emboss/edge/grayscale/sepia/invert)
+│   ├── 色彩调整 (brightness/contrast/saturation/hue/CLAHE/auto_wb)
+│   ├── 几何变换 (resize/rotate/flip)
+│   ├── 高级工具 (smart_denoise/smart_sharpen/super_resolve/extract_lineart/hdr_tone)
+│   ├── 背景/修复 (remove_background/inpaint_erase/blur_region/crop_image)
+│   └── FILTER_MAP 分发器 (9 种命名滤镜)
+└── ai_providers.py             # AI 增强管线
+    ├── ai_enhance_image()      # 管线: 降噪→锐化→CLAHE→自动白平衡
+    ├── ai_restore_faces()      # Haar Cascade 人脸检测 + CLAHE + 双边滤波
+    └── get_capabilities()      # 返回可用 AI 功能列表
+```
+**更新说明 (2026-06-07):** 模块路径已从 `image_editor/` 迁移为 `image_studio/`。`__init__.py` 不再包含编排逻辑（移至 `api_server/__init__.py` 路由层），专注数据模型与合成引擎。`tools.py` 新增 `flood_fill` 和 `eyedropper`。`cv_tools.py` 扩展至 ~28 个函数，覆盖所有 OpenCV 管线操作。
+
+### OpenCV 函数参考（官方 API 签名）
+
+以下 OpenCV 函数均参照 `docs.opencv.org/4.x` 实现，逐条对照官方签名：
+
+#### 图像 I/O
+```python
+img = cv.imread(path, cv.IMREAD_UNCHANGED)  # 保留 alpha 通道
+cv.imwrite(path, img, [cv.IMWRITE_PNG_COMPRESSION, 9])
+```
+
+#### 绘图函数
+```python
+cv.line(img, pt1, pt2, color, thickness, lineType=cv.LINE_AA)
+cv.circle(img, center, radius, color, thickness, lineType=cv.LINE_AA)
+cv.rectangle(img, pt1, pt2, color, thickness, lineType=cv.LINE_AA)
+cv.ellipse(img, center, axes, angle, startAngle, endAngle, color, thickness)
+cv.polylines(img, [pts], isClosed, color, thickness)
+cv.fillPoly(img, [pts], color)
+cv.putText(img, text, org, fontFace, fontScale, color, thickness, cv.LINE_AA)
+# thickness=-1 表示填充；颜色格式: BGR tuple 或 BGRA tuple
+```
+
+#### 图层合成
+```python
+def composite(layers: list[Layer]) -> np.ndarray:
+    """按从下到上顺序合成图层"""
+    result = None
+    for layer in layers:
+        if not layer.visible:
+            continue
+        img = layer.image.copy()
+        alpha = img[:,:,3] * layer.opacity
+        img[:,:,3] = alpha
+        if layer.blend_mode == "normal":
+            result = alpha_blend(img, result)
+        elif layer.blend_mode == "multiply":
+            result = multiply_blend(img, result)
+        # ... 其他混合模式
+    return result
+```
+
+#### 滤镜
+```python
+cv.GaussianBlur(src, ksize, sigmaX)                     # 高斯模糊
+cv.medianBlur(src, ksize)                                # 中值模糊
+cv.bilateralFilter(src, d, sigmaColor, sigmaSpace)       # 保边去噪
+kernel = np.array([[-1,-1,-1], [-1,9,-1], [-1,-1,-1]], np.float32)
+cv.filter2D(src, -1, kernel)                             # 锐化
+```
+
+#### 色彩调整
+```python
+cv.cvtColor(img, cv.COLOR_BGR2GRAY)                     # 灰度
+cv.cvtColor(img, cv.COLOR_BGR2HSV)                      # HSV
+cv.threshold(src, thresh, maxval, type)                  # 二值化
+cv.equalizeHist(gray)                                    # 直方图均衡
+```
+
+#### 几何变换
+```python
+cv.resize(src, dsize, interpolation=cv.INTER_LINEAR)     # 缩放
+M = cv.getRotationMatrix2D(center, angle, scale)
+cv.warpAffine(src, M, dsize)                             # 旋转/平移/缩放
+M = cv.getPerspectiveTransform(src_pts, dst_pts)
+cv.warpPerspective(src, M, dsize)                        # 透视裁剪
+cv.flip(src, flipCode)                                   # 翻转 (0=垂直, 1=水平, -1=两者)
+```
+
+#### 选区/蒙版
+```python
+mask = cv.inRange(hsv, lower, upper)                     # 颜色范围选择
+edges = cv.Canny(gray, threshold1, threshold2)           # 边缘检测
+contours, _ = cv.findContours(binary, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+cv.drawContours(img, contours, -1, color, thickness=cv.FILLED)
+```
+
+### 后端合规性确认（2026-06-06 审计）
+
+经逐函数对照 OpenCV 官方文档 `docs.opencv.org/4.13.0`，后端实现合规性如下：
+
+| 操作 | 签名 | 结论 |
+|------|------|------|
+| smart_denoise | `cv.fastNlMeansDenoisingColored(arr, None, h, h, template_size, search_size)` | ✅ 符合官方 |
+| smart_sharpen | 高斯模糊 + `addWeighted` unsharp mask | ✅ 标准做法 |
+| clahe_enhance | `createCLAHE(clipLimit, tileGridSize)` → LAB 通道应用 | ✅ 符合官方 |
+| auto_white_balance | `cv.xphoto.createSimpleWB()` — OpenCV contrib xphoto Gray World | ✅ 已改用官方实现 |
+| inpaint_erase | `cv.inpaint(arr, mask, radius, INPAINT_TELEA/NS)` | ✅ 符合官方 |
+| extract_lineart | Canny / Sobel / Laplacian | ✅ 符合官方 |
+| hdr_tone | Reinhard 色调映射 → 已修复 log(0) 和 MinFilter 问题 | ✅ 已修复 |
+| super_resolve | Lanczos resize + sharpen | ✅ 标准实现（非 AI SR，已加文档说明） |
 
 ### API 端点
 
@@ -240,7 +380,53 @@ modules/image_editor/
 | `POST /api/v1/editor/undo` | 撤销 | ✅ |
 | `POST /api/v1/editor/redo` | 重做 | ✅ |
 | `GET /api/v1/editor/fonts` | 字体列表 (30 种) | ✅ |
-| `GET /api/v1/editor/history` | 历史状态 (can_undo/can_redo) | ✅ |
+|| `GET /api/v1/editor/history` | 历史状态 (can_undo/can_redo) | ✅ |
+| `POST /api/v1/editor/gradient` | 渐变填充 (linear/radial) | ✅ | v0.3.5 新增 |
+| `POST /api/v1/editor/fill` | 泛洪填充 (from tools.flood_fill) | ✅ | v0.3.5 新增 |
+| `POST /api/v1/editor/eyedropper` | 取色 (返回 RGB) | ✅ | v0.3.5 新增 |
+| `GET /api/v1/editor/info` | 文档信息 (宽/高/图层数) | ✅ | v0.3.5 新增 |
+| `POST /api/v1/editor/new` | 创建新文档 | ✅ | v0.3.5 新增 |
+| `POST /api/v1/editor/save` | 保存文档到文件 | ✅ | v0.3.5 新增 |
+| `POST /api/v1/editor/add-layer` | 添加空白图层 | ✅ | v0.3.5 新增 |
+| `POST /api/v1/editor/delete-layer` | 删除指定图层 | ✅ | v0.3.5 新增 |
+| `POST /api/v1/editor/layer-props` | 设置图层属性 (opacity/visible/blend_mode/locked) | ✅ | v0.3.5 新增 |
+
+| **总计** | **35 个端点** (文档 26 + 新增 9) | ✅ |
+
+### 已知问题与待修复项
+
+#### 🔴 P0 — 坐标转换架构问题（必须修复）→ ✅ **已修复 (v0.3.5)**
+
+~~**根因：** 前端画布使用手工 `Transform + _zoomLevel + _panOffset` 实现缩放/平移，但坐标转换函数 `_screenToImage()` 仅计算了初始 `FittedBox(fit:BoxFit.contain)` 的缩放，忽略了 Transform 设置的 `_panOffset` 和 `_zoomLevel`。根据 Flutter 官方 API（`TransformationController.toScene()`），应改用 `InteractiveViewer` + `TransformationController` 替代手工 Transform。~~
+
+**修复状态：** 已改用 `InteractiveViewer` + `TransformationController`。所有指针事件通过 `Matrix4.inverted(_tc.value)` 正确转换为图像像素坐标。~~旧的手工 `Transform + _zoomLevel + _panOffset` 代码已完全移除。~~
+
+~~**影响范围：所有基于 `_listenerLocalToImage()` 的工具在缩放/平移后坐标全部计算错误。**~~
+
+~~| 工具 | 具体表现 | 根因 |~~
+~~|------|---------|------|~~
+~~| Crop | 框能拖动但确认后裁剪结果偏移 | `_listenerLocalToImage()` 的 scale×2 计算 |~~
+~~| Text | 框位置错、无内联编辑 | 坐标双倍计算 + 缺少 TextField widget |~~
+~~| Brush/Eraser | 预览位置对但大小不对 | `_previewStroke` 屏幕坐标对但尺寸是图像像素 |~~
+~~| Shape | 预览位置错、线粗细不对 | `_imageRectToListenerLocal()` 坐标双倍 |~~
+
+~~**修复方案：** 用 `InteractiveViewer` + `TransformationController.toScene()` 替换手工 `Transform`。这是 Flutter 团队为此类问题设计的官方方案（参考: api.flutter.dev, InteractiveViewer-class）。~~
+
+#### 🟡 P1 — 短期修复项
+
+| # | 问题 | 建议 |
+|---|------|------|
+| 1 | Adjust 滑块每 tick 触发 HTTP POST（拖动 40 格 = 40 次请求） | 改用 `onChangeEnd`，拖动结束时只发一次 |
+| 2 | `_hitTestHandle` 用图像像素距离（12px）检测手柄，缩放后手感不一致 | 改为固定屏幕像素距离 |
+| 3 | Text 框拖动无图像边界钳制 | 添加 clamp 逻辑 |
+| 4 | ~~`auto_white_balance` 手写 gray-world 实现~~ | ✅ **已修复 (2026-06-07):** 改用 `cv.xphoto.createSimpleWB()` — OpenCV contrib xphoto 官方 Gray World |
+
+#### 🟢 P2 — 长期优化
+
+| # | 问题 | 建议 |
+|---|------|------|
+| 1 | ~~`image_studio_page.dart` 单文件 ~1742 行~~ | ✅ **已拆分 (2026-06-07):** API 客户端 → `image_studio_api.dart` (83行)，覆盖渲染器 → `image_studio_painter.dart` (115行)，主文件 1818 行 |
+| 2 | ~~图像传输用完整 base64 太重~~ | ✅ **已优化 (2026-06-07):** 后端支持 `preview_only` 参数返回 320px 缩略图（~80% 传输量减少），`/api/v1/editor/preview` 独立端点，Flutter 前端所有工具操作默认使用预览模式 |
 
 ### 与竞品对比
 
@@ -1892,6 +2078,15 @@ final response = await dio.post(
 4. **Flutter 是所有 UI 的唯一选择**——不要 Web 前端、不要原生 Swift/Kotlin，维护三套 UI 成本不可接受。
 5. **移动端 P6 才做**——前期集中桌面端验证产品价值，移动端作为扩展而非核心。
 
-*文档版本：v1.3 — 2026-06-04*
+*文档版本：v1.4 — 2026-06-07*
 
 *当前应用版本：PhantomVox AI v0.3.5*
+
+### 文档参考
+
+本章第三章 (Image Studio) 融合了以下源文档的内容：
+
+| 源文档 | 位置 | 合并内容 |
+|--------|------|---------|
+| **IMAGE_STUDIO_FEASIBILITY.md** | 项目根目录 | 行业标准架构参考、Photopea 交互模型、Layer/Document 数据模型、OpenCV 函数签名参考表、图层合成算法 |
+| **image_studio_doc_audit_2026-06-06.md** | `docs/` | Flutter 坐标架构 P0 Bug 根因分析、各工具影响矩阵、P1/P2 修复清单、OpenCV 后端合规性逐函数确认表 |

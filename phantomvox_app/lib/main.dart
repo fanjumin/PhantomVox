@@ -3,13 +3,13 @@ import 'widgets/tr.dart' as i18n_widget;
 import 'services/i18n_service.dart';
 import 'pages/home_page.dart';
 import 'pages/flow_graph_page.dart';
-import 'pages/image_editor_page.dart';
 import 'pages/agent_page.dart';
 import 'pages/storycut_page.dart';
 import 'pages/pro_edit_page.dart';
 import 'pages/palette_page.dart';
 import 'pages/audioforge_page.dart';
 import 'pages/effectlab_page.dart';
+import 'pages/image_studio_page.dart';
 import 'pages/settings_page.dart';
 import 'widgets/menu_bar.dart';
 
@@ -52,7 +52,7 @@ class _MainShellState extends State<MainShell> {
 
   final _pages = const [
     FlowGraphPage(),
-    ImageEditorPage(),
+    ImageStudioPage(),
     AgentPage(),
     StoryCutPage(),
     ProEditPage(),

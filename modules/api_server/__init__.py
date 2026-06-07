@@ -343,444 +343,7 @@ def create_app(engine=None):
         agent = app.engine.get("agent")
         return jsonify({"workflows": agent.list_workflows()})
 
-    # ── Image Editor ─────────────────────────────────────
-
-    def _get_img_editor():
-        """Get or create ImageEditorEngine instance."""
-        if not hasattr(app, '_img_editor'):
-            from modules.image_editor import ImageEditorEngine
-            hw = app.engine.get("hardware") if hasattr(app.engine, 'get') else None
-            app._img_editor = ImageEditorEngine(hardware=hw)
-        return app._img_editor
-
-    @app.route("/api/v1/editor/capabilities")
-    def editor_capabilities():
-        editor = _get_img_editor()
-        return jsonify(editor.get_capabilities())
-
-    @app.route("/api/v1/editor/load", methods=["POST"])
-    def editor_load():
-        """Load an image from file path. Returns base64 preview + info."""
-        data = request.get_json(silent=True) or {}
-        path = data.get("path", "")
-        if not path or not os.path.exists(path):
-            return jsonify({"error": "File not found"}), 404
-        editor = _get_img_editor()
-        try:
-            info = editor.load(path)
-            b64 = editor.to_base64()
-            return jsonify({"status": "ok", "info": info, "base64": b64, "history": editor.get_history_state()})
-        except Exception as e:
-            return jsonify({"error": str(e)}), 400
-
-    @app.route("/api/v1/editor/crop", methods=["POST"])
-    def editor_crop():
-        data = request.get_json(silent=True) or {}
-        editor = _get_img_editor()
-        try:
-            info = editor.crop(data["x"], data["y"], data["w"], data["h"])
-            return jsonify({"status": "ok", "info": info, "base64": editor.to_base64(), "history": editor.get_history_state()})
-        except Exception as e:
-            return jsonify({"error": str(e)}), 400
-
-    @app.route("/api/v1/editor/resize", methods=["POST"])
-    def editor_resize():
-        data = request.get_json(silent=True) or {}
-        editor = _get_img_editor()
-        try:
-            info = editor.resize(data["width"], data["height"],
-                                 data.get("keep_aspect", False))
-            return jsonify({"status": "ok", "info": info, "base64": editor.to_base64(), "history": editor.get_history_state()})
-        except Exception as e:
-            return jsonify({"error": str(e)}), 400
-
-    @app.route("/api/v1/editor/rotate", methods=["POST"])
-    def editor_rotate():
-        data = request.get_json(silent=True) or {}
-        editor = _get_img_editor()
-        try:
-            info = editor.rotate(data.get("angle", 90), data.get("expand", True))
-            return jsonify({"status": "ok", "info": info, "base64": editor.to_base64(), "history": editor.get_history_state()})
-        except Exception as e:
-            return jsonify({"error": str(e)}), 400
-
-    @app.route("/api/v1/editor/flip", methods=["POST"])
-    def editor_flip():
-        data = request.get_json(silent=True) or {}
-        editor = _get_img_editor()
-        try:
-            info = editor.flip(data.get("direction", "horizontal"))
-            return jsonify({"status": "ok", "info": info, "base64": editor.to_base64(), "history": editor.get_history_state()})
-        except Exception as e:
-            return jsonify({"error": str(e)}), 400
-
-    @app.route("/api/v1/editor/adjust", methods=["POST"])
-    def editor_adjust():
-        """Adjust brightness/contrast/saturation/sharpness. All are optional factors (0-2)."""
-        data = request.get_json(silent=True) or {}
-        editor = _get_img_editor()
-        try:
-            if "brightness" in data:
-                editor.adjust_brightness(data["brightness"])
-            if "contrast" in data:
-                editor.adjust_contrast(data["contrast"])
-            if "saturation" in data:
-                editor.adjust_saturation(data["saturation"])
-            if "sharpness" in data:
-                editor.adjust_sharpness(data["sharpness"])
-            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64(), "history": editor.get_history_state()})
-        except Exception as e:
-            return jsonify({"error": str(e)}), 400
-
-    @app.route("/api/v1/editor/filter", methods=["POST"])
-    def editor_filter():
-        """Apply preset filter: grayscale, sepia, blur, invert."""
-        data = request.get_json(silent=True) or {}
-        editor = _get_img_editor()
-        try:
-            editor.apply_filter(data.get("filter", "grayscale"))
-            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64(), "history": editor.get_history_state()})
-        except Exception as e:
-            return jsonify({"error": str(e)}), 400
-
-    @app.route("/api/v1/editor/text", methods=["POST"])
-    def editor_text():
-        """Add text overlay. Supports font_size, color, opacity, stroke, shadow."""
-        data = request.get_json(silent=True) or {}
-        editor = _get_img_editor()
-        try:
-            kwargs = dict(
-                font_size=data.get("font_size", 24),
-                color=tuple(data.get("color", [255, 255, 255])),
-                opacity=data.get("opacity", 1.0),
-                stroke_width=data.get("stroke_width", 0),
-                shadow_blur=data.get("shadow_blur", 0),
-            )
-            if data.get("font_path"):
-                kwargs["font_path"] = data["font_path"]
-            if data.get("stroke_color"):
-                kwargs["stroke_color"] = tuple(data["stroke_color"])
-            if data.get("shadow_color"):
-                kwargs["shadow_color"] = tuple(data["shadow_color"])
-            if data.get("shadow_offset"):
-                kwargs["shadow_offset"] = tuple(data["shadow_offset"])
-            editor.add_text(
-                data["text"],
-                x=data.get("x", 10),
-                y=data.get("y", 10),
-                **kwargs,
-            )
-            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64(), "history": editor.get_history_state()})
-        except Exception as e:
-            return jsonify({"error": str(e)}), 400
-
-    @app.route("/api/v1/editor/undo", methods=["POST"])
-    def editor_undo():
-        """Undo last editor operation."""
-        editor = _get_img_editor()
-        try:
-            editor.undo()
-            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64(),
-                            "history": editor.get_history_state()})
-        except ValueError as e:
-            return jsonify({"error": str(e)}), 400
-
-    @app.route("/api/v1/editor/redo", methods=["POST"])
-    def editor_redo():
-        """Redo last undone operation."""
-        editor = _get_img_editor()
-        try:
-            editor.redo()
-            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64(),
-                            "history": editor.get_history_state()})
-        except ValueError as e:
-            return jsonify({"error": str(e)}), 400
-
-    @app.route("/api/v1/editor/history", methods=["GET"])
-    def editor_history():
-        """Get undo/redo state."""
-        editor = _get_img_editor()
-        return jsonify(editor.get_history_state())
-
-    @app.route("/api/v1/editor/fonts", methods=["GET"])
-    def editor_fonts():
-        """List available fonts (Chinese + English) for text tool."""
-        import subprocess
-        try:
-            result = subprocess.run(
-                ["fc-list", ":lang=zh", "-f", "%{file}|%{family[0]}\n"],
-                capture_output=True, text=True, timeout=3
-            )
-            fonts = []
-            seen = set()
-            for line in result.stdout.strip().split("\n"):
-                if not line.strip():
-                    continue
-                parts = line.split("|", 1)
-                path = parts[0]
-                name = parts[1] if len(parts) > 1 else path.split("/")[-1]
-                if name not in seen and path.endswith((".ttf", ".ttc", ".otf")):
-                    seen.add(name)
-                    fonts.append({"name": name, "path": path})
-            # Add common English fonts
-            for extra_path in [
-                "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-                "/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf",
-                "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
-            ]:
-                if os.path.exists(extra_path):
-                    fname = os.path.basename(extra_path).replace(".ttf", "")
-                    if fname not in seen:
-                        fonts.append({"name": fname, "path": extra_path})
-                        seen.add(fname)
-            return jsonify(fonts[:30])
-        except Exception as e:
-            return jsonify({"error": str(e), "fonts": []}), 200
-
-    @app.route("/api/v1/editor/watermark", methods=["POST"])
-    def editor_watermark():
-        """Add image watermark. watermark_path required. Optional: position, opacity, scale."""
-        data = request.get_json(silent=True) or {}
-        editor = _get_img_editor()
-        wm_path = data.get("watermark_path", "")
-        if not wm_path or not os.path.exists(wm_path):
-            return jsonify({"error": "Watermark file not found"}), 404
-        try:
-            with open(wm_path, "rb") as f:
-                editor.add_watermark(
-                    f.read(),
-                    position=data.get("position", "bottom_right"),
-                    opacity=data.get("opacity", 0.5),
-                    scale=data.get("scale", 0.2),
-                )
-            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64()})
-        except Exception as e:
-            return jsonify({"error": str(e)}), 400
-
-    @app.route("/api/v1/editor/blur-region", methods=["POST"])
-    def editor_blur_region():
-        """Blur a rectangular region. Required: x, y, w, h. Optional: radius."""
-        data = request.get_json(silent=True) or {}
-        editor = _get_img_editor()
-        try:
-            editor.blur_region(data["x"], data["y"], data["w"], data["h"],
-                               data.get("radius", 20))
-            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64(), "history": editor.get_history_state()})
-        except Exception as e:
-            return jsonify({"error": str(e)}), 400
-
-    @app.route("/api/v1/editor/smart-sharpen", methods=["POST"])
-    def editor_smart_sharpen():
-        """Unsharp mask sharpening. amount: 0-3 (default 1.0)."""
-        data = request.get_json(silent=True) or {}
-        editor = _get_img_editor()
-        try:
-            editor.smart_sharpen(
-                amount=data.get("amount", 1.0),
-                radius=data.get("radius", 3),
-            )
-            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64(),
-                            "history": editor.get_history_state()})
-        except Exception as e:
-            return jsonify({"error": str(e)}), 400
-
-    @app.route("/api/v1/editor/clahe", methods=["POST"])
-    def editor_clahe():
-        """CLAHE contrast enhancement. clip_limit: 1-5 (default 2.0)."""
-        data = request.get_json(silent=True) or {}
-        editor = _get_img_editor()
-        try:
-            editor.clahe_enhance(
-                clip_limit=data.get("clip_limit", 2.0),
-            )
-            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64(),
-                            "history": editor.get_history_state()})
-        except Exception as e:
-            return jsonify({"error": str(e)}), 400
-
-    @app.route("/api/v1/editor/auto-wb", methods=["POST"])
-    def editor_auto_wb():
-        """Auto white balance. strength: 0-2 (default 1.0)."""
-        data = request.get_json(silent=True) or {}
-        editor = _get_img_editor()
-        try:
-            editor.auto_white_balance(strength=data.get("strength", 1.0))
-            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64(),
-                            "history": editor.get_history_state()})
-        except Exception as e:
-            return jsonify({"error": str(e)}), 400
-
-    @app.route("/api/v1/editor/upscale", methods=["POST"])
-    def editor_upscale():
-        """Super resolution upscale. scale: 2 or 4."""
-        data = request.get_json(silent=True) or {}
-        editor = _get_img_editor()
-        try:
-            editor.super_resolve(
-                scale=data.get("scale", 2),
-                sharpen_amount=data.get("sharpen", 0.5),
-            )
-            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64(),
-                            "history": editor.get_history_state()})
-        except Exception as e:
-            return jsonify({"error": str(e)}), 400
-
-    @app.route("/api/v1/editor/inpaint-erase", methods=["POST"])
-    def editor_inpaint_erase():
-        """AI erase / inpainting from brush points.
-        Required: points [[x,y],...]. Optional: brush_size, method.
-        """
-        data = request.get_json(silent=True) or {}
-        editor = _get_img_editor()
-        points = data.get("points", [])
-        if not points or len(points) < 1:
-            return jsonify({"error": "Need at least 1 point"}), 400
-        try:
-            editor.inpaint_from_points(
-                points,
-                brush_size=data.get("brush_size", 20),
-                method=data.get("method", "telea"),
-            )
-            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64(),
-                            "history": editor.get_history_state()})
-        except Exception as e:
-            return jsonify({"error": str(e)}), 400
-
-    @app.route("/api/v1/editor/lineart", methods=["POST"])
-    def editor_lineart():
-        """Extract line art. method: canny, sobel, laplacian."""
-        data = request.get_json(silent=True) or {}
-        editor = _get_img_editor()
-        try:
-            editor.extract_lineart(
-                method=data.get("method", "canny"),
-                invert=data.get("invert", True),
-            )
-            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64(),
-                            "history": editor.get_history_state()})
-        except Exception as e:
-            return jsonify({"error": str(e)}), 400
-
-    @app.route("/api/v1/editor/hdr", methods=["POST"])
-    def editor_hdr():
-        """HDR tone mapping effect."""
-        data = request.get_json(silent=True) or {}
-        editor = _get_img_editor()
-        try:
-            editor.hdr_tone(
-                gamma=data.get("gamma", 1.0),
-            )
-            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64(),
-                            "history": editor.get_history_state()})
-        except Exception as e:
-            return jsonify({"error": str(e)}), 400
-
-    @app.route("/api/v1/editor/ai-enhance", methods=["POST"])
-    def editor_ai_enhance():
-        """AI-powered image enhancement pipeline.
-        mode: general, portrait, old_photo. strength: 0-2.
-        """
-        data = request.get_json(silent=True) or {}
-        editor = _get_img_editor()
-        try:
-            editor.ai_enhance_image(
-                mode=data.get("mode", "general"),
-                strength=data.get("strength", 1.0),
-            )
-            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64(),
-                            "history": editor.get_history_state()})
-        except Exception as e:
-            return jsonify({"error": str(e)}), 400
-
-    @app.route("/api/v1/editor/ai-restore", methods=["POST"])
-    def editor_ai_restore():
-        """AI face restoration."""
-        data = request.get_json(silent=True) or {}
-        editor = _get_img_editor()
-        try:
-            editor.ai_restore_faces(strength=data.get("strength", 1.0))
-            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64(),
-                            "history": editor.get_history_state()})
-        except Exception as e:
-            return jsonify({"error": str(e)}), 400
-
-    @app.route("/api/v1/editor/draw", methods=["POST"])
-    def editor_draw():
-        """Draw freehand brush stroke. Required: points [[x,y],...]. Optional: color, size, opacity."""
-        data = request.get_json(silent=True) or {}
-        editor = _get_img_editor()
-        points = data.get("points", [])
-        if not points or len(points) < 1:
-            return jsonify({"error": "Need at least 1 point"}), 400
-        try:
-            pts = [(int(p[0]), int(p[1])) for p in points]
-            editor.draw_brush(
-                pts,
-                color=tuple(data.get("color", [255, 255, 255])),
-                size=data.get("size", 5),
-                opacity=data.get("opacity", 1.0),
-            )
-            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64(),
-                            "history": editor.get_history_state()})
-        except Exception as e:
-            return jsonify({"error": str(e)}), 400
-
-    @app.route("/api/v1/editor/shape", methods=["POST"])
-    def editor_shape():
-        """Draw a shape. Required: type, x, y, w, h. Optional: fill_color, stroke_color, stroke_width."""
-        data = request.get_json(silent=True) or {}
-        editor = _get_img_editor()
-        try:
-            kwargs = {}
-            if data.get("fill_color"):
-                kwargs["fill_color"] = tuple(data["fill_color"])
-            if data.get("stroke_color"):
-                kwargs["stroke_color"] = tuple(data["stroke_color"])
-            if data.get("stroke_width"):
-                kwargs["stroke_width"] = data["stroke_width"]
-            editor.draw_shape(
-                data["type"], data["x"], data["y"], data["w"], data["h"],
-                **kwargs,
-            )
-            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64(),
-                            "history": editor.get_history_state()})
-        except Exception as e:
-            return jsonify({"error": str(e)}), 400
-
-    @app.route("/api/v1/editor/denoise", methods=["POST"])
-    def editor_denoise():
-        """Denoise image. Optional: strength (1-5, default 3)."""
-        data = request.get_json(silent=True) or {}
-        editor = _get_img_editor()
-        try:
-            editor.denoise(data.get("strength", 3))
-            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64(), "history": editor.get_history_state()})
-        except Exception as e:
-            return jsonify({"error": str(e)}), 400
-
-    @app.route("/api/v1/editor/remove-bg", methods=["POST"])
-    def editor_remove_bg():
-        """Remove image background (local rembg)."""
-        editor = _get_img_editor()
-        try:
-            editor.remove_background()
-            return jsonify({"status": "ok", "info": editor.info(), "base64": editor.to_base64()})
-        except Exception as e:
-            return jsonify({"error": str(e)}), 400
-
-    @app.route("/api/v1/editor/export", methods=["POST"])
-    def editor_export():
-        """Export current image to a file path."""
-        data = request.get_json(silent=True) or {}
-        path = data.get("path", "")
-        if not path:
-            return jsonify({"error": "No path provided"}), 400
-        editor = _get_img_editor()
-        try:
-            abs_path = editor.export(path, fmt=data.get("fmt"), quality=data.get("quality", 95))
-            return jsonify({"status": "ok", "path": abs_path})
-        except Exception as e:
-            return jsonify({"error": str(e)}), 400
+    # ── Flow Graph (Creative Flow Tree) ────────────────
 
     # ── Flow Graph (Creative Flow Tree) ────────────────
 
@@ -1371,10 +934,677 @@ Rules:
             "command_str": " ".join(cmd) if cmd else "",
         })
 
+    # ── Image Studio (Port 8899 unifié, remplace l'ancien FastAPI 8898) ──
+    MAX_IMAGE_DIM = 8192
+    MAX_IMAGE_PIXELS = 50_000_000
+    MAX_BASE64_SIZE = 100_000_000
+
+    import modules.image_studio as img_studio
+    from modules.image_studio import Document, Layer, _encode_bgra, _pil_to_bgra, _bgra_to_pil
+    from modules.image_studio.cv_tools import (
+        apply_filter as _img_filter,
+        adjust_brightness, adjust_contrast, adjust_saturation, adjust_hue,
+        apply_clahe, auto_white_balance,
+        crop_image as _crop, resize_image as _resize,
+        rotate_image as _rotate, flip_image as _flip,
+        smart_denoise, smart_sharpen, super_resolve, extract_lineart,
+        hdr_tone, remove_background, inpaint_erase, blur_region,
+    )
+    from modules.image_studio.tools import draw_brush, draw_shape, add_text, fill_region
+    from modules.image_studio.ai_providers import ai_enhance_image, ai_restore_faces
+
+    import threading, math
+
+    _editor_doc: Document | None = None
+    _editor_lock = threading.Lock()
+
+    def _req_doc():
+        with _editor_lock:
+            global _editor_doc
+            if _editor_doc is None:
+                raise ValueError("No document open. Call /api/v1/editor/load first.")
+            return _editor_doc
+
+    def _req_doc_snapshot():
+        """Get doc and save snapshot atomically under lock (TOCTOU prevention)."""
+        with _editor_lock:
+            global _editor_doc
+            if _editor_doc is None:
+                raise ValueError("No document open. Call /api/v1/editor/load first.")
+            doc = _editor_doc
+            doc._save_snapshot()
+            return doc
+
+    def _with_doc(fn):
+        """Thread-safe doc operation: lock → check → snapshot → unlock → execute → relock → verify."""
+        with _editor_lock:
+            global _editor_doc
+            if _editor_doc is None:
+                raise ValueError("No document open.")
+            doc = _editor_doc
+            doc._save_snapshot()  # Snapshot taken atomically with doc check
+        # Execute outside lock to avoid holding it during heavy CV operations
+        result = fn(doc)
+        with _editor_lock:
+            # Verify doc wasn't replaced while we were working
+            if _editor_doc is not doc:
+                raise RuntimeError("Document was replaced during operation")
+        return result
+
+    def _validate_factor(val, default=1.0, lo=0.0, hi=100.0):
+        """Validate numeric factor: finite, not NaN/Inf, within range."""
+        import math
+        try:
+            v = float(val)
+        except (TypeError, ValueError):
+            return default
+        if not math.isfinite(v):
+            return default
+        return max(lo, min(hi, v))
+
+    def _validate_color(c):
+        """Validate an RGB color list/tuple is 3 ints 0-255."""
+        if not isinstance(c, (list, tuple)) or len(c) != 3:
+            return (255, 255, 255)
+        return (max(0, min(255, int(c[0]))),
+                max(0, min(255, int(c[1]))),
+                max(0, min(255, int(c[2]))))
+
+    def _doc_response(doc: Document, extra: dict | None = None,
+                      thumbnail_max: int | None = None) -> dict:
+        if thumbnail_max and thumbnail_max > 0:
+            b64 = doc.to_thumbnail_base64(max_size=thumbnail_max)
+        else:
+            b64 = doc.to_base64()
+        r = {
+            "status": "ok",
+            "info": doc.info(),
+            "base64": b64,
+            "history": doc.get_history_state(),
+        }
+        if thumbnail_max:
+            r["thumbnail"] = True
+            r["full_size"] = {"width": doc.width, "height": doc.height}
+        if extra:
+            r.update(extra)
+        return r
+
+    def _op_current_layer(data: dict, fn):
+        with _editor_lock:
+            global _editor_doc
+            doc = _editor_doc
+            if doc is None:
+                raise ValueError("No document open.")
+            doc._save_snapshot()
+            layer_idx = data.get("layer", -1)
+            preview_only = data.pop("preview_only", False)
+            op_kw = {k: v for k, v in data.items() if k != "layer"}
+            if "color" in op_kw:
+                op_kw["color"] = _validate_color(op_kw["color"])
+            if "fill_color" in op_kw:
+                op_kw["fill_color"] = _validate_color(op_kw["fill_color"])
+            if "stroke_color" in op_kw:
+                op_kw["stroke_color"] = _validate_color(op_kw["stroke_color"])
+            if 0 <= layer_idx < len(doc.layers):
+                doc.layers[layer_idx].image = fn(doc.layers[layer_idx].image, **op_kw)
+            else:
+                for layer in doc.layers:
+                    layer.image = fn(layer.image, **op_kw)
+            thumb_max = 320 if preview_only else None
+            return _doc_response(doc, thumbnail_max=thumb_max)
+
+    @app.route("/api/v1/editor/load", methods=["POST"])
+    def editor_load():
+        data = request.get_json(silent=True) or {}
+        b64_data = data.get("image", "")
+        if not b64_data:
+            return jsonify({"error": "Provide 'image' (base64)"}), 400
+        if len(b64_data) > MAX_BASE64_SIZE:
+            return jsonify({"error": f"Image data too large ({len(b64_data)} bytes)"}), 400
+        import base64, io
+        from PIL import Image
+        raw = base64.b64decode(b64_data)
+        # Check dimensions BEFORE full decode (Image.open is lazy)
+        try:
+            pil_img = Image.open(io.BytesIO(raw))
+            img_w, img_h = pil_img.size
+        except Exception as e:
+            return jsonify({"error": f"Cannot decode image: {e}"}), 400
+        if img_w > MAX_IMAGE_DIM or img_h > MAX_IMAGE_DIM:
+            return jsonify({"error": f"Image dimensions {img_w}x{img_h} exceed limit"}), 400
+        if img_w * img_h > MAX_IMAGE_PIXELS:
+            return jsonify({"error": f"Image too large: {img_w}x{img_h}"}), 400
+        # Now fully decode
+        pil_img = pil_img.convert("RGBA")
+        arr = _pil_to_bgra(pil_img)
+        with _editor_lock:
+            global _editor_doc
+            _editor_doc = Document(bg_image=arr)
+            return jsonify(_doc_response(_editor_doc))
+
+    @app.route("/api/v1/editor/crop", methods=["POST"])
+    def editor_crop():
+        data = request.get_json(silent=True) or {}
+        try:
+            w = int(data.get("w", 0))
+            h = int(data.get("h", 0))
+            if w <= 0 or h <= 0:
+                return jsonify({"error": "Invalid crop dimensions"}), 400
+            doc = _req_doc_snapshot()
+            x, y = int(data["x"]), int(data["y"])
+            for layer in doc.layers:
+                layer.image = _crop(layer.image, x, y, w, h)
+            if doc.layers:
+                doc.width = doc.layers[0].width
+                doc.height = doc.layers[0].height
+            return jsonify(_doc_response(doc))
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/resize", methods=["POST"])
+    def editor_resize():
+        data = request.get_json(silent=True) or {}
+        try:
+            doc = _req_doc_snapshot()
+            w = max(1, int(data.get("width", doc.width)))
+            h = max(1, int(data.get("height", doc.height)))
+            keep = data.get("keep_aspect", False)
+            for layer in doc.layers:
+                layer.image = _resize(layer.image, w, h, keep)
+            doc.width = doc.layers[0].width if doc.layers else w
+            doc.height = doc.layers[0].height if doc.layers else h
+            return jsonify(_doc_response(doc))
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/rotate", methods=["POST"])
+    def editor_rotate():
+        data = request.get_json(silent=True) or {}
+        try:
+            doc = _req_doc_snapshot()
+            angle = data.get("angle", 90)
+            expand = data.get("expand", True)
+            for layer in doc.layers:
+                layer.image = _rotate(layer.image, angle, expand)
+            if doc.layers:
+                doc.width = doc.layers[0].width
+                doc.height = doc.layers[0].height
+            return jsonify(_doc_response(doc))
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/flip", methods=["POST"])
+    def editor_flip():
+        data = request.get_json(silent=True) or {}
+        try:
+            doc = _req_doc_snapshot()
+            direction = data.get("direction", "horizontal")
+            for layer in doc.layers:
+                layer.image = _flip(layer.image, direction)
+            return jsonify(_doc_response(doc))
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/adjust", methods=["POST"])
+    def editor_adjust():
+        data = request.get_json(silent=True) or {}
+        adj_type = data.get("type", "brightness")
+        factor = _validate_factor(data.get("factor", 1.0))
+        def _adj(img, **kw):
+            if adj_type == "brightness":
+                return adjust_brightness(img, factor)
+            elif adj_type == "contrast":
+                return adjust_contrast(img, factor)
+            elif adj_type == "saturation":
+                return adjust_saturation(img, factor)
+            elif adj_type == "hue":
+                return adjust_hue(img, _validate_factor(data.get("shift", 0), 0, -360, 360))
+            elif adj_type == "clahe":
+                return apply_clahe(img, _validate_factor(data.get("clip_limit", 2.0), 2.0, 0.1, 50.0))
+            elif adj_type == "auto_wb":
+                return auto_white_balance(img, _validate_factor(data.get("strength", 1.0), 1.0, 0.0, 5.0))
+            return img
+        return jsonify(_op_current_layer(data, _adj))
+
+    @app.route("/api/v1/editor/filter", methods=["POST"])
+    def editor_filter():
+        data = request.get_json(silent=True) or {}
+        name = data.get("name", "blur")
+        kw = {k: v for k, v in data.items() if k != "name" and k != "layer"}
+        def _flt(img, **kw2):
+            return _img_filter(img, name, **{**kw, **kw2})
+        return jsonify(_op_current_layer(data, _flt))
+
+    @app.route("/api/v1/editor/text", methods=["POST"])
+    def editor_text():
+        data = request.get_json(silent=True) or {}
+        try:
+            doc = _req_doc_snapshot()
+            txt = data.get("text", "")
+            x, y = int(data.get("x", 10)), int(data.get("y", 10))
+            fs = int(_validate_factor(data.get("font_size", 24), 24, 1, 500))
+            color = _validate_color(data.get("color", [255, 255, 255]))
+            opacity = _validate_factor(data.get("opacity", 1.0), 1.0, 0.0, 1.0)
+            sw = int(_validate_factor(data.get("stroke_width", 0), 0, 0, 100))
+            sc_raw = data.get("stroke_color")
+            sc = _validate_color(sc_raw) if sc_raw else None
+            sb = int(_validate_factor(data.get("shadow_blur", 0), 0, 0, 100))
+            shc_raw = data.get("shadow_color")
+            shc = _validate_color(shc_raw) if shc_raw else (0, 0, 0)
+            layer_idx = data.get("layer", -1)
+            if 0 <= layer_idx < len(doc.layers):
+                doc.layers[layer_idx].image = add_text(doc.layers[layer_idx].image, txt, x, y, font_size=fs, color=color, opacity=opacity, stroke_width=sw, stroke_color=sc, shadow_blur=sb, shadow_color=shc)
+            else:
+                for layer in doc.layers:
+                    layer.image = add_text(layer.image, txt, x, y, font_size=fs, color=color, opacity=opacity, stroke_width=sw, stroke_color=sc, shadow_blur=sb, shadow_color=shc)
+            return jsonify(_doc_response(doc))
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/draw", methods=["POST"])
+    def editor_draw():
+        data = request.get_json(silent=True) or {}
+        mode = data.get("mode", "brush")
+        # Filter out mode from op_kw so it doesn't reach draw_brush
+        clean_data = {k: v for k, v in data.items() if k != "mode"}
+        if mode == "eraser":
+            # True eraser: set alpha=0 in circular regions
+            try:
+                import cv2
+                import numpy as np
+                doc = _req_doc_snapshot()
+                points = data.get("points", [])
+                layer_idx = data.get("layer", -1)
+                size = data.get("size", 20)
+                layers_to_mod = [doc.layers[layer_idx]] if 0 <= layer_idx < len(doc.layers) else doc.layers
+                for layer in layers_to_mod:
+                    for pt in points:
+                        if len(pt) == 2:
+                            cv2.circle(layer.image, (int(pt[0]), int(pt[1])), size // 2, (0, 0, 0, 0), -1)
+                return jsonify(_doc_response(doc))
+            except Exception as e:
+                return jsonify({"error": str(e)}), 400
+        return jsonify(_op_current_layer(clean_data, lambda img, **kw: draw_brush(img, **kw)))
+
+    @app.route("/api/v1/editor/shape", methods=["POST"])
+    def editor_shape():
+        data = request.get_json(silent=True) or {}
+        # Map 'type' from request to 'shape_type' for draw_shape()
+        if "type" in data and "shape_type" not in data:
+            data["shape_type"] = data.pop("type")
+        return jsonify(_op_current_layer(data, lambda img, **kw: draw_shape(img, **kw)))
+
+    @app.route("/api/v1/editor/gradient", methods=["POST"])
+    def editor_gradient():
+        """Draw a linear gradient across the entire layer."""
+        data = request.get_json(silent=True) or {}
+        try:
+            import cv2, numpy as np
+            doc = _req_doc_snapshot()
+            color1 = _validate_color(data.get("color1", [255, 255, 255]))
+            color2 = _validate_color(data.get("color2", [0, 0, 0]))
+            direction = data.get("direction", "vertical")  # vertical | horizontal | diagonal
+            opacity = _validate_factor(data.get("opacity", 1.0), 1.0, 0.0, 1.0)
+            layer_idx = data.get("layer", -1)
+
+            def _apply_gradient(layer_img):
+                h, w = layer_img.shape[:2]
+                c1 = np.array(color1, dtype=np.float32).reshape(1, 1, 3)
+                c2 = np.array(color2, dtype=np.float32).reshape(1, 1, 3)
+                if direction == "horizontal":
+                    t = np.linspace(0, 1, w, dtype=np.float32).reshape(1, w, 1)
+                    gradient = c1 * (1.0 - t) + c2 * t
+                    gradient = np.broadcast_to(gradient, (h, w, 3))
+                elif direction == "diagonal":
+                    yy, xx = np.mgrid[0:h, 0:w]
+                    max_d = max(w, h)
+                    t = (xx + yy) / (max_d * 2.0)
+                    t = np.clip(t, 0, 1)[..., np.newaxis]
+                    gradient = c1 * (1.0 - t) + c2 * t
+                else:  # vertical (default)
+                    t = np.linspace(0, 1, h, dtype=np.float32).reshape(h, 1, 1)
+                    gradient = c1 * (1.0 - t) + c2 * t
+                    gradient = np.broadcast_to(gradient, (h, w, 3))
+                a = int(255 * opacity)
+                alpha = np.full((h, w, 1), a, dtype=np.uint8)
+                return np.concatenate([gradient.astype(np.uint8), alpha], axis=2)
+
+            if 0 <= layer_idx < len(doc.layers):
+                doc.layers[layer_idx].image = _apply_gradient(doc.layers[layer_idx].image)
+            else:
+                for layer in doc.layers:
+                    layer.image = _apply_gradient(layer.image)
+            return jsonify(_doc_response(doc))
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/fill", methods=["POST"])
+    def editor_fill():
+        data = request.get_json(silent=True) or {}
+        try:
+            doc = _req_doc_snapshot()
+            x, y = int(data.get("x", 0)), int(data.get("y", 0))
+            color = _validate_color(data.get("color", [255, 255, 255]))
+            for layer in doc.layers:
+                layer.image = fill_region(layer.image, x, y, color)
+            return jsonify(_doc_response(doc))
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/eyedropper", methods=["POST"])
+    def editor_eyedropper():
+        data = request.get_json(silent=True) or {}
+        try:
+            doc = _req_doc()
+            x, y = int(data.get("x", 0)), int(data.get("y", 0))
+            composite = doc.render()
+            if 0 <= y < composite.shape[0] and 0 <= x < composite.shape[1]:
+                b, g, r, a = composite[y, x]
+                return jsonify({"status": "ok", "color": {"r": int(r), "g": int(g), "b": int(b), "a": int(a)}})
+            return jsonify({"error": "Point out of bounds"}), 400
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/undo", methods=["POST"])
+    def editor_undo():
+        try:
+            doc = _req_doc()
+            with _editor_lock:
+                doc.undo()
+            return jsonify(_doc_response(doc))
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/redo", methods=["POST"])
+    def editor_redo():
+        try:
+            doc = _req_doc()
+            with _editor_lock:
+                doc.redo()
+            return jsonify(_doc_response(doc))
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/history")
+    def editor_history():
+        try:
+            doc = _req_doc()
+            return jsonify(doc.get_history_state())
+        except ValueError as e:
+            return jsonify({"can_undo": False, "can_redo": False})
+
+    @app.route("/api/v1/editor/denoise", methods=["POST"])
+    def editor_denoise():
+        data = request.get_json(silent=True) or {}
+        try:
+            doc = _req_doc_snapshot()
+            h = data.get("h", 10)
+            for layer in doc.layers:
+                layer.image = smart_denoise(layer.image, h=h)
+            return jsonify(_doc_response(doc))
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/smart-sharpen", methods=["POST"])
+    def editor_smart_sharpen():
+        data = request.get_json(silent=True) or {}
+        try:
+            doc = _req_doc_snapshot()
+            amount = data.get("amount", 1.0)
+            for layer in doc.layers:
+                layer.image = smart_sharpen(layer.image, amount=amount)
+            return jsonify(_doc_response(doc))
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/clahe", methods=["POST"])
+    def editor_clahe():
+        data = request.get_json(silent=True) or {}
+        return jsonify(_op_current_layer(data, lambda img, **kw: apply_clahe(img, data.get("clip_limit", 2.0))))
+
+    @app.route("/api/v1/editor/auto-wb", methods=["POST"])
+    def editor_auto_wb():
+        data = request.get_json(silent=True) or {}
+        return jsonify(_op_current_layer(data, lambda img, **kw: auto_white_balance(img, data.get("strength", 1.0))))
+
+    @app.route("/api/v1/editor/info")
+    def editor_info():
+        try:
+            doc = _req_doc()
+            return jsonify(doc.info())
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/new", methods=["POST"])
+    def editor_new():
+        data = request.get_json(silent=True) or {}
+        w = max(1, min(int(data.get("width", 800)), MAX_IMAGE_DIM))
+        h = max(1, min(int(data.get("height", 600)), MAX_IMAGE_DIM))
+        if w * h > MAX_IMAGE_PIXELS:
+            return jsonify({"error": f"Image too large: {w}x{h} exceeds {MAX_IMAGE_PIXELS} pixels"}), 400
+        import numpy as np
+        bg = np.zeros((h, w, 4), dtype=np.uint8)
+        bg[:, :, 3] = 255  # fully opaque white
+        bg[:, :, :3] = 255
+        with _editor_lock:
+            global _editor_doc
+            _editor_doc = Document(bg_image=bg)
+            return jsonify(_doc_response(_editor_doc))
+
+    @app.route("/api/v1/editor/save", methods=["POST"])
+    def editor_save():
+        data = request.get_json(silent=True) or {}
+        try:
+            doc = _req_doc()
+            path = data.get("path", "")
+            fmt = data.get("fmt", "png")
+            if fmt.lower() not in ("png", "jpg", "jpeg"):
+                return jsonify({"error": f"Unsupported format: {fmt}"}), 400
+            quality = max(1, min(int(data.get("quality", 95)), 100))
+            # Prevent path traversal
+            if path:
+                real_path = os.path.realpath(path)
+                cwd = os.path.realpath(os.getcwd())
+                if not real_path.startswith(cwd):
+                    return jsonify({"error": "Invalid save path"}), 400
+            else:
+                path = os.path.join(os.getcwd(), f"image_studio_output.{fmt}")
+            path = doc.export(path, fmt=fmt, quality=quality)
+            return jsonify({"status": "ok", "path": path})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/add-layer", methods=["POST"])
+    def editor_add_layer():
+        data = request.get_json(silent=True) or {}
+        try:
+            doc = _req_doc_snapshot()
+            import numpy as np
+            empty = np.zeros((doc.height, doc.width, 4), dtype=np.uint8)
+            with _editor_lock:
+                layer = Layer(image=empty, name=data.get("name", f"Layer {len(doc.layers) + 1}"))
+                doc.add_layer(layer)
+            return jsonify(_doc_response(doc))
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/delete-layer", methods=["POST"])
+    def editor_delete_layer():
+        data = request.get_json(silent=True) or {}
+        try:
+            doc = _req_doc_snapshot()
+            idx = data.get("layer", -1)
+            with _editor_lock:
+                doc.delete_layer(idx)
+            return jsonify(_doc_response(doc))
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/layer-props", methods=["POST"])
+    def editor_layer_props():
+        data = request.get_json(silent=True) or {}
+        try:
+            doc = _req_doc_snapshot()
+            idx = data.get("layer", -1)
+            props = {}
+            for k in ("opacity", "visible", "blend_mode", "name", "locked"):
+                if k in data:
+                    props[k] = data[k]
+            with _editor_lock:
+                doc.set_layer_properties(idx, **props)
+            return jsonify(_doc_response(doc))
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/layer/info")
+    def layer_info():
+        try:
+            doc = _req_doc()
+            return jsonify({"status": "ok", "layers": [doc._layer_to_dict(l) for l in doc.layers]})
+        except ValueError as e:
+            return jsonify({"layers": []})
+
+    # ── Advanced OpenCV tools ────────────────────────────
+
+    @app.route("/api/v1/editor/upscale", methods=["POST"])
+    def editor_upscale():
+        data = request.get_json(silent=True) or {}
+        try:
+            doc = _req_doc_snapshot()
+            scale = max(1, min(int(_validate_factor(data.get("scale", 2), 2, 1, 8)), 4))
+            for layer in doc.layers:
+                h, w = layer.image.shape[:2]
+                new_w = min(w * scale, MAX_IMAGE_DIM)
+                new_h = min(h * scale, MAX_IMAGE_DIM)
+                if new_w * new_h > MAX_IMAGE_PIXELS:
+                    return jsonify({"error": f"Upscaled too large: {new_w}x{new_h}"}), 400
+                layer.image = super_resolve(layer.image, scale=scale)
+            doc.width = doc.layers[0].width if doc.layers else doc.width * scale
+            doc.height = doc.layers[0].height if doc.layers else doc.height * scale
+            return jsonify(_doc_response(doc))
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/lineart", methods=["POST"])
+    def editor_lineart():
+        data = request.get_json(silent=True) or {}
+        try:
+            doc = _req_doc_snapshot()
+            method = data.get("method", "canny")
+            for layer in doc.layers:
+                layer.image = extract_lineart(layer.image, method=method)
+            return jsonify(_doc_response(doc))
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/hdr", methods=["POST"])
+    def editor_hdr():
+        data = request.get_json(silent=True) or {}
+        try:
+            doc = _req_doc_snapshot()
+            gamma = data.get("gamma", 1.5)
+            contrast = data.get("contrast", 1.2)
+            saturation = data.get("saturation", 1.3)
+            for layer in doc.layers:
+                layer.image = hdr_tone(layer.image, gamma=gamma, contrast=contrast, saturation=saturation)
+            return jsonify(_doc_response(doc))
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/remove-bg", methods=["POST"])
+    def editor_remove_bg():
+        data = request.get_json(silent=True) or {}
+        try:
+            doc = _req_doc_snapshot()
+            for layer in doc.layers:
+                layer.image = remove_background(layer.image)
+            return jsonify(_doc_response(doc))
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/ai-enhance", methods=["POST"])
+    def editor_ai_enhance():
+        data = request.get_json(silent=True) or {}
+        try:
+            doc = _req_doc_snapshot()
+            for layer in doc.layers:
+                layer.image = ai_enhance_image(layer.image)
+            return jsonify(_doc_response(doc))
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/ai-restore", methods=["POST"])
+    def editor_ai_restore():
+        data = request.get_json(silent=True) or {}
+        try:
+            doc = _req_doc_snapshot()
+            for layer in doc.layers:
+                layer.image = ai_restore_faces(layer.image)
+            return jsonify(_doc_response(doc))
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/inpaint-erase", methods=["POST"])
+    def editor_inpaint_erase():
+        data = request.get_json(silent=True) or {}
+        try:
+            doc = _req_doc_snapshot()
+            x = int(data.get("x", 0)); y = int(data.get("y", 0))
+            w = int(data.get("w", 50)); h = int(data.get("h", 50))
+            radius = data.get("radius", 3)
+            for layer in doc.layers:
+                layer.image = inpaint_erase(layer.image, x, y, w, h, radius=radius)
+            return jsonify(_doc_response(doc))
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/blur-region", methods=["POST"])
+    def editor_blur_region():
+        data = request.get_json(silent=True) or {}
+        try:
+            doc = _req_doc_snapshot()
+            x = int(data.get("x", 0)); y = int(data.get("y", 0))
+            w = int(data.get("w", 50)); h = int(data.get("h", 50))
+            ksize = data.get("ksize", 15)
+            for layer in doc.layers:
+                layer.image = blur_region(layer.image, x, y, w, h, ksize=ksize)
+            return jsonify(_doc_response(doc))
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/fonts")
+    def editor_fonts():
+        FONTS = [
+            {"name": "Hershey Simplex", "family": "hershey", "file": "simplex", "style": "regular"},
+            {"name": "Hershey Plain", "family": "hershey", "file": "plain", "style": "regular"},
+            {"name": "Hershey Duplex", "family": "hershey", "file": "duplex", "style": "regular"},
+            {"name": "Hershey Complex", "family": "hershey", "file": "complex", "style": "regular"},
+            {"name": "Hershey Triplex", "family": "hershey", "file": "triplex", "style": "regular"},
+            {"name": "Hershey Script Simplex", "family": "hershey", "file": "script_simplex", "style": "regular"},
+            {"name": "Hershey Script Complex", "family": "hershey", "file": "script_complex", "style": "regular"},
+            {"name": "Italic Complex", "family": "hershey", "file": "complex_italic", "style": "italic"},
+            {"name": "Italic Triplex", "family": "hershey", "file": "triplex_italic", "style": "italic"},
+        ]
+        return jsonify({"fonts": FONTS})
+
+    @app.route("/api/v1/editor/preview", methods=["POST"])
+    def editor_preview():
+        """Return a thumbnail preview (default 320px max side) of current state."""
+        try:
+            doc = _req_doc_snapshot()
+            max_size = (request.get_json(silent=True) or {}).get("max_size", 320)
+            b64 = doc.to_thumbnail_base64(max_size=int(max_size))
+            return jsonify({
+                "status": "ok",
+                "info": doc.info(),
+                "base64": b64,
+                "history": doc.get_history_state(),
+                "thumbnail": True,
+            })
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
     return app
-
-
-# ── 独立启动入口 ─────────────────────────────────────
 
 def main():
     """启动 AI Server"""
