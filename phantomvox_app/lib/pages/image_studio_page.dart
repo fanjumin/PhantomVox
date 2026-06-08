@@ -36,7 +36,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
   String? _previewB64;
 
   // -- Tool state --
-  String _currentTool = 'hand';
+  String _currentTool = 'select';
   String? _savedTool; // tool to restore after space release
   bool _spaceHeld = false;
   String _shapeType = 'rect';
@@ -937,8 +937,12 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
                         child: GestureDetector(
                           onTap: () {
                             if (isAction) {
-                              // Action tool — trigger directly
                               final actionName = t[4] as String;
+                              // Fit to Screen — no delay
+                              if (actionName == 'fit') {
+                                if (_previewImage != null) _fitToViewport();
+                                return;
+                              }
                               _pendingActionTool = actionName;
                               WidgetsBinding.instance
                                   .addPostFrameCallback((_) {
@@ -1330,8 +1334,10 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
             _zoomByFactor(event.scrollDelta.dy < 0 ? 1.1 : 1 / 1.1);
           }
         },
-        child: ClipRect(
-        child: InteractiveViewer(
+        child: MouseRegion(
+          cursor: _currentTool == 'hand' ? SystemMouseCursors.grab : SystemMouseCursors.basic,
+          child: ClipRect(
+            child: InteractiveViewer(
           transformationController: _tc,
           boundaryMargin: const EdgeInsets.all(200),
           minScale: 0.1,
@@ -1529,6 +1535,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
           ),       // SizedBox
         ),         // InteractiveViewer
       ),           // ClipRect
+      ),           // MouseRegion
     );             // Listener (return)
     });            // LayoutBuilder
   }
