@@ -60,7 +60,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
   List<Offset>? _shapePreview;
 
   // -- Selection state --
-  String _selectionMode = 'select-rect'; // 'select-rect' | 'select-ellip' | 'select-lasso'
+  String _selectionMode = 'select-rect'; // 'select-rect' | 'select-ellip' | 'select-lasso' | 'select-poly'
   String? _selectionType; // derived from _selectionMode
   Rect? _selectionRect;
   List<Offset>? _selectionPoints; // lasso points
@@ -506,10 +506,14 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
       } else if (_currentTool == 'shape') {
         _shapePreview = [imgPos];
       } else if (_currentTool == 'select') {
-        _selectionType = _selectionMode == 'select-rect' ? 'rect' : (_selectionMode == 'select-ellip' ? 'ellipse' : 'lasso');
+        _selectionType = _selectionMode == 'select-rect' ? 'rect' : (_selectionMode == 'select-ellip' ? 'ellipse' : (_selectionMode == 'select-lasso' ? 'lasso' : 'poly'));
         _selectionStart = imgPos;
         if (_selectionMode == 'select-lasso') {
           _selectionPoints = [imgPos];
+        } else if (_selectionMode == 'select-poly') {
+          // Polygon: click to add vertex; first click starts
+          _selectionPoints ??= [];
+          _selectionPoints!.add(imgPos);
         } else {
           _selectionRect = Rect.fromPoints(imgPos, imgPos);
         }
@@ -1068,9 +1072,11 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
                           ? 'Rect'
                           : (_selectionMode == 'select-ellip'
                               ? 'Ellipse'
-                              : 'Lasso');
+                              : (_selectionMode == 'select-lasso'
+                                  ? 'Lasso'
+                                  : 'Poly'));
                       return Tooltip(
-                          message: i18n.tr(selLabel == 'Rect' ? 'Rect Select' : (selLabel == 'Ellipse' ? 'Ellipse Select' : 'Lasso Select')),
+                          message: i18n.tr(selLabel == 'Rect' ? 'Rect Select' : (selLabel == 'Ellipse' ? 'Ellipse Select' : (selLabel == 'Lasso' ? 'Lasso Select' : 'Polygon Select'))),
                           child: GestureDetector(
                             onTapDown: (details) => _showSelectionMenu(details.globalPosition),
                             child: Container(
@@ -1174,6 +1180,14 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
             Icon(Icons.gesture, size: 14, color: _selectionMode == 'select-lasso' ? const Color(0xFF6C63FF) : Colors.grey),
             const SizedBox(width: 6),
             Text(i18n.tr('Lasso'), style: TextStyle(fontSize: 11, color: Colors.white)),
+          ]),
+        ),
+        PopupMenuItem(
+          value: 'select-poly',
+          child: Row(children: [
+            Icon(Icons.change_history, size: 14, color: _selectionMode == 'select-poly' ? const Color(0xFF6C63FF) : Colors.grey),
+            const SizedBox(width: 6),
+            Text(i18n.tr('Polygon'), style: TextStyle(fontSize: 11, color: Colors.white)),
           ]),
         ),
       ],
@@ -1536,7 +1550,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
       }
       final iw = _previewImage!.width.toDouble();
       final ih = _previewImage!.height.toDouble();
-      final canPanZoom = _currentTool == 'hand' || _currentTool == 'select';
+      final canPanZoom = _currentTool == 'hand';
       final canScaleZoom = _currentTool == 'hand' || _currentTool == 'select' || _currentTool == 'crop';
 
       return Listener(

@@ -1215,5 +1215,7 @@
   "OPS": "其它",
   "Erode": "腐蚀",
   "Move": "移动",
-  "{action}...": "{action}中…"
+  "{action}...": "{action}中…",
+  "Polygon": "多边形",
+  "Polygon Select": "多边形选取"
 }
