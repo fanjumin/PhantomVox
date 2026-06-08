@@ -58,10 +58,8 @@ class EditorOverlayPainter extends CustomPainter {
       path.lineTo(drawPoints![i].dx, drawPoints![i].dy);
     }
     canvas.drawPath(path, p);
-    canvas.drawCircle(drawPoints![0], brushSize / 2,
-        Paint()..color = primaryColor);
-    canvas.drawCircle(drawPoints!.last, brushSize / 2,
-        Paint()..color = primaryColor);
+    // Draw a single small center dot at the last point
+    canvas.drawCircle(drawPoints!.last, 1.0, Paint()..color = primaryColor);
   }
 
   // ── Crop overlay ────────────────────────────────────────────────────

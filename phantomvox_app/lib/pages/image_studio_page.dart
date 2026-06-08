@@ -606,6 +606,16 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
     }
     _safeSetState(() {
       _currentTool = t;
+      // Clear all drawing/selection state when switching tools
+      _drawPoints = null;
+      _drawStart = null;
+      _shapePreview = null;
+      _selectionStart = null;
+      if (t != 'select') {
+        _selectionType = null;
+        _selectionRect = null;
+        _selectionPoints = null;
+      }
       if (t == 'crop' && _previewImage != null) {
         _cropMode = true;
         _cropRect = Offset.zero & Size(_previewImage!.width.toDouble(), _previewImage!.height.toDouble());
