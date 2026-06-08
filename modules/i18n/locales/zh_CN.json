@@ -1154,5 +1154,6 @@
   "Visible: {n}": "可见：{n}",
   "family: {fam}  style: {sty}": "字体：{fam}  样式：{sty}",
   "Select": "选择",
-  "Hand": "抓手"
+  "Hand": "抓手",
+  "Fit to Screen": "适应画面"
 }

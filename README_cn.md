@@ -1,4 +1,4 @@
-# PhantomVox AI v0.3.73
+# PhantomVox AI v0.3.74
 
 **AI 遇见创意** — 由多智能体 AI 驱动的智能音视频创作套件。
 
@@ -8,7 +8,7 @@
 
 | # | 工作区 | 状态 | 描述 |
 |---|--------|------|------|
-| 1 | **Flow Graph** | ✅ v0.3.73 | **基于树的创作流编辑器** — 聊天驱动生成（自然语言→完整树），可折叠树，节点详情面板，AI 扩展，版本管理（快照+恢复），导入/导出/保存/删除，四级树（主题→场景→节拍→子节拍） |
+| 1 | **Flow Graph** | ✅ v0.3.74 | **基于树的创作流编辑器** — 聊天驱动生成（自然语言→完整树），可折叠树，节点详情面板，AI 扩展，版本管理（快照+恢复），导入/导出/保存/删除，四级树（主题→场景→节拍→子节拍） |
 | 2 | **AI Agent** | ✅ v0.3.0 | 多智能体控制中心 — 聊天、思考、图像生成、视频生成、代码生成面板 + 8 智能体矩阵 |
 | 3 | **StoryCut** | ✅ v0.3.0 | 故事驱动快速剪辑 — 媒体浏览器、视口、双层时间线、AI 快捷栏 |
 | 4 | **ProEdit** | ✅ v0.3.0 | 精准编辑 — 媒体池+工具箱、6 标签检查器、5 轨时间线、调音台 |
@@ -17,7 +17,7 @@
 | 7 | **EffectLab** | ✅ v0.3.0 | VFX 合成 — 双视口、Renderer3D1 检查器、帧时间线、节点画布 |
 | 8 | **Dashboard** | ✅ v0.3.0 | 启动页 — 欢迎横幅、最近项目、硬件报告、AI 快捷卡片、快速聊天 |
 
-### Flow Graph — 主要功能 (v0.3.73)
+### Flow Graph — 主要功能 (v0.3.74)
 
 | 功能 | 描述 |
 |------|------|
@@ -86,8 +86,8 @@ cd phantomvox_app/build/linux/x64/release/bundle
 | TTS | synthesize, voices, providers | ✅ 真实（Edge-TTS） |
 | 音乐 | generate, styles, providers | ✅ 桩 |
 | 智能体 | chat, think, image, video, code, matrix, workflow | ✅ |
-| | **Flow Graph** | **root, node, reorder, save, import, export, delete, generate, expand, versions, versions/save, versions/restore** | **✅ v0.3.73** |
-| | **Auth** | **/register, /login, /refresh, /users/me** | **✅ v0.3.73（JWT + 令牌轮换）** |
+| | **Flow Graph** | **root, node, reorder, save, import, export, delete, generate, expand, versions, versions/save, versions/restore** | **✅ v0.3.74** |
+| | **Auth** | **/register, /login, /refresh, /users/me** | **✅ v0.3.74（JWT + 令牌轮换）** |
 | | 代码生成 | generate, categories, templates | ✅ 43 模板 |
 | | 视频生成 | generate, styles | ✅ 桩 |
 | | 时间线 | CRUD, tracks, clips, effects, render | ✅ |

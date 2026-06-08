@@ -870,6 +870,9 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
       case 'hdr':
         _transformVoid('hdr', {});
         break;
+      case 'fit':
+        if (_previewImage != null) _fitToViewport();
+        break;
     }
   }
 
@@ -906,6 +909,8 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
       ['upscale',    Icons.zoom_in,              'Upscale',                   true,  'upscale'],
       ['lineart',    Icons.auto_fix_high,        'Lineart',                   true,  'lineart'],
       ['hdr',        Icons.brightness_high,      'HDR Tone',                  true,  'hdr'],
+      // ── Navigation bottom ──
+      ['fit',        Icons.fit_screen,           'Fit to Screen',             true,  'fit'],
     ];
     final colCount = 2;
     final rows = <List<List<dynamic>>>[];
