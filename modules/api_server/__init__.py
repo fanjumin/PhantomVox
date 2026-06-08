@@ -962,6 +962,7 @@ Rules:
 
     _editor_doc: Document | None = None
     _editor_lock = threading.Lock()
+    _clipboard: dict | None = None  # for copy/cut/paste
 
     def _req_doc():
         with _editor_lock:
@@ -1623,29 +1624,116 @@ Rules:
 
     @app.route("/api/v1/editor/action", methods=["POST"])
     def editor_action():
-        """Copy, cut, paste, fill, transform, invert-selection."""
+        """Copy, cut, paste, delete, fill-selection."""
         data = request.get_json(silent=True) or {}
         action = data.get("action", "")
         try:
             doc = _req_doc_snapshot()
             import numpy as np
-            if action == "fill-selection":
-                color = data.get("color", [128, 128, 128, 255])
+            import cv2
+            h, w = doc.height, doc.width
+
+            # Build selection mask from request
+            sel_type = data.get("selection_type", "")  # rect / ellipse / lasso / poly
+            mask = np.zeros((h, w), dtype=np.uint8)
+
+            if sel_type == "rect":
+                r = data.get("selection_rect", {})
+                x1 = max(0, int(r.get("left", 0)))
+                y1 = max(0, int(r.get("top", 0)))
+                x2 = min(w, int(r.get("right", w)))
+                y2 = min(h, int(r.get("bottom", h)))
+                if x2 > x1 and y2 > y1:
+                    mask[y1:y2, x1:x2] = 255
+            elif sel_type == "ellipse":
+                r = data.get("selection_rect", {})
+                cx = (int(r.get("left", 0)) + int(r.get("right", w))) // 2
+                cy = (int(r.get("top", 0)) + int(r.get("bottom", h))) // 2
+                rx = max(1, (int(r.get("right", w)) - int(r.get("left", 0))) // 2)
+                ry = max(1, (int(r.get("bottom", h)) - int(r.get("top", 0))) // 2)
+                cv2.ellipse(mask, (cx, cy), (rx, ry), 0, 0, 360, 255, -1)
+            elif sel_type in ("lasso", "poly"):
+                pts = data.get("selection_points", [])
+                if isinstance(pts, list) and len(pts) >= 3:
+                    poly = np.array([(int(x), int(y)) for x, y in pts], dtype=np.int32)
+                    cv2.fillPoly(mask, [poly], 255)
+
+            has_mask = np.any(mask > 0)
+
+            # Use clipboard from enclosing scope
+            nonlocal _clipboard
+
+            if action == "copy" and has_mask:
+                # Extract selected pixels from active layer
                 for layer in doc.layers:
                     if layer.visible and not layer.locked:
-                        h, w = layer.image.shape[:2]
-                        mask = np.ones((h, w), dtype=np.uint8) * 255
-                        layer.image[mask > 0] = color
-            elif action == "invert-selection":
-                pass  # placeholder — needs selection mask system
-            elif action == "cut":
-                pass
-            elif action == "copy":
-                pass
-            elif action == "paste":
-                pass
-            elif action == "transform":
-                pass
+                        # Store full image + mask info
+                        _clipboard = {
+                            "image": layer.image.copy(),
+                            "mask": mask.copy(),
+                            "bounds": cv2.boundingRect(mask),  # x, y, w, h
+                        }
+                        break
+                return jsonify(_doc_response(doc))
+
+            elif action == "cut" and has_mask:
+                for layer in doc.layers:
+                    if layer.visible and not layer.locked:
+                        # Store in clipboard first
+                        _clipboard = {
+                            "image": layer.image.copy(),
+                            "mask": mask.copy(),
+                            "bounds": cv2.boundingRect(mask),
+                        }
+                        # Set alpha to 0 in selected area
+                        layer.image[mask > 0, 3] = 0
+                        break
+                return jsonify(_doc_response(doc))
+
+            elif action == "paste" and _clipboard is not None:
+                cb = _clipboard
+                x, y, cw, ch = cb["bounds"]
+                # Extract just the selected pixels
+                cb_img = cb["image"].copy()
+                cb_mask = cb["mask"]
+                # Create transparent layer sized to the selection bounds
+                pasted = np.zeros((h, w, 4), dtype=np.uint8)
+                # Place the original pixels in the same position
+                for c in range(4):
+                    channel = cb_img[:, :, c]
+                    pasted[:, :, c] = np.where(cb_mask > 0, channel, 0)
+                # Add as new layer
+                from modules.image_studio import Layer
+                doc.add_layer(Layer(image=pasted, name="Pasted"))
+                return jsonify(_doc_response(doc))
+
+            elif action == "delete" and has_mask:
+                for layer in doc.layers:
+                    if layer.visible and not layer.locked:
+                        layer.image[mask > 0, 3] = 0
+                        break
+                return jsonify(_doc_response(doc))
+
+            elif action == "fill-selection":
+                color = data.get("color", [128, 128, 128, 255])
+                if isinstance(color, list):
+                    if len(color) == 3:
+                        color = [color[0], color[1], color[2], 255]
+                    elif len(color) == 4:
+                        pass
+                    else:
+                        color = [128, 128, 128, 255]
+                if has_mask:
+                    for layer in doc.layers:
+                        if layer.visible and not layer.locked:
+                            layer.image[mask > 0] = color
+                else:
+                    # No selection: fill entire layer
+                    for layer in doc.layers:
+                        if layer.visible and not layer.locked:
+                            layer.image[:] = color
+                return jsonify(_doc_response(doc))
+
             return jsonify(_doc_response(doc))
         except Exception as e:
             return jsonify({"error": str(e)}), 400

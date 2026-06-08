@@ -53,6 +53,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
   int _rightTabIndex = 0; // 0=图层, 1=属性
   double _opacity = 1.0;
   Color _primaryColor = Colors.white;
+  Color _bgColor = Colors.black;
 
   // -- Pointer state --
   List<Offset>? _drawPoints;
@@ -418,8 +419,28 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
   }, label: i18n.tr('{name}...', params: {'name': name}));
 
   Future<void> _editorAction(String action) => _wrap(() async {
-    final r = await _api.post('/api/v1/editor/action', {'action': action});
+    final body = <String, dynamic>{'action': action};
+    // Send selection info
+    if (_selectionType != null && _selectionRect != null && _selectionRect!.width > 2) {
+      body['selection_type'] = _selectionType;
+      body['selection_rect'] = {
+        'left': _selectionRect!.left.round(),
+        'top': _selectionRect!.top.round(),
+        'right': _selectionRect!.right.round(),
+        'bottom': _selectionRect!.bottom.round(),
+      };
+    } else if (_selectionType == 'lasso' && _selectionPoints != null && _selectionPoints!.length >= 3) {
+      body['selection_type'] = 'lasso';
+      body['selection_points'] = _selectionPoints!.map((p) => [p.dx.round(), p.dy.round()]).toList();
+    } else if (_selectionType == 'poly' && _selectionPoints != null && _selectionPoints!.length >= 3) {
+      body['selection_type'] = 'poly';
+      body['selection_points'] = _selectionPoints!.map((p) => [p.dx.round(), p.dy.round()]).toList();
+    }
+    final r = await _api.post('/api/v1/editor/action', body);
     await _updateState(r);
+    if (action == 'paste' || action == 'delete' || action == 'cut') {
+      _refreshLayers();
+    }
   }, label: i18n.tr('{action}...', params: {'action': action}));
 
   Future<void> _adjustVoid(String name, Map<String, dynamic> p) => _wrap(() async {
@@ -1907,17 +1928,39 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
                 : Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                     child: Column(children: [
-                      // Color
+                      // Foreground / Background colors
                       Row(children: [
-                        Tr('Color', style: TextStyle(fontSize: 8, color: Colors.grey)),
-                        const SizedBox(width: 6),
+                        // Foreground color
                         GestureDetector(
-                          onTap: _pickColor,
+                          onTap: () => _pickColorCustom((c) => _safeSetState(() => _primaryColor = c)),
                           child: Container(
-                            width: 20, height: 16,
+                            width: 18, height: 14,
                             decoration: BoxDecoration(
                               color: _primaryColor,
-                              border: Border.all(color: Colors.grey),
+                              border: Border.all(color: Colors.white),
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 2),
+                        // Swap icon
+                        GestureDetector(
+                          onTap: () => _safeSetState(() {
+                            final tmp = _primaryColor;
+                            _primaryColor = _bgColor;
+                            _bgColor = tmp;
+                          }),
+                          child: Icon(Icons.swap_vert, size: 10, color: Colors.grey),
+                        ),
+                        const SizedBox(width: 2),
+                        // Background color
+                        GestureDetector(
+                          onTap: () => _pickColorCustom((c) => _safeSetState(() => _bgColor = c)),
+                          child: Container(
+                            width: 18, height: 14,
+                            decoration: BoxDecoration(
+                              color: _bgColor,
+                              border: Border.all(color: Colors.grey[600]!),
                               borderRadius: BorderRadius.circular(2),
                             ),
                           ),
@@ -2210,7 +2253,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
           ],
         ),
         _btnRow(
-          labels: const ['Select All', 'Deselect', 'Invert Sel', 'Fill'],
+          labels: const ['Select All', 'Deselect', '✂ Cut', 'Fill'],
           callbacks: [
             () => _safeSetState(() {
               _selectionType = 'rect';
@@ -2221,8 +2264,17 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
               _selectionRect = null;
               _selectionPoints = null;
             }),
-            () => _editorAction('invert-selection'),
+            () => _editorAction('cut'),
             () => _editorAction('fill-selection'),
+          ],
+        ),
+        _btnRow(
+          labels: const ['Copy', 'Paste', 'Delete', 'Invert Sel'],
+          callbacks: [
+            () => _editorAction('copy'),
+            () => _editorAction('paste'),
+            () => _editorAction('delete'),
+            () => _editorAction('invert-selection'),
           ],
         ),
         const Divider(height: 1, color: Color(0xFF16213E)),
