@@ -36,7 +36,9 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
   String? _previewB64;
 
   // -- Tool state --
-  String _currentTool = 'select';
+  String _currentTool = 'hand';
+  String? _savedTool; // tool to restore after space release
+  bool _spaceHeld = false;
   String _shapeType = 'rect';
   int _brushSize = 5, _fontSize = 24;
   int _textStrokeWidth = 0, _textShadowBlur = 0;
@@ -114,15 +116,30 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
   }
 
   void _setupScrollZoom() {
-    // Enter → apply crop, Escape → cancel crop
     html.window.onKeyDown.listen((e) {
       if (!_mountedFlag) return;
+      // Space → temporary hand tool
+      if (e.key == ' ' && !_spaceHeld && _currentTool != 'hand') {
+        _savedTool = _currentTool;
+        _spaceHeld = true;
+        _safeSetState(() => _currentTool = 'hand');
+        return;
+      }
       if (_currentTool == 'crop' && _cropRect != null) {
         if (e.key == 'Enter') {
           _applyCrop();
         } else if (e.key == 'Escape') {
           _cancelCrop();
         }
+      }
+    });
+    html.window.onKeyUp.listen((e) {
+      if (!_mountedFlag) return;
+      if (e.key == ' ' && _spaceHeld) {
+        _spaceHeld = false;
+        final restore = _savedTool ?? 'hand';
+        _savedTool = null;
+        _safeSetState(() => _currentTool = restore);
       }
     });
   }
@@ -422,6 +439,11 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
   // Crop tool — interactive rect on canvas
   // -----------------------------------------------------------------------
   void _setTool(String t) {
+    // User manually chose a tool → clear space-saved state
+    if (_spaceHeld) {
+      _spaceHeld = false;
+      _savedTool = null;
+    }
     _safeSetState(() {
       _currentTool = t;
       if (t == 'crop' && _previewImage != null) {
@@ -854,6 +876,8 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
   Widget _toolbar() {
     // [id, icon, tooltip, isAction?, actionName]
     const tools = <List<dynamic>>[
+      // ── Navigation (always first) ──
+      ['hand',       Icons.pan_tool,          'Hand',                      false, null],
       // ── Interactive tools ──
       ['crop',       Icons.crop,                 'Crop',                      false, null],
       ['text',       Icons.text_fields,          'Add text',                  false, null],
@@ -1293,8 +1317,8 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
       }
       final iw = _previewImage!.width.toDouble();
       final ih = _previewImage!.height.toDouble();
-      final canPanZoom = _currentTool == 'select';
-      final canScaleZoom = _currentTool == 'select' || _currentTool == 'crop';
+      final canPanZoom = _currentTool == 'hand' || _currentTool == 'select';
+      final canScaleZoom = _currentTool == 'hand' || _currentTool == 'select' || _currentTool == 'crop';
 
       return Listener(
         onPointerSignal: (event) {

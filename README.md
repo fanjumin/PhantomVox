@@ -1,4 +1,4 @@
-# PhantomVox AI v0.3.72
+# PhantomVox AI v0.3.73
 
 **Where AI Meets Creativity** — an intelligent audio-video creation suite powered by multi-agent AI.
 
@@ -8,7 +8,7 @@ Built with **Flutter** (desktop UI) + **Python** (AI server), targeting Linux/Wi
 
 | # | Workspace | Status | Description |
 |---|-----------|--------|-------------|
-|| 1 | **Flow Graph** | ✅ v0.3.72 | **Tree-based creative flow editor** — Chat-driven generation (自然语言→完整树), collapsible tree, node detail panel, AI Expand, version management (snapshots + restore), Import/Export/Save/Delete, 4-level tree (topic→scene→beat→sub_beat) |
+|| 1 | **Flow Graph** | ✅ v0.3.73 | **Tree-based creative flow editor** — Chat-driven generation (自然语言→完整树), collapsible tree, node detail panel, AI Expand, version management (snapshots + restore), Import/Export/Save/Delete, 4-level tree (topic→scene→beat→sub_beat) |
 || 2 | **AI Agent** | ✅ v0.3.0 | Multi-agent control center — Chat, Think, Image Gen, Video Gen, Code Gen panels + 8-agent matrix |
 || 3 | **StoryCut** | ✅ v0.3.0 | Story-driven quick cut — media browser, viewport, dual-layer timeline, AI QuickBar |
 || 4 | **ProEdit** | ✅ v0.3.0 | Precision editing — media pool + toolbox, 6-tab inspector, 5-track timeline, mixer |
@@ -17,7 +17,7 @@ Built with **Flutter** (desktop UI) + **Python** (AI server), targeting Linux/Wi
 || 7 | **EffectLab** | ✅ v0.3.0 | VFX compositing — dual viewport, Renderer3D1 inspector, frame timeline, node canvas |
 || 8 | **Dashboard** | ✅ v0.3.0 | Launch page — welcome banner, recent projects, hardware report, AI quick cards, quick chat |
 
-### Flow Graph — Key Features (v0.3.72)
+### Flow Graph — Key Features (v0.3.73)
 
 | Feature | Description |
 |---------|-------------|
@@ -86,7 +86,7 @@ cd phantomvox_app/build/linux/x64/release/bundle
 | TTS | synthesize, voices, providers | ✅ real (Edge-TTS) |
 | Music | generate, styles, providers | ✅ stub |
 | Agent | chat, think, image, video, code, matrix, workflow | ✅ |
-|| **Flow Graph** | **root, node, reorder, save, import, export, delete, generate, expand, versions, versions/save, versions/restore** | **✅ v0.3.72** |\r|| **Auth** | **/register, /login, /refresh, /users/me** | **✅ v0.3.72 (JWT + token rotation)** |
+|| **Flow Graph** | **root, node, reorder, save, import, export, delete, generate, expand, versions, versions/save, versions/restore** | **✅ v0.3.73** |\r|| **Auth** | **/register, /login, /refresh, /users/me** | **✅ v0.3.73 (JWT + token rotation)** |
 || CodeGen | generate, categories, templates | ✅ 43 templates |
 | VideoGen | generate, styles | ✅ stub |
 | Timeline | CRUD, tracks, clips, effects, render | ✅ |

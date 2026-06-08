@@ -1153,5 +1153,6 @@
   "Layers: {n}": "图层：{n}",
   "Visible: {n}": "可见：{n}",
   "family: {fam}  style: {sty}": "字体：{fam}  样式：{sty}",
-  "Select": "选择"
+  "Select": "选择",
+  "Hand": "抓手"
 }
