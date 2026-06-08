@@ -41,6 +41,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
   String? _savedTool; // tool to restore after space release
   bool _spaceHeld = false;
   String _shapeType = 'rect';
+  int _shapeStrokeWidth = 2;
   int _brushSize = 5, _fontSize = 24;
   int _textStrokeWidth = 0, _textShadowBlur = 0;
   Color _textStrokeColor = Colors.black;
@@ -787,14 +788,15 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
   }, label: i18n.tr('Drawing...'));
 
   Future<void> _apiDrawShape(Offset s, Offset e) => _wrap(() async {
-    final c = [_primaryColor.red, _primaryColor.green, _primaryColor.blue];
+    final fc = [_primaryColor.red, _primaryColor.green, _primaryColor.blue];
+    final sc = [_bgColor.red, _bgColor.green, _bgColor.blue];
     final x = math.min(s.dx, e.dx).round().clamp(0, 99999);
     final y = math.min(s.dy, e.dy).round().clamp(0, 99999);
     final w = (e.dx - s.dx).abs().round().clamp(1, 99999);
     final h = (e.dy - s.dy).abs().round().clamp(1, 99999);
     final r = await _api.post('/api/v1/editor/shape', {
-      'shape_type': _shapeType, 'x': x, 'y': y, 'w': w, 'h': h, 'fill_color': c,
-      'preview_only': true,
+      'shape_type': _shapeType, 'x': x, 'y': y, 'w': w, 'h': h,
+      'fill_color': fc, 'stroke_color': sc, 'stroke_width': _shapeStrokeWidth,
     });
     await _updateState(r);
   }, label: i18n.tr('Drawing shape...'));
@@ -1857,6 +1859,9 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
       width: 170,
       color: const Color(0xFF0D0D1A),
       child: Column(children: [
+        // Fixed color bar + size slider — always visible
+        _colorSizeBar(),
+        const Divider(height: 1, color: Color(0xFF16213E)),
         // Layers section
         // Layers + Tool Props — tabbed card
         Container(
@@ -1961,64 +1966,6 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
                 : Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                     child: Column(children: [
-                      // Foreground / Background colors
-                      Row(children: [
-                        // Foreground color
-                        GestureDetector(
-                          onTap: () => _pickColorCustom((c) => _safeSetState(() => _primaryColor = c)),
-                          child: Container(
-                            width: 18, height: 14,
-                            decoration: BoxDecoration(
-                              color: _primaryColor,
-                              border: Border.all(color: Colors.white),
-                              borderRadius: BorderRadius.circular(2),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 2),
-                        // Swap icon
-                        GestureDetector(
-                          onTap: () => _safeSetState(() {
-                            final tmp = _primaryColor;
-                            _primaryColor = _bgColor;
-                            _bgColor = tmp;
-                          }),
-                          child: Icon(Icons.swap_vert, size: 10, color: Colors.grey),
-                        ),
-                        const SizedBox(width: 2),
-                        // Background color
-                        GestureDetector(
-                          onTap: () => _pickColorCustom((c) => _safeSetState(() => _bgColor = c)),
-                          child: Container(
-                            width: 18, height: 14,
-                            decoration: BoxDecoration(
-                              color: _bgColor,
-                              border: Border.all(color: Colors.grey[600]!),
-                              borderRadius: BorderRadius.circular(2),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          '#${_primaryColor.red.toRadixString(16).padLeft(2,"0")}'
-                          '${_primaryColor.green.toRadixString(16).padLeft(2,"0")}'
-                          '${_primaryColor.blue.toRadixString(16).padLeft(2,"0")}',
-                          style: const TextStyle(fontSize: 8, color: Colors.white54),
-                        ),
-                      ]),
-                      const SizedBox(height: 4),
-                      // Size slider (for brush/shape/eraser)
-                      if (_currentTool == 'brush' || _currentTool == 'shape' || _currentTool == 'eraser')
-                        Row(children: [
-                          Tr('Size', style: TextStyle(fontSize: 8, color: Colors.grey)),
-                          Expanded(
-                            child: Slider(
-                              value: _brushSize.toDouble(), min: 1, max: 50,
-                              onChanged: (v) => _safeSetState(() => _brushSize = v.round()),
-                            ),
-                          ),
-                          Text('$_brushSize', style: const TextStyle(fontSize: 8, color: Colors.white)),
-                        ]),
                       // Text tool properties
                       if (_currentTool == 'text') ...[
                         const SizedBox(height: 4),
@@ -2333,7 +2280,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
           ],
         ),
         _btnRow(
-          labels: const ['Vignette', 'Sketch', 'Threshold', 'Dilate'],
+          labels: const ['Vignette', 'Sketch', 'Threshold', '加粗'],
           callbacks: [
             () => _filter('vignette'),
             () => _filter('sketch'),
@@ -2358,7 +2305,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
                 ],
               ),
               _btnRow(
-                labels: const ['Erode', 'Open', 'Close', 'Denoise'],
+                labels: const ['瘦身', '去噪点', '填孔洞', 'Denoise'],
                 callbacks: [
                   () => _filter('morphology', {'op': 'erode'}),
                   () => _filter('morphology', {'op': 'open'}),
@@ -2369,6 +2316,69 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
             ]),
           ),
         ),
+      ]),
+    );
+  }
+
+  /// Fixed color bar + size slider — always visible at top of right panel.
+  Widget _colorSizeBar() {
+    final sizeLabel = _currentTool == 'shape' ? i18n.tr('线宽') : i18n.tr('大小');
+    final sizeVal = _currentTool == 'shape' ? _shapeStrokeWidth : _brushSize;
+    return Container(
+      height: 28,
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      child: Row(children: [
+        // Foreground color
+        GestureDetector(
+          onTap: () => _pickColorCustom((c) => _safeSetState(() => _primaryColor = c)),
+          child: Container(width: 16, height: 12,
+            decoration: BoxDecoration(
+              color: _primaryColor, border: Border.all(color: Colors.white),
+              borderRadius: BorderRadius.circular(2)),
+          ),
+        ),
+        const SizedBox(width: 2),
+        // Swap
+        GestureDetector(
+          onTap: () => _safeSetState(() {
+            final t = _primaryColor; _primaryColor = _bgColor; _bgColor = t;
+          }),
+          child: const Icon(Icons.swap_vert, size: 10, color: Colors.grey),
+        ),
+        const SizedBox(width: 2),
+        // Background color
+        GestureDetector(
+          onTap: () => _pickColorCustom((c) => _safeSetState(() => _bgColor = c)),
+          child: Container(width: 16, height: 12,
+            decoration: BoxDecoration(
+              color: _bgColor, border: Border.all(color: Colors.grey[600]!),
+              borderRadius: BorderRadius.circular(2)),
+          ),
+        ),
+        const SizedBox(width: 2),
+        // Hex label
+        Text('#${_primaryColor.red.toRadixString(16).padLeft(2,"0")}'
+            '${_primaryColor.green.toRadixString(16).padLeft(2,"0")}'
+            '${_primaryColor.blue.toRadixString(16).padLeft(2,"0")}',
+            style: const TextStyle(fontSize: 7, color: Colors.white54)),
+        const Spacer(),
+        // Size slider
+        Text(sizeLabel, style: const TextStyle(fontSize: 7, color: Colors.grey)),
+        const SizedBox(width: 2),
+        SizedBox(
+          width: 40, height: 16,
+          child: Slider(
+            value: sizeVal.toDouble(), min: 1, max: 50,
+            onChanged: (v) => _safeSetState(() {
+              if (_currentTool == 'shape') {
+                _shapeStrokeWidth = v.round();
+              } else {
+                _brushSize = v.round();
+              }
+            }),
+          ),
+        ),
+        Text('$sizeVal', style: const TextStyle(fontSize: 7, color: Colors.white)),
       ]),
     );
   }

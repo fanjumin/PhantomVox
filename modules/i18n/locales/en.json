@@ -522,5 +522,11 @@
   "Applying {name}...": "Applying {name}...",
   "Adjusting...": "Adjusting...",
   "Polygon": "Polygon",
-  "Polygon Select": "Polygon Select"
+  "Polygon Select": "Polygon Select",
+  "线宽": "Stroke",
+  "大小": "Size",
+  "加粗": "Thicken",
+  "瘦身": "Thin",
+  "去噪点": "Despeckle",
+  "填孔洞": "Fill Holes"
 }

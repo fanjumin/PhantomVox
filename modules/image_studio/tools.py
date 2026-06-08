@@ -326,8 +326,8 @@ def draw_shape(
             cv2.ellipse(result, center, axes, 0, 0, 360, fill, -1)
         cv2.ellipse(result, center, axes, 0, 0, 360, stroke, stroke_width)
     elif shape_type == "circle":
-        center = (x, y)
-        radius = w
+        center = (x + w // 2, y + h // 2)
+        radius = max(w, h) // 2
         if fill_color is not None:
             cv2.circle(result, center, radius, fill, -1)
         cv2.circle(result, center, radius, stroke, stroke_width)
