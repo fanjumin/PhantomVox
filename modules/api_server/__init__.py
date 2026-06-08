@@ -51,6 +51,11 @@ def create_app(engine=None):
     config_mgr = ConfigManager()
     engine.register("config", config_mgr)
 
+    # ── AI Repair engine ───────────────────────────────────
+    from modules.repair import RepairEngine
+    repair_engine = RepairEngine(config_mgr.get_all())
+    engine.register("repair", repair_engine)
+
     # ── Timeline engine ──────────────────────────────────
     from modules.timeline import TimelineEngine
     timeline_engine = TimelineEngine()
@@ -991,6 +996,40 @@ Rules:
                 raise RuntimeError("Document was replaced during operation")
         return result
 
+    def _build_repair_mask(doc, data: dict):
+        """Build repair mask from request data — points or mask_b64.
+
+        Priority:
+          1. mask_b64 in request — use as-is
+          2. mask_points in request — build polygon
+          3. full white mask (repair entire image)
+        """
+        import cv2
+        import numpy as np
+        import base64
+        from io import BytesIO
+        from PIL import Image
+
+        # 1. pre-built mask
+        mask_b64 = data.get("mask_b64", "")
+        if mask_b64:
+            raw = base64.b64decode(mask_b64)
+            pil = Image.open(BytesIO(raw)).convert("L")
+            return np.array(pil, dtype=np.uint8)
+
+        h, w = doc.height, doc.width
+
+        # 2. polygon points
+        points = data.get("mask_points", [])
+        if isinstance(points, list) and len(points) >= 3:
+            pts = np.array([(int(x), int(y)) for x, y in points], dtype=np.int32)
+            mask = np.zeros((h, w), dtype=np.uint8)
+            cv2.fillPoly(mask, [pts], 255)
+            return mask
+
+        # 3. fallback: full image mask
+        return np.full((h, w), 255, dtype=np.uint8)
+
     def _validate_factor(val, default=1.0, lo=0.0, hi=100.0):
         """Validate numeric factor: finite, not NaN/Inf, within range."""
         import math
@@ -1538,6 +1577,75 @@ Rules:
             doc = _req_doc_snapshot()
             for layer in doc.layers:
                 layer.image = ai_restore_faces(layer.image)
+            return jsonify(_doc_response(doc))
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/ai-repair", methods=["POST"])
+    def editor_ai_repair():
+        """AI mask-based repair: receives image mask + prompt, returns repaired image."""
+        data = request.get_json(silent=True) or {}
+        try:
+            doc = _req_doc_snapshot()
+            repair = app.engine.get("repair")
+            if repair is None:
+                return jsonify({"error": "Repair engine not initialized"}), 500
+
+            # Build mask from points or use raw mask_b64
+            mask = _build_repair_mask(doc, data)
+            user_prompt = data.get("prompt", "").strip()
+            task = data.get("task", "auto")
+
+            # Auto-generate prompt based on task if user didn't provide one
+            if not user_prompt:
+                TASK_PROMPTS = {
+                    "auto": "自然修复选中区域，无缝融合，保持整体风格和色调一致，无痕迹",
+                    "watermark": "去除选中区域的水印/文字/Logo，用周围背景自然填充，无痕迹，保持纹理一致",
+                    "face": "修复选中区域的人脸，保持五官自然，肤色均匀，表情真实",
+                    "superres": "对选中区域进行超分辨率放大，增加细节清晰度，保持色彩自然",
+                    "denoise": "去除选中区域的噪点，保留细节和边缘锐度，不过度平滑",
+                    "colorize": "为选中区域的黑白/灰度部分自然上色，颜色真实合理",
+                    "deblur": "修复选中区域的模糊，增强锐度和清晰度，恢复细节纹理",
+                    "change_bg": "替换背景为干净自然的新背景，主体完整保留，边缘过渡平滑",
+                }
+                user_prompt = TASK_PROMPTS.get(task, TASK_PROMPTS["auto"])
+
+            for layer in doc.layers:
+                if layer.visible and not layer.locked:
+                    layer.image = repair.repair(layer.image, mask, user_prompt)
+
+            return jsonify(_doc_response(doc, extra={
+                "repair_method": repair.provider.value,
+                "repair_task": task,
+            }))
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/action", methods=["POST"])
+    def editor_action():
+        """Copy, cut, paste, fill, transform, invert-selection."""
+        data = request.get_json(silent=True) or {}
+        action = data.get("action", "")
+        try:
+            doc = _req_doc_snapshot()
+            import numpy as np
+            if action == "fill-selection":
+                color = data.get("color", [128, 128, 128, 255])
+                for layer in doc.layers:
+                    if layer.visible and not layer.locked:
+                        h, w = layer.image.shape[:2]
+                        mask = np.ones((h, w), dtype=np.uint8) * 255
+                        layer.image[mask > 0] = color
+            elif action == "invert-selection":
+                pass  # placeholder — needs selection mask system
+            elif action == "cut":
+                pass
+            elif action == "copy":
+                pass
+            elif action == "paste":
+                pass
+            elif action == "transform":
+                pass
             return jsonify(_doc_response(doc))
         except Exception as e:
             return jsonify({"error": str(e)}), 400

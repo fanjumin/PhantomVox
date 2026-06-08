@@ -242,6 +242,83 @@ def smart_denoise(img: np.ndarray, h: float = 10) -> np.ndarray:
     return np.dstack([denoised, img[:, :, 3]])
 
 
+def apply_posterize(img: np.ndarray, levels: int = 4) -> np.ndarray:
+    """Reduce color levels per channel for a posterization effect."""
+    result = img.copy()
+    step = 256 // max(2, levels)
+    result[:, :, :3] = (img[:, :, :3].astype(np.int32) // step) * step + step // 2
+    return np.clip(result, 0, 255).astype(np.uint8)
+
+
+def apply_pixelate(img: np.ndarray, block: int = 8) -> np.ndarray:
+    """Pixelate / mosaic effect by downscaling then upscaling."""
+    h, w = img.shape[:2]
+    block = max(2, block)
+    small = cv2.resize(img, (max(1, w // block), max(1, h // block)),
+                       interpolation=cv2.INTER_NEAREST)
+    result = cv2.resize(small, (w, h), interpolation=cv2.INTER_NEAREST)
+    return result
+
+
+def apply_vignette(img: np.ndarray, strength: float = 0.5) -> np.ndarray:
+    """Add dark vignette corners. strength 0-1."""
+    h, w = img.shape[:2]
+    kernel_x = cv2.getGaussianKernel(w, w * 0.4)
+    kernel_y = cv2.getGaussianKernel(h, h * 0.4)
+    mask = kernel_y * kernel_x.T
+    mask = mask / mask.max()
+    mask = 1.0 - (1.0 - mask) * strength
+    result = img.copy()
+    for c in range(3):
+        result[:, :, c] = (result[:, :, c].astype(np.float32) * mask).clip(0, 255).astype(np.uint8)
+    return result
+
+
+def apply_sketch(img: np.ndarray, blur_size: int = 7) -> np.ndarray:
+    """Pencil sketch effect using edge detection + Gaussian blur."""
+    gray = cv2.cvtColor(img[:, :, :3], cv2.COLOR_BGR2GRAY)
+    blur_size = max(3, blur_size | 1)
+    blurred = cv2.GaussianBlur(gray, (blur_size, blur_size), 0)
+    edges = cv2.adaptiveThreshold(blurred, 255,
+                                   cv2.ADAPTIVE_THRESH_MEAN_C,
+                                   cv2.THRESH_BINARY, 9, 10)
+    result = img.copy()
+    result[:, :, :3] = cv2.cvtColor(255 - edges, cv2.COLOR_GRAY2BGR)
+    return result
+
+
+def apply_threshold(img: np.ndarray, method: str = "otsu", value: int = 128) -> np.ndarray:
+    """Apply binary threshold. method: binary / otsu / adaptive."""
+    gray = cv2.cvtColor(img[:, :, :3], cv2.COLOR_BGR2GRAY)
+    if method == "adaptive":
+        thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                        cv2.THRESH_BINARY, 11, 2)
+    elif method == "otsu":
+        _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    else:
+        _, thresh = cv2.threshold(gray, value, 255, cv2.THRESH_BINARY)
+    result = img.copy()
+    result[:, :, :3] = cv2.cvtColor(thresh, cv2.COLOR_GRAY2BGR)
+    return result
+
+
+def apply_morphology(img: np.ndarray, op: str = "dilate", ksize: int = 3) -> np.ndarray:
+    """Morphological operation: dilate / erode / open / close."""
+    gray = cv2.cvtColor(img[:, :, :3], cv2.COLOR_BGR2GRAY)
+    _, binary = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (ksize, ksize))
+    op_map = {
+        "dilate": cv2.MORPH_DILATE,
+        "erode": cv2.MORPH_ERODE,
+        "open": cv2.MORPH_OPEN,
+        "close": cv2.MORPH_CLOSE,
+    }
+    morphed = cv2.morphologyEx(binary, op_map.get(op, cv2.MORPH_DILATE), kernel)
+    result = img.copy()
+    result[:, :, :3] = cv2.cvtColor(morphed, cv2.COLOR_GRAY2BGR)
+    return result
+
+
 def smart_sharpen(img: np.ndarray, amount: float = 1.0) -> np.ndarray:
     """Unsharp mask sharpen."""
     kernel = np.array(
@@ -375,6 +452,12 @@ FILTER_MAP = {
     "edge_detect": lambda img, **kw: apply_edge_detect(
         img, kw.get("threshold1", 50), kw.get("threshold2", 150)
     ),
+    "posterize": lambda img, **kw: apply_posterize(img, kw.get("levels", 4)),
+    "pixelate": lambda img, **kw: apply_pixelate(img, kw.get("block", 8)),
+    "vignette": lambda img, **kw: apply_vignette(img, kw.get("strength", 0.5)),
+    "sketch": lambda img, **kw: apply_sketch(img, kw.get("blur_size", 7)),
+    "threshold": lambda img, **kw: apply_threshold(img, kw.get("method", "otsu"), kw.get("value", 128)),
+    "morphology": lambda img, **kw: apply_morphology(img, kw.get("op", "dilate"), kw.get("ksize", 3)),
 }
 
 

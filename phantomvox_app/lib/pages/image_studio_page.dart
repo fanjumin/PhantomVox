@@ -45,6 +45,12 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
   Color _textStrokeColor = Colors.black;
   Color _textShadowColor = const Color(0x8A000000); // black 54%
   String _fontFamily = 'sans-serif';
+  String _repairTask = 'auto';
+  String _repairPrompt = '';
+  String _repairStatus = 'idle'; // idle | waiting | ready | running | success | error
+  String? _repairStatusMsg;
+  final _repairTextCtrl = TextEditingController();
+  int _rightTabIndex = 0; // 0=图层, 1=属性
   double _opacity = 1.0;
   Color _primaryColor = Colors.white;
 
@@ -52,6 +58,13 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
   List<Offset>? _drawPoints;
   Offset? _drawStart;
   List<Offset>? _shapePreview;
+
+  // -- Selection state --
+  String _selectionMode = 'select-rect'; // 'select-rect' | 'select-ellip' | 'select-lasso'
+  String? _selectionType; // derived from _selectionMode
+  Rect? _selectionRect;
+  List<Offset>? _selectionPoints; // lasso points
+  Offset? _selectionStart;
 
   // -- Crop state --
   bool _cropMode = false;
@@ -186,6 +199,89 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
     );
   }
 
+  /// Has a valid crop selection or the task doesn't need one (change_bg)
+  bool get _hasSelection =>
+      _repairTask == 'change_bg' ||
+      (_cropRect != null && _cropRect!.width > 10 && _cropRect!.height > 10);
+
+  /// Execute AI repair with current task + prompt
+  Future<void> _executeAiRepair() async {
+    _safeSetState(() {
+      _repairStatus = 'running';
+      _repairStatusMsg = null;
+    });
+    try {
+      final r = await _api.post('/api/v1/editor/ai-repair', {
+        'task': _repairTask,
+        'prompt': _repairPrompt,
+        if (_cropRect != null && _cropRect!.width > 10 && _cropRect!.height > 10) ...{
+          'mask_points': [
+            [_cropRect!.left.round(), _cropRect!.top.round()],
+            [_cropRect!.right.round(), _cropRect!.top.round()],
+            [_cropRect!.right.round(), _cropRect!.bottom.round()],
+            [_cropRect!.left.round(), _cropRect!.bottom.round()],
+          ],
+        },
+      });
+      await _updateState(r);
+      _safeSetState(() {
+        _repairStatus = 'success';
+        _repairStatusMsg = null;
+      });
+    } catch (e) {
+      _safeSetState(() {
+        _repairStatus = 'error';
+        _repairStatusMsg = '$e';
+      });
+    }
+  }
+
+  /// AI repair status indicator widget
+  Widget _buildRepairStatus() {
+    Color statusColor;
+    String statusText;
+    IconData statusIcon;
+    switch (_repairStatus) {
+      case 'idle':
+        statusColor = Colors.grey;
+        statusText = _repairTask == 'change_bg' ? '就绪，点击执行' : '在画布上绘制选区';
+        statusIcon = Icons.radio_button_unchecked;
+        break;
+      case 'running':
+        statusColor = const Color(0xFF6C63FF);
+        statusText = 'AI修复中…';
+        statusIcon = Icons.sync;
+        break;
+      case 'success':
+        statusColor = Colors.green;
+        statusText = '✓ 修复完成';
+        statusIcon = Icons.check_circle;
+        break;
+      case 'error':
+        statusColor = Colors.red;
+        statusText = '✗ 修复失败';
+        statusIcon = Icons.error;
+        break;
+      default:
+        statusColor = Colors.grey;
+        statusText = _hasSelection ? '就绪' : '等待选区…';
+        statusIcon = Icons.radio_button_unchecked;
+    }
+    return Row(children: [
+      Icon(statusIcon, size: 10, color: statusColor),
+      const SizedBox(width: 4),
+      Expanded(
+        child: Text(
+          _repairStatus == 'error' && _repairStatusMsg != null
+              ? '$statusText: $_repairStatusMsg'
+              : statusText,
+          style: TextStyle(fontSize: 8, color: statusColor),
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
+    ]);
+  }
+
   // -----------------------------------------------------------------------
   // Image operations
   // -----------------------------------------------------------------------
@@ -307,8 +403,12 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
     }
   }
 
-  Future<void> _filter(String name) => _wrap(() async {
-    final r = await _api.post('/api/v1/editor/filter', {'name': name, 'preview_only': true});
+  Future<void> _filter(String name, [Map<String, dynamic>? params]) => _wrap(() async {
+    final r = await _api.post('/api/v1/editor/filter', {
+      'name': name,
+      'preview_only': true,
+      if (params != null) ...params,
+    });
     await _updateState(r);
   }, label: i18n.tr('Applying {name}...', params: {'name': name}));
 
@@ -316,6 +416,11 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
     final r = await _api.post('/api/v1/editor/$name', {...p, 'preview_only': true});
     await _updateState(r);
   }, label: i18n.tr('{name}...', params: {'name': name}));
+
+  Future<void> _editorAction(String action) => _wrap(() async {
+    final r = await _api.post('/api/v1/editor/action', {'action': action});
+    await _updateState(r);
+  }, label: i18n.tr('{action}...', params: {'action': action}));
 
   Future<void> _adjustVoid(String name, Map<String, dynamic> p) => _wrap(() async {
     final r = await _api.post('/api/v1/editor/adjust', {'type': name, ...p, 'preview_only': true});
@@ -400,6 +505,14 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
         _onTextDown(imgPos);
       } else if (_currentTool == 'shape') {
         _shapePreview = [imgPos];
+      } else if (_currentTool == 'select') {
+        _selectionType = _selectionMode == 'select-rect' ? 'rect' : (_selectionMode == 'select-ellip' ? 'ellipse' : 'lasso');
+        _selectionStart = imgPos;
+        if (_selectionMode == 'select-lasso') {
+          _selectionPoints = [imgPos];
+        } else {
+          _selectionRect = Rect.fromPoints(imgPos, imgPos);
+        }
       }
     });
   }
@@ -413,6 +526,12 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
         _onCropMove(imgPos);
       } else if (_currentTool == 'shape' && _drawStart != null) {
         _shapePreview = [_drawStart!, imgPos];
+      } else if (_currentTool == 'select' && _selectionStart != null) {
+        if (_selectionMode == 'select-lasso') {
+          _selectionPoints!.add(imgPos);
+        } else {
+          _selectionRect = Rect.fromPoints(_selectionStart!, imgPos);
+        }
       }
     });
   }
@@ -879,12 +998,17 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
   Widget _toolbar() {
     // [id, icon, tooltip, isAction?, actionName]
     const tools = <List<dynamic>>[
+      // ── Selection tools (single slot, dropdown) ──
+      ['select',     Icons.crop_square,           'Select',                    false, null],
       // ── Interactive tools ──
-      ['crop',       Icons.crop,                 'Crop',                      false, null],
-      ['text',       Icons.text_fields,          'Add text',                  false, null],
-      ['brush',      Icons.brush,                'Brush',                     false, null],
-      ['eraser',     Icons.auto_fix_off,         'Eraser',                    false, null],
-      ['shape',      Icons.category_outlined,    'Shape',                     false, null],
+      ['move',         Icons.open_with,           'Move',                      false, null],
+      ['crop',         Icons.crop,                'Crop',                      false, null],
+      ['text',         Icons.text_fields,         'Add text',                  false, null],
+      ['brush',        Icons.brush,               'Brush',                     false, null],
+      ['eraser',       Icons.auto_fix_off,        'Eraser',                    false, null],
+      ['fill',         Icons.format_paint,        'Fill',                      false, null],
+      ['eyedropper',   Icons.colorize,            'Eyedropper',                false, null],
+      ['shape',        Icons.category_outlined,   'Shape',                     false, null],
       ['resize',     Icons.photo_size_select_small, 'Resize',                 true,  'resize'],
       ['rotate',     Icons.rotate_right,         'Rotate',                    true,  'rotate'],
       ['adjst',      Icons.tune,                 'Adjust',                    true,  'adjust'],
@@ -894,7 +1018,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
       ['blur',       Icons.blur_on,              'Blur',                      true,  'blur'],
       ['invert',     Icons.invert_colors,        'Invert',                    true,  'invert'],
       ['sharpen',    Icons.blur_circular,        'Sharpen',                   true,  'sharpen'],
-      ['edge',       Icons.auto_fix_high,        'Edge detect',              true,  'edge'],
+      ['edge',       Icons.compare,              'Edge detect',               true,  'edge'],
       // ── Enhancement ──
       ['denoise',    Icons.noise_control_off,    'Denoise',                   true,  'denoise'],
       ['clahe',      Icons.contrast,             'CLAHE',                     true,  'clahe'],
@@ -902,10 +1026,10 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
       ['rmbg',       Icons.image_not_supported,  'Remove BG',                 true,  'remove-bg'],
       ['gradient',   Icons.gradient,             'Gradient',                  false, null],
       // ── AI tools ──
-      ['ai-enhance', Icons.auto_fix_high,        'AI Enhance',               true,  'ai-enhance'],
+      ['ai-enhance', Icons.auto_fix_high,        'Enhance',                   true,  'ai-enhance'],
       ['ai-restore', Icons.face,                 'Face Restore',              true,  'ai-restore'],
       ['upscale',    Icons.zoom_in,              'Upscale',                   true,  'upscale'],
-      ['lineart',    Icons.auto_fix_high,        'Lineart',                   true,  'lineart'],
+      ['lineart',    Icons.vertical_split,        'Lineart',                   true,  'lineart'],
       ['hdr',        Icons.brightness_high,      'HDR Tone',                  true,  'hdr'],
       // ── Navigation ──
       ['hand',       Icons.pan_tool,             'Hand',                      false, null],
@@ -932,6 +1056,46 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
                     final tip = t[2] as String;
                     final isAction = t[3] as bool;
                     final active = _currentTool == id;
+
+                    // Selection tool: dynamic icon + dropdown
+                    if (id == 'select') {
+                      final selIcon = _selectionMode == 'select-rect'
+                          ? Icons.crop_square
+                          : (_selectionMode == 'select-ellip'
+                              ? Icons.circle_outlined
+                              : Icons.gesture);
+                      final selLabel = _selectionMode == 'select-rect'
+                          ? 'Rect'
+                          : (_selectionMode == 'select-ellip'
+                              ? 'Ellipse'
+                              : 'Lasso');
+                      return Tooltip(
+                          message: i18n.tr(selLabel == 'Rect' ? 'Rect Select' : (selLabel == 'Ellipse' ? 'Ellipse Select' : 'Lasso Select')),
+                          child: GestureDetector(
+                            onTapDown: (details) => _showSelectionMenu(details.globalPosition),
+                            child: Container(
+                              width: 49,
+                              height: 34,
+                              color: active
+                                  ? const Color(0xFF6C63FF).withOpacity(0.3)
+                                  : null,
+                              alignment: Alignment.center,
+                              child: Stack(
+                                clipBehavior: Clip.none,
+                                children: [
+                                  Icon(selIcon, size: 16,
+                                      color: active ? const Color(0xFF6C63FF) : Colors.grey),
+                                  // Small triangle indicator at bottom-right
+                                  Positioned(
+                                    right: -2, bottom: -2,
+                                    child: Icon(Icons.arrow_drop_down, size: 10,
+                                        color: Colors.grey[500]),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ));
+                    }
                     return Tooltip(
                         message: i18n.tr(tip),
                         child: GestureDetector(
@@ -977,6 +1141,51 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
             }).toList()),
       ),
     );
+  }
+
+  void _showSelectionMenu(Offset position) {
+    final renderBox = context.findRenderObject() as RenderBox;
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        position.dx - 40, position.dy - 10, position.dx + 40, position.dy + 10,
+      ),
+      color: const Color(0xFF1A1A2E),
+      items: [
+        PopupMenuItem(
+          value: 'select-rect',
+          child: Row(children: [
+            Icon(Icons.crop_square, size: 14, color: _selectionMode == 'select-rect' ? const Color(0xFF6C63FF) : Colors.grey),
+            const SizedBox(width: 6),
+            Text(i18n.tr('Rectangle'), style: TextStyle(fontSize: 11, color: Colors.white)),
+          ]),
+        ),
+        PopupMenuItem(
+          value: 'select-ellip',
+          child: Row(children: [
+            Icon(Icons.circle_outlined, size: 14, color: _selectionMode == 'select-ellip' ? const Color(0xFF6C63FF) : Colors.grey),
+            const SizedBox(width: 6),
+            Text(i18n.tr('Ellipse'), style: TextStyle(fontSize: 11, color: Colors.white)),
+          ]),
+        ),
+        PopupMenuItem(
+          value: 'select-lasso',
+          child: Row(children: [
+            Icon(Icons.gesture, size: 14, color: _selectionMode == 'select-lasso' ? const Color(0xFF6C63FF) : Colors.grey),
+            const SizedBox(width: 6),
+            Text(i18n.tr('Lasso'), style: TextStyle(fontSize: 11, color: Colors.white)),
+          ]),
+        ),
+      ],
+      elevation: 4,
+    ).then((value) {
+      if (value != null) {
+        _safeSetState(() {
+          _selectionMode = value;
+          _setTool('select');
+        });
+      }
+    });
   }
 
   void _showRotateSubActions() {
@@ -1175,9 +1384,11 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
         ),
         child: Text(i18n.tr(label),
             style: TextStyle(
-                fontSize: 8,
-                color: active ? Colors.white : Colors.grey)),
-      ),
+              fontSize: 8,
+              color: active ? Colors.white : Colors.grey[400],
+            ),
+          ),
+        ),
     );
   }
 
@@ -1367,6 +1578,9 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
                       brushSize: _brushSize,
                       cropRect: _cropMode ? _cropRect : null,
                       shapePreview: _shapePreview,
+                      selectionType: _selectionType,
+                      selectionRect: _selectionRect,
+                      selectionPoints: _selectionPoints,
                       imageSize: Size(iw, ih),
                       zoomScale: _tc.value.getMaxScaleOnAxis(),
                     ),
@@ -1581,318 +1795,460 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
       color: const Color(0xFF0D0D1A),
       child: Column(children: [
         // Layers section
+        // Layers + Tool Props — tabbed card
         Container(
-          height: 24,
-          padding: const EdgeInsets.symmetric(horizontal: 6),
-          alignment: Alignment.centerLeft,
-          child: Row(children: [
-            Tr('Layers', style: TextStyle(fontSize: 10, color: Colors.grey)),
-            const Spacer(),
-            _iconBtn(Icons.add, () => _wrap(() async {
-              await _api.addLayer();
-              await _refreshLayers();
-            }, label: i18n.tr('Add layer...'), successMsg: i18n.tr('Layer added'))),
-            _iconBtn(Icons.delete_outline, () => _wrap(() async {
-              await _api.deleteLayer();
-              await _refreshLayers();
-            }, label: i18n.tr('Delete layer...'), successMsg: i18n.tr('Layer deleted'))),
-          ]),
-        ),
-        SizedBox(
-          height: 60,
-          child: ListView.builder(
-            itemCount: _layers.length,
-            itemBuilder: (ctx, i) {
-              final l = _layers[_layers.length - 1 - i];
-              final vis = l['visible'] ?? true;
-              return Container(
-                height: 20,
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                child: Row(children: [
-                  GestureDetector(
-                    onTap: () => _toggleVisibility(i),
-                    child: Icon(vis ? Icons.visibility : Icons.visibility_off,
-                        size: 11, color: Colors.grey)),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      l['name'] ?? 'Layer ${_layers.length - i}',
-                      style: const TextStyle(fontSize: 8, color: Colors.white),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  Text(
-                    '${(l['opacity'] * 100).round()}%',
-                    style:
-                        const TextStyle(fontSize: 7, color: Colors.grey),
-                  ),
-                ]),
-              );
-            },
+          decoration: BoxDecoration(
+            border: Border.all(color: const Color(0xFF16213E)),
+            borderRadius: BorderRadius.circular(4),
           ),
-        ),
-        const Divider(height: 1, color: Color(0xFF16213E)),
-
-        // TOOL PROPERTIES — context-sensitive
-        _sectionTitle('TOOL PROPS'),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
           child: Column(children: [
-            // Color
+            // Tab bar
             Row(children: [
-              Tr('Color', style: TextStyle(fontSize: 8, color: Colors.grey)),
-              const SizedBox(width: 6),
-              GestureDetector(
-                onTap: _pickColor,
-                child: Container(
-                  width: 20, height: 16,
-                  decoration: BoxDecoration(
-                    color: _primaryColor,
-                    border: Border.all(color: Colors.grey),
-                    borderRadius: BorderRadius.circular(2),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => _safeSetState(() => _rightTabIndex = 0),
+                  child: Container(
+                    height: 20,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: _rightTabIndex == 0 ? const Color(0xFF6C63FF).withOpacity(0.2) : null,
+                      borderRadius: const BorderRadius.only(topLeft: Radius.circular(3)),
+                    ),
+                    child: Tr('图层', style: TextStyle(fontSize: 9, color: _rightTabIndex == 0 ? const Color(0xFF6C63FF) : Colors.grey)),
                   ),
                 ),
               ),
-              const SizedBox(width: 4),
-              Text(
-                '#${_primaryColor.red.toRadixString(16).padLeft(2,"0")}'
-                '${_primaryColor.green.toRadixString(16).padLeft(2,"0")}'
-                '${_primaryColor.blue.toRadixString(16).padLeft(2,"0")}',
-                style: const TextStyle(fontSize: 8, color: Colors.white54),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => _safeSetState(() => _rightTabIndex = 1),
+                  child: Container(
+                    height: 20,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: _rightTabIndex == 1 ? const Color(0xFF6C63FF).withOpacity(0.2) : null,
+                      borderRadius: const BorderRadius.only(topRight: Radius.circular(3)),
+                    ),
+                    child: Tr('属性', style: TextStyle(fontSize: 9, color: _rightTabIndex == 1 ? const Color(0xFF6C63FF) : Colors.grey)),
+                  ),
+                ),
               ),
             ]),
-            const SizedBox(height: 4),
-            // Size slider (for brush/shape/eraser)
-            if (_currentTool == 'brush' || _currentTool == 'shape' || _currentTool == 'eraser')
-              Row(children: [
-                Tr('Size', style: TextStyle(fontSize: 8, color: Colors.grey)),
-                Expanded(
-                  child: Slider(
-                    value: _brushSize.toDouble(), min: 1, max: 50,
-                    onChanged: (v) => _safeSetState(() => _brushSize = v.round()),
-                  ),
-                ),
-                Text('$_brushSize', style: const TextStyle(fontSize: 8, color: Colors.white)),
-              ]),
-            // Text tool properties — visual controls (no number input)
-            if (_currentTool == 'text') ...[
-              const SizedBox(height: 4),
-              // Font family dropdown
-              Row(children: [
-                Tr('Font', style: TextStyle(fontSize: 8, color: Colors.grey)),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Container(
-                    height: 18,
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey[600]!),
-                      borderRadius: BorderRadius.circular(2),
+            const Divider(height: 1, color: Color(0xFF16213E)),
+            // Tab content
+            _rightTabIndex == 0
+                // Layers tab
+                ? Column(children: [
+                    Container(
+                      height: 24,
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      alignment: Alignment.centerLeft,
+                      child: Row(children: [
+                        Tr('Layers', style: TextStyle(fontSize: 10, color: Colors.grey)),
+                        const Spacer(),
+                        _iconBtn(Icons.add, () => _wrap(() async {
+                          await _api.addLayer();
+                          await _refreshLayers();
+                        }, label: i18n.tr('Add layer...'), successMsg: i18n.tr('Layer added'))),
+                        _iconBtn(Icons.delete_outline, () => _wrap(() async {
+                          await _api.deleteLayer();
+                          await _refreshLayers();
+                        }, label: i18n.tr('Delete layer...'), successMsg: i18n.tr('Layer deleted'))),
+                      ]),
                     ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: _fontFamily,
-                        isExpanded: true,
-                        dropdownColor: const Color(0xFF1A1A2E),
-                        style: const TextStyle(fontSize: 9, color: Colors.white),
-                        items: _fonts.isEmpty
-                            ? [const DropdownMenuItem(value: 'sans-serif', child: Tr('Loading...', style: TextStyle(fontSize: 9)))]
-                            : _fonts.map<DropdownMenuItem<String>>((f) {
-                                final name = f['family'] as String? ?? f['name'] as String? ?? 'Unknown';
-                                return DropdownMenuItem(
-                                  value: name,
-                                  child: Text(name, style: const TextStyle(fontSize: 9), overflow: TextOverflow.ellipsis),
-                                );
-                              }).toList(),
-                        onChanged: (v) {
-                          if (v != null) _safeSetState(() => _fontFamily = v);
+                    SizedBox(
+                      height: 60,
+                      child: ListView.builder(
+                        itemCount: _layers.length,
+                        itemBuilder: (ctx, i) {
+                          final l = _layers[_layers.length - 1 - i];
+                          final vis = l['visible'] ?? true;
+                          return Container(
+                            height: 20,
+                            padding: const EdgeInsets.symmetric(horizontal: 6),
+                            child: Row(children: [
+                              GestureDetector(
+                                onTap: () => _toggleVisibility(i),
+                                child: Icon(vis ? Icons.visibility : Icons.visibility_off,
+                                    size: 11, color: Colors.grey)),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  l['name'] ?? 'Layer ${_layers.length - i}',
+                                  style: const TextStyle(fontSize: 8, color: Colors.white),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              Text(
+                                '${(l['opacity'] * 100).round()}%',
+                                style: const TextStyle(fontSize: 7, color: Colors.grey),
+                              ),
+                            ]),
+                          );
                         },
                       ),
                     ),
+                  ])
+                // Tool Properties tab
+                : Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                    child: Column(children: [
+                      // Color
+                      Row(children: [
+                        Tr('Color', style: TextStyle(fontSize: 8, color: Colors.grey)),
+                        const SizedBox(width: 6),
+                        GestureDetector(
+                          onTap: _pickColor,
+                          child: Container(
+                            width: 20, height: 16,
+                            decoration: BoxDecoration(
+                              color: _primaryColor,
+                              border: Border.all(color: Colors.grey),
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '#${_primaryColor.red.toRadixString(16).padLeft(2,"0")}'
+                          '${_primaryColor.green.toRadixString(16).padLeft(2,"0")}'
+                          '${_primaryColor.blue.toRadixString(16).padLeft(2,"0")}',
+                          style: const TextStyle(fontSize: 8, color: Colors.white54),
+                        ),
+                      ]),
+                      const SizedBox(height: 4),
+                      // Size slider (for brush/shape/eraser)
+                      if (_currentTool == 'brush' || _currentTool == 'shape' || _currentTool == 'eraser')
+                        Row(children: [
+                          Tr('Size', style: TextStyle(fontSize: 8, color: Colors.grey)),
+                          Expanded(
+                            child: Slider(
+                              value: _brushSize.toDouble(), min: 1, max: 50,
+                              onChanged: (v) => _safeSetState(() => _brushSize = v.round()),
+                            ),
+                          ),
+                          Text('$_brushSize', style: const TextStyle(fontSize: 8, color: Colors.white)),
+                        ]),
+                      // Text tool properties
+                      if (_currentTool == 'text') ...[
+                        const SizedBox(height: 4),
+                        Row(children: [
+                          Tr('Font', style: TextStyle(fontSize: 8, color: Colors.grey)),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Container(
+                              height: 18,
+                              padding: const EdgeInsets.symmetric(horizontal: 4),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.grey[600]!),
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<String>(
+                                  value: _fontFamily,
+                                  isExpanded: true,
+                                  dropdownColor: const Color(0xFF1A1A2E),
+                                  style: const TextStyle(fontSize: 9, color: Colors.white),
+                                  items: _fonts.isEmpty
+                                      ? [const DropdownMenuItem(value: 'sans-serif', child: Tr('Loading...', style: TextStyle(fontSize: 9)))]
+                                      : _fonts.map<DropdownMenuItem<String>>((f) {
+                                          final name = f['family'] as String? ?? f['name'] as String? ?? 'Unknown';
+                                          return DropdownMenuItem(
+                                            value: name,
+                                            child: Text(name, style: const TextStyle(fontSize: 9), overflow: TextOverflow.ellipsis),
+                                          );
+                                        }).toList(),
+                                  onChanged: (v) {
+                                    if (v != null) _safeSetState(() => _fontFamily = v);
+                                  },
+                                ),
+                              ),
+                            ),
+                          ),
+                        ]),
+                        const SizedBox(height: 4),
+                        Row(children: [
+                          Tr('Size', style: TextStyle(fontSize: 8, color: Colors.grey)),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Slider(
+                              value: _fontSize.toDouble(), min: 8, max: 200, divisions: 96,
+                              label: '$_fontSize',
+                              onChanged: (v) => _safeSetState(() => _fontSize = v.round()),
+                            ),
+                          ),
+                          Text('$_fontSize', style: const TextStyle(fontSize: 9, color: Colors.white)),
+                        ]),
+                        Row(children: [
+                          Tr('Border', style: TextStyle(fontSize: 8, color: Colors.grey)),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Slider(
+                              value: _textStrokeWidth.toDouble(), min: 0, max: 20, divisions: 20,
+                              label: '$_textStrokeWidth',
+                              onChanged: (v) => _safeSetState(() => _textStrokeWidth = v.round()),
+                            ),
+                          ),
+                          Text('$_textStrokeWidth', style: const TextStyle(fontSize: 9, color: Colors.white)),
+                          const SizedBox(width: 4),
+                          GestureDetector(
+                            onTap: () => _pickColorCustom((c) => _textStrokeColor = c),
+                            child: Container(
+                              width: 14, height: 14,
+                              decoration: BoxDecoration(
+                                color: _textStrokeColor,
+                                border: Border.all(color: Colors.grey),
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                            ),
+                          ),
+                        ]),
+                        const SizedBox(height: 4),
+                        Row(children: [
+                          Tr('Shadow', style: TextStyle(fontSize: 8, color: Colors.grey)),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Slider(
+                              value: _textShadowBlur.toDouble(), min: 0, max: 30, divisions: 15,
+                              label: '$_textShadowBlur',
+                              onChanged: (v) => _safeSetState(() => _textShadowBlur = v.round()),
+                            ),
+                          ),
+                          Text('$_textShadowBlur', style: const TextStyle(fontSize: 9, color: Colors.white)),
+                          const SizedBox(width: 4),
+                          GestureDetector(
+                            onTap: () => _pickColorCustom((c) => _textShadowColor = c),
+                            child: Container(
+                              width: 14, height: 14,
+                              decoration: BoxDecoration(
+                                color: _textShadowColor,
+                                border: Border.all(color: Colors.grey),
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                            ),
+                          ),
+                        ]),
+                        const SizedBox(height: 4),
+                        Row(children: [
+                          Tr('Opacity', style: TextStyle(fontSize: 8, color: Colors.grey)),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Slider(
+                              value: _opacity, min: 0.0, max: 1.0, divisions: 20,
+                              label: '${(_opacity * 100).round()}%',
+                              onChanged: (v) => _safeSetState(() => _opacity = v),
+                            ),
+                          ),
+                          Text('${(_opacity * 100).round()}%', style: const TextStyle(fontSize: 9, color: Colors.white)),
+                        ]),
+                      ],
+                      // Shape type (for shape tool)
+                      if (_currentTool == 'shape') ...[
+                        const SizedBox(height: 4),
+                        Row(children: [
+                          _miniBtn('Rect', _shapeType == 'rect', () => _shapeType = 'rect'),
+                          const SizedBox(width: 2),
+                          _miniBtn('Ellipse', _shapeType == 'ellipse', () => _shapeType = 'ellipse'),
+                          const SizedBox(width: 2),
+                          _miniBtn('Line', _shapeType == 'line', () => _shapeType = 'line'),
+                          const SizedBox(width: 2),
+                          _miniBtn('Circle', _shapeType == 'circle', () => _shapeType = 'circle'),
+                        ]),
+                      ],
+                      // Crop confirm/cancel (for crop tool)
+                      if (_currentTool == 'crop' && _cropRect != null) ...[
+                        const SizedBox(height: 4),
+                        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                          SizedBox(
+                            width: 50, height: 20,
+                            child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF6C63FF),
+                                padding: EdgeInsets.zero,
+                                textStyle: const TextStyle(fontSize: 9),
+                              ),
+                              onPressed: _applyCrop,
+                              child: Tr('Apply'),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          SizedBox(
+                            width: 50, height: 20,
+                            child: OutlinedButton(
+                              style: OutlinedButton.styleFrom(
+                                padding: EdgeInsets.zero,
+                                textStyle: const TextStyle(fontSize: 9),
+                              ),
+                              onPressed: _cancelCrop,
+                              child: Tr('Cancel'),
+                            ),
+                          ),
+                        ]),
+                      ],
+                    ]),
                   ),
-                ),
-              ]),
-              const SizedBox(height: 4),
-              // Font size with common presets + slider
-              Row(children: [
-                Tr('Size', style: TextStyle(fontSize: 8, color: Colors.grey)),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Slider(
-                    value: _fontSize.toDouble(), min: 8, max: 200, divisions: 96,
-                    label: '$_fontSize',
-                    onChanged: (v) => _safeSetState(() => _fontSize = v.round()),
-                  ),
-                ),
-                Text('$_fontSize', style: const TextStyle(fontSize: 9, color: Colors.white)),
-              ]),
-              // Border (stroke width slider + color swatch)
-              Row(children: [
-                Tr('Border', style: TextStyle(fontSize: 8, color: Colors.grey)),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Slider(
-                    value: _textStrokeWidth.toDouble(), min: 0, max: 20, divisions: 20,
-                    label: '$_textStrokeWidth',
-                    onChanged: (v) => _safeSetState(() => _textStrokeWidth = v.round()),
-                  ),
-                ),
-                Text('$_textStrokeWidth', style: const TextStyle(fontSize: 9, color: Colors.white)),
-                const SizedBox(width: 4),
-                GestureDetector(
-                  onTap: () => _pickColorCustom((c) => _textStrokeColor = c),
-                  child: Container(
-                    width: 14, height: 14,
-                    decoration: BoxDecoration(
-                      color: _textStrokeColor,
-                      border: Border.all(color: Colors.grey),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-              ]),
-              const SizedBox(height: 4),
-              // Shadow (blur slider + color swatch)
-              Row(children: [
-                Tr('Shadow', style: TextStyle(fontSize: 8, color: Colors.grey)),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Slider(
-                    value: _textShadowBlur.toDouble(), min: 0, max: 30, divisions: 15,
-                    label: '$_textShadowBlur',
-                    onChanged: (v) => _safeSetState(() => _textShadowBlur = v.round()),
-                  ),
-                ),
-                Text('$_textShadowBlur', style: const TextStyle(fontSize: 9, color: Colors.white)),
-                const SizedBox(width: 4),
-                GestureDetector(
-                  onTap: () => _pickColorCustom((c) => _textShadowColor = c),
-                  child: Container(
-                    width: 14, height: 14,
-                    decoration: BoxDecoration(
-                      color: _textShadowColor,
-                      border: Border.all(color: Colors.grey),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-              ]),
-              const SizedBox(height: 4),
-              // Opacity slider
-              Row(children: [
-                Tr('Opacity', style: TextStyle(fontSize: 8, color: Colors.grey)),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Slider(
-                    value: _opacity, min: 0.0, max: 1.0, divisions: 20,
-                    label: '${(_opacity * 100).round()}%',
-                    onChanged: (v) => _safeSetState(() => _opacity = v),
-                  ),
-                ),
-                Text('${(_opacity * 100).round()}%', style: const TextStyle(fontSize: 9, color: Colors.white)),
-              ]),
-            ],
-            // Shape type (for shape tool)
-            if (_currentTool == 'shape') ...[
-              const SizedBox(height: 4),
-              Row(children: [
-                _miniBtn('Rect', _shapeType == 'rect', () => _shapeType = 'rect'),
-                const SizedBox(width: 2),
-                _miniBtn('Ellipse', _shapeType == 'ellipse', () => _shapeType = 'ellipse'),
-                const SizedBox(width: 2),
-                _miniBtn('Line', _shapeType == 'line', () => _shapeType = 'line'),
-                const SizedBox(width: 2),
-                _miniBtn('Circle', _shapeType == 'circle', () => _shapeType = 'circle'),
-              ]),
-            ],
-            // Crop confirm/cancel (for crop tool)
-            if (_currentTool == 'crop' && _cropRect != null) ...[
-              const SizedBox(height: 4),
-              Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                SizedBox(
-                  width: 50, height: 20,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF6C63FF),
-                      padding: EdgeInsets.zero,
-                      textStyle: const TextStyle(fontSize: 9),
-                    ),
-                    onPressed: _applyCrop,
-                    child: Tr('Apply'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                SizedBox(
-                  width: 50, height: 20,
-                  child: OutlinedButton(
-                    style: OutlinedButton.styleFrom(
-                      padding: EdgeInsets.zero,
-                      textStyle: const TextStyle(fontSize: 9),
-                    ),
-                    onPressed: _cancelCrop,
-                    child: Tr('Cancel'),
-                  ),
-                ),
-              ]),
-            ],
           ]),
         ),
         const Divider(height: 1, color: Color(0xFF16213E)),
 
-        // AI TOOLS
-        _sectionTitle('AI TOOLS', accent: true),
+        // AI REPAIR PANEL (top)
+        _sectionTitle('AI修复', accent: true),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            // Selection status indicator
+            Row(children: [
+              Icon(
+                _hasSelection ? Icons.check_circle : Icons.radio_button_unchecked,
+                size: 10,
+                color: _hasSelection ? Colors.green : Colors.grey,
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  _hasSelection
+                      ? i18n.tr('已选中区域')
+                      : (_repairTask == 'change_bg'
+                          ? i18n.tr('自动检测主体')
+                          : i18n.tr('先用裁剪工具选区')),
+                  style: TextStyle(
+                    fontSize: 8,
+                    color: _hasSelection ? Colors.green : Colors.grey,
+                  ),
+                ),
+              ),
+            ]),
+            const SizedBox(height: 6),
+            // Task type grid: 2 rows × 4 columns
+            Text(i18n.tr('修复类型'), style: TextStyle(fontSize: 8, color: Colors.grey[400])),
+            const SizedBox(height: 4),
+            Row(children: [
+              Expanded(child: _miniBtn('综合', _repairTask == 'auto', () => _repairTask = 'auto')),
+              const SizedBox(width: 2),
+              Expanded(child: _miniBtn('去水印', _repairTask == 'watermark', () => _repairTask = 'watermark')),
+              const SizedBox(width: 2),
+              Expanded(child: _miniBtn('人脸', _repairTask == 'face', () => _repairTask = 'face')),
+              const SizedBox(width: 2),
+              Expanded(child: _miniBtn('超分', _repairTask == 'superres', () => _repairTask = 'superres')),
+            ]),
+            const SizedBox(height: 4),
+            Row(children: [
+              Expanded(child: _miniBtn('去噪', _repairTask == 'denoise', () => _repairTask = 'denoise')),
+              const SizedBox(width: 2),
+              Expanded(child: _miniBtn('上色', _repairTask == 'colorize', () => _repairTask = 'colorize')),
+              const SizedBox(width: 2),
+              Expanded(child: _miniBtn('去模糊', _repairTask == 'deblur', () => _repairTask = 'deblur')),
+              const SizedBox(width: 2),
+              Expanded(child: _miniBtn('换背景', _repairTask == 'change_bg', () => _repairTask = 'change_bg')),
+            ]),
+            const SizedBox(height: 6),
+            // Prompt input — fixed 3-line height
+            Text(i18n.tr('提示词（选填）'), style: TextStyle(fontSize: 8, color: Colors.grey[400])),
+            const SizedBox(height: 4),
+            TextField(
+              controller: _repairTextCtrl,
+              minLines: 3,
+              maxLines: 3,
+              style: const TextStyle(fontSize: 9, color: Colors.white),
+              decoration: InputDecoration(
+                hintText: i18n.tr('例如：自然无痕填充'),
+                hintStyle: TextStyle(fontSize: 8, color: Colors.grey[600]),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                border: OutlineInputBorder(borderSide: BorderSide(color: Colors.grey[700]!)),
+                filled: true,
+                fillColor: const Color(0xFF0A0E27),
+                isDense: true,
+              ),
+              onChanged: (v) => _safeSetState(() => _repairPrompt = v),
+            ),
+            const SizedBox(height: 6),
+            // Execute button
+            SizedBox(
+              width: double.infinity, height: 24,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _hasSelection ? const Color(0xFF6C63FF) : Colors.grey[700],
+                  padding: EdgeInsets.zero,
+                  textStyle: const TextStyle(fontSize: 9),
+                ),
+                onPressed: _hasSelection ? _executeAiRepair : null,
+                icon: const Icon(Icons.auto_fix_high, size: 12, color: Colors.white),
+                label: Text(i18n.tr('执行修复'), style: const TextStyle(fontSize: 9, color: Colors.white)),
+              ),
+            ),
+            const SizedBox(height: 6),
+            // Status area
+            _buildRepairStatus(),
+            const SizedBox(height: 2),
+          ]),
+        ),
+        const Divider(height: 1, color: Color(0xFF16213E)),
+
+        // ACTIONS — copy/cut/paste/transform
+        _sectionTitle('ACTIONS', accent: true),
         _btnRow(
-          labels: const ['Enhance', 'Restore', 'Upscale', 'Lineart'],
+          labels: const ['✂ Cut', '📋 Copy', '📄 Paste', '🔄 Transform'],
           callbacks: [
-            () => _transformVoid('ai-enhance', {}),
-            () => _transformVoid('ai-restore', {}),
-            () => _transformVoid('upscale', {'scale': 2}),
-            () => _transformVoid('lineart', {'method': 'canny'}),
+            () => _editorAction('cut'),
+            () => _editorAction('copy'),
+            () => _editorAction('paste'),
+            () => _editorAction('transform'),
           ],
         ),
         _btnRow(
-          labels: const ['HDR', 'Rm BG', 'Inpaint', 'BlurReg'],
+          labels: const ['Select All', 'Deselect', 'Invert Sel', 'Fill'],
           callbacks: [
-            () => _transformVoid('hdr', {}),
-            () => _transformVoid('remove-bg', {}),
+            () => _safeSetState(() {
+              _selectionType = 'rect';
+              _selectionRect = Rect.fromLTWH(0, 0, _info?['width']?.toDouble() ?? 800, _info?['height']?.toDouble() ?? 600);
+            }),
+            () => _safeSetState(() {
+              _selectionType = null;
+              _selectionRect = null;
+              _selectionPoints = null;
+            }),
+            () => _editorAction('invert-selection'),
+            () => _editorAction('fill-selection'),
+          ],
+        ),
+        const Divider(height: 1, color: Color(0xFF16213E)),
+
+        // QUICK TOOLS — right-exclusive: Inpaint, BlurReg, Bilateral, Emboss
+        _sectionTitle('QUICK', accent: true),
+        _btnRow(
+          labels: const ['Inpaint', 'BlurReg', 'Bilateral', 'Median'],
+          callbacks: [
             () => _transformVoid('inpaint-erase', {'x':10,'y':10,'w':100,'h':100,'radius':3}),
             () => _transformVoid('blur-region', {'x':0,'y':0,'w':100,'h':100,'ksize':15}),
+            () => _filter('bilateral'),
+            () => _filter('median_blur'),
           ],
         ),
-        const Divider(height: 1, color: Color(0xFF16213E)),
-
-        // HISTORY
-        _sectionTitle('HISTORY'),
         _btnRow(
-          labels: const ['↩ Undo', '↪ Redo', 'Undo#', 'Redo#'],
+          labels: const ['Emboss', 'SmartSh', 'Posterize', 'Pixelate'],
           callbacks: [
-            _canUndo ? () => _undo() : () {},
-            _canRedo ? () => _redo() : () {},
-            () => _showSnack('Undo stack: ${_undoCount}'),
-            () => _showSnack('Redo stack: ${_redoCount}'),
+            () => _filter('emboss'),
+            () => _transformVoid('smart-sharpen', {}),
+            () => _filter('posterize'),
+            () => _filter('pixelate'),
+          ],
+        ),
+        _btnRow(
+          labels: const ['Vignette', 'Sketch', 'Threshold', 'Dilate'],
+          callbacks: [
+            () => _filter('vignette'),
+            () => _filter('sketch'),
+            () => _filter('threshold'),
+            () => _filter('morphology'),
           ],
         ),
 
-        // OPERATIONS — collapsible action buttons (below the primary panels)
+        // OPERATIONS — scrollable area for remaining space
         const Divider(height: 1, color: Color(0xFF16213E)),
-        _sectionTitle('QUICK OPS'),
+        _sectionTitle('OPS'),
         Expanded(
           child: SingleChildScrollView(
             child: Column(children: [
-              _btnRow(
-                labels: const ['Blur', 'Sharpen', 'Sepia', 'Emboss'],
-                callbacks: [
-                  () => _filter('blur'), () => _filter('sharpen'),
-                  () => _filter('sepia'), () => _filter('emboss'),
-                ],
-              ),
-              _btnRow(
-                labels: const ['Edge', 'Invert', 'Grayscale', 'Median'],
-                callbacks: [
-                  () => _filter('edge_detect'), () => _filter('invert'),
-                  () => _filter('grayscale'), () => _filter('median_blur'),
-                ],
-              ),
               _btnRow(
                 labels: const ['Bright', 'Contrast', 'Saturate', 'Hue'],
                 callbacks: [
@@ -1903,12 +2259,12 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
                 ],
               ),
               _btnRow(
-                labels: const ['CLAHE', 'Auto WB', 'Denoise', 'SmartSh'],
+                labels: const ['Erode', 'Open', 'Close', 'Denoise'],
                 callbacks: [
-                  () => _adjustVoid('clahe', {'clip_limit': 2.0}),
-                  () => _adjustVoid('auto_wb', {'strength': 1.0}),
+                  () => _filter('morphology', {'op': 'erode'}),
+                  () => _filter('morphology', {'op': 'open'}),
+                  () => _filter('morphology', {'op': 'close'}),
                   () => _transformVoid('denoise', {}),
-                  () => _transformVoid('smart-sharpen', {}),
                 ],
               ),
             ]),
