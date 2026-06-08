@@ -879,8 +879,6 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
   Widget _toolbar() {
     // [id, icon, tooltip, isAction?, actionName]
     const tools = <List<dynamic>>[
-      // ── Navigation (always first) ──
-      ['hand',       Icons.pan_tool,          'Hand',                      false, null],
       // ── Interactive tools ──
       ['crop',       Icons.crop,                 'Crop',                      false, null],
       ['text',       Icons.text_fields,          'Add text',                  false, null],
@@ -909,8 +907,9 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
       ['upscale',    Icons.zoom_in,              'Upscale',                   true,  'upscale'],
       ['lineart',    Icons.auto_fix_high,        'Lineart',                   true,  'lineart'],
       ['hdr',        Icons.brightness_high,      'HDR Tone',                  true,  'hdr'],
-      // ── Navigation bottom ──
-      ['fit',        Icons.fit_screen,           'Fit to Screen',             true,  'fit'],
+      // ── Navigation ──
+      ['hand',       Icons.pan_tool,             'Hand',                      false, null],
+      ['fit',        Icons.fit_screen,            'Fit to Screen',             true,  'fit'],
     ];
     final colCount = 2;
     final rows = <List<List<dynamic>>>[];
