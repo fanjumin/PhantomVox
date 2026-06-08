@@ -10,6 +10,8 @@ import 'image_studio_api.dart';
 import 'image_studio_painter.dart';
 // ignore: undefined_prefixed_name — dart:html only available on Flutter Web
 import 'dart:html' as html show window;
+import '../widgets/tr.dart';
+import '../services/i18n_service.dart';
 
 // ---------------------------------------------------------------------------
 // Main page
@@ -178,9 +180,9 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
     } catch (e) {
       _safeSetState(() {
         _loading = false;
-        _error = 'Cannot connect to server: $e';
+        _error = i18n.tr('Cannot connect to server: {error}', params: {'error': '$e'});
       });
-      _showSnack('$e', isError: true);
+      _showSnack(i18n.tr('Server connection failed: {error}', params: {'error': '$e'}), isError: true);
     }
   }
 
@@ -204,7 +206,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
     if (b64.length > 50000000) {
       _safeSetState(() {
         _loading = false;
-        _error = 'Image too large (${b64.length} chars, max 50MB)';
+        _error = i18n.tr('Image too large ({size} chars, max 50MB)', params: {'size': '${b64.length}'});
       });
       return;
     }
@@ -235,13 +237,13 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
       if (token.isCancelled) return;
       _safeSetState(() {
         _loading = false;
-        _error = 'Image decode timed out';
+        _error = i18n.tr('Image decode timed out');
       });
     } catch (e) {
       if (token.isCancelled) return;
       _safeSetState(() {
         _loading = false;
-        _error = 'Decode error: $e';
+        _error = i18n.tr('Decode error: {error}', params: {'error': '$e'});
       });
     }
   }
@@ -279,10 +281,10 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
       if (successMsg != null) _showSnack(successMsg);
     } on ApiException catch (e) {
       _safeSetState(() => _error = e.message);
-      _showSnack(e.message, isError: true);
+      _showSnack(i18n.tr('{error}', params: {'error': e.message}), isError: true);
     } catch (e) {
       _safeSetState(() => _error = '$e');
-      _showSnack('$e', isError: true);
+      _showSnack(i18n.tr('Operation failed: {error}', params: {'error': '$e'}), isError: true);
     } finally {
       _safeSetState(() => _opLoading = false);
     }
@@ -291,35 +293,35 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
   Future<void> _filter(String name) => _wrap(() async {
     final r = await _api.post('/api/v1/editor/filter', {'name': name, 'preview_only': true});
     await _updateState(r);
-  }, label: 'Applying $name...');
+  }, label: i18n.tr('Applying {name}...', params: {'name': name}));
 
   Future<void> _transformVoid(String name, Map<String, dynamic> p) => _wrap(() async {
     final r = await _api.post('/api/v1/editor/$name', {...p, 'preview_only': true});
     await _updateState(r);
-  }, label: '$name...');
+  }, label: i18n.tr('{name}...', params: {'name': name}));
 
   Future<void> _adjustVoid(String name, Map<String, dynamic> p) => _wrap(() async {
     final r = await _api.post('/api/v1/editor/adjust', {'type': name, ...p, 'preview_only': true});
     await _updateState(r);
-  }, label: 'Adjusting...');
+  }, label: i18n.tr('Adjusting...'));
 
   Future<void> _undo() => _wrap(() async {
     final r = await _api.post('/api/v1/editor/undo', {});
     await _updateState(r);
     _refreshLayers();
-  }, label: 'Undo...');
+  }, label: i18n.tr('Undo...'));
 
   Future<void> _redo() => _wrap(() async {
     final r = await _api.post('/api/v1/editor/redo', {});
     await _updateState(r);
     _refreshLayers();
-  }, label: 'Redo...');
+  }, label: i18n.tr('Redo...'));
 
   void _createCanvas() => _wrap(() async {
     final r = await _api.post('/api/v1/editor/new', {'width': 800, 'height': 600});
     await _updateState(r);
     _refreshLayers();
-  }, label: 'New canvas...', successMsg: 'New canvas created');
+  }, label: i18n.tr('New canvas...'), successMsg: i18n.tr('New canvas created'));
 
   Future<void> _openImage() async {
     try {
@@ -334,9 +336,9 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
         final r = await _api.post('/api/v1/editor/load', {'image': b64});
         await _updateState(r);
         _refreshLayers();
-      }, label: 'Opening image...', successMsg: 'Image loaded');
+      }, label: i18n.tr('Opening image...'), successMsg: i18n.tr('Image loaded'));
     } catch (e) {
-      _showSnack('Open failed: $e', isError: true);
+      _showSnack(i18n.tr('Open failed: {error}', params: {'error': '$e'}), isError: true);
     }
   }
 
@@ -345,9 +347,9 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
     await _wrap(() async {
       final r = await _api.post('/api/v1/editor/save', {'fmt': 'png'});
       if (r['status'] == 'ok') {
-        _showSnack('Saved: ${r['path']}');
+        _showSnack(i18n.tr('Saved: {path}', params: {'path': '${r['path']}'}));
       }
-    }, label: 'Saving...');
+    }, label: i18n.tr('Saving...'));
   }
 
   Future<void> _refreshLayers() async {
@@ -584,7 +586,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
       'preview_only': true,
     });
     await _updateState(r);
-  }, label: 'Adding text...', successMsg: 'Text added');
+  }, label: i18n.tr('Adding text...'), successMsg: i18n.tr('Text added'));
 
   // -----------------------------------------------------------------------
   // Brush / Shape / Fill / Eyedropper
@@ -601,7 +603,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
     if (isEraser) body['mode'] = 'eraser';
     final r = await _api.post('/api/v1/editor/draw', {...body, 'preview_only': true});
     await _updateState(r);
-  }, label: 'Drawing...');
+  }, label: i18n.tr('Drawing...'));
 
   Future<void> _apiDrawShape(Offset s, Offset e) => _wrap(() async {
     final c = [_primaryColor.red, _primaryColor.green, _primaryColor.blue];
@@ -614,7 +616,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
       'preview_only': true,
     });
     await _updateState(r);
-  }, label: 'Drawing shape...');
+  }, label: i18n.tr('Drawing shape...'));
 
   Future<void> _apiFill(Offset pos) => _wrap(() async {
     final c = [_primaryColor.red, _primaryColor.green, _primaryColor.blue];
@@ -623,7 +625,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
       'preview_only': true,
     });
     await _updateState(r);
-  }, label: 'Filling...');
+  }, label: i18n.tr('Filling...'));
 
   Future<void> _apiEyedropper(Offset pos) => _wrap(() async {
     final r = await _api.post('/api/v1/editor/eyedropper', {
@@ -634,7 +636,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
       _safeSetState(() => _primaryColor = Color.fromARGB(
           c['a'] ?? 255, c['r'] ?? 255, c['g'] ?? 255, c['b'] ?? 255));
     }
-  }, label: 'Picking color...');
+  }, label: i18n.tr('Picking color...'));
 
   // Quick gradient: uses current primary/secondary colors, no dialog
   void _applyQuickGradient(Offset pos) {
@@ -649,7 +651,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
         'preview_only': true,
       });
       await _updateState(r);
-    }, label: 'Gradient...', successMsg: 'Gradient applied');
+    }, label: i18n.tr('Gradient...'), successMsg: i18n.tr('Gradient applied'));
   }
 
   // -----------------------------------------------------------------------
@@ -675,8 +677,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
       appBar: AppBar(
         toolbarHeight: 34,
         backgroundColor: const Color(0xFF0D0D1A),
-        title: Text('Image Studio',
-            style: TextStyle(fontSize: 12, color: Colors.grey[300])),
+        title: Tr('Image Studio', style: TextStyle(fontSize: 12, color: Colors.grey[300])),
         actions: [
           if (_info != null)
             Padding(
@@ -689,26 +690,28 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
           IconButton(
               icon: const Icon(Icons.undo, size: 15),
               onPressed: _canUndo ? _undo : null,
-              tooltip: 'Undo'),
+              tooltip: i18n.tr('Undo')),
           IconButton(
               icon: const Icon(Icons.redo, size: 15),
               onPressed: _canRedo ? _redo : null,
-              tooltip: 'Redo'),
+              tooltip: i18n.tr('Redo')),
           IconButton(
               icon: const Icon(Icons.save, size: 15),
               onPressed: _saveImage,
-              tooltip: 'Save'),
+              tooltip: i18n.tr('Save')),
           IconButton(
               icon: const Icon(Icons.open_in_new, size: 15),
               onPressed: _openImage,
-              tooltip: 'Open'),
+              tooltip: i18n.tr('Open')),
           IconButton(
               icon: const Icon(Icons.add, size: 15),
               onPressed: _createCanvas,
-              tooltip: 'New'),
+              tooltip: i18n.tr('New')),
         ],
       ),
-      body: Stack(
+      body: ListenableBuilder(
+        listenable: i18n,
+        builder: (_, __) => Stack(
         children: [
           _loading
               ? const Center(child: CircularProgressIndicator())
@@ -728,7 +731,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
                           const CircularProgressIndicator(
                               strokeWidth: 3),
                           const SizedBox(height: 8),
-                          Text(_opLabel,
+                          Text(i18n.tr(_opLabel),
                               style: const TextStyle(
                                   fontSize: 12, color: Colors.white70)),
                         ],
@@ -739,7 +742,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
               ),
             ),
         ],
-      ),
+      )),
     );
   }
 
@@ -753,17 +756,16 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
           ElevatedButton.icon(
               onPressed: _createCanvas,
               icon: const Icon(Icons.add, size: 16),
-              label: const Text('New Canvas'),
+              label: Tr('New Canvas'),
               style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF6C63FF))),
           const SizedBox(height: 8),
           OutlinedButton.icon(
               onPressed: _openImage,
               icon: const Icon(Icons.open_in_new, size: 16),
-              label: const Text('Open Image')),
+              label: Tr('Open Image')),
           const SizedBox(height: 8),
-          Text('or drag & drop an image here',
-              style: TextStyle(fontSize: 10, color: Colors.grey[600])),
+          Tr('or drag & drop an image here', style: TextStyle(fontSize: 10, color: Colors.grey[600])),
         ],
       ),
     );
@@ -903,7 +905,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
                     final isAction = t[3] as bool;
                     final active = _currentTool == id;
                     return Tooltip(
-                        message: tip,
+                        message: i18n.tr(tip),
                         child: GestureDetector(
                           onTap: () {
                             if (isAction) {
@@ -950,8 +952,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1A1A2E),
-        title: const Text('Rotate',
-            style: TextStyle(color: Colors.white, fontSize: 13)),
+        title: Tr('Rotate', style: TextStyle(color: Colors.white, fontSize: 13)),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
           _actionBtn('Rotate 90° CW', () {
             Navigator.pop(ctx);
@@ -969,8 +970,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel',
-                  style: TextStyle(color: Colors.grey)))
+              child: Tr('Cancel', style: TextStyle(color: Colors.grey)))
         ],
       ),
     );
@@ -981,8 +981,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1A1A2E),
-        title: const Text('Flip',
-            style: TextStyle(color: Colors.white, fontSize: 13)),
+        title: Tr('Flip', style: TextStyle(color: Colors.white, fontSize: 13)),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
           _actionBtn('Flip Horizontal', () {
             Navigator.pop(ctx);
@@ -996,8 +995,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel',
-                  style: TextStyle(color: Colors.grey)))
+              child: Tr('Cancel', style: TextStyle(color: Colors.grey)))
         ],
       ),
     );
@@ -1015,7 +1013,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
             foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(vertical: 8),
           ),
-          child: Text(label, style: const TextStyle(fontSize: 11)),
+          child: Text(i18n.tr(label), style: const TextStyle(fontSize: 11)),
         ),
       ),
     );
@@ -1069,7 +1067,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
               iconSize: 14,
               icon: const Icon(Icons.check, color: Colors.green),
               onPressed: _confirmText,
-              tooltip: 'Confirm (Enter)',
+              tooltip: i18n.tr('Confirm (Enter)'),
             ),
           ),
           SizedBox(
@@ -1083,7 +1081,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
                 _textMode = false;
                 _textPos = null;
               }),
-              tooltip: 'Cancel',
+              tooltip: i18n.tr('Cancel'),
             ),
           ),
         ],
@@ -1098,7 +1096,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text('$label:',
+        Text(i18n.tr(label) + ':',
             style: const TextStyle(fontSize: 8, color: Colors.grey)),
         SizedBox(
             width: 40,
@@ -1117,7 +1115,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text('$label:',
+        Text(i18n.tr(label) + ':',
             style: const TextStyle(fontSize: 8, color: Colors.grey)),
         SizedBox(
             width: 40,
@@ -1143,7 +1141,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
           border: Border.all(color: Colors.grey[700]!),
           borderRadius: BorderRadius.circular(2),
         ),
-        child: Text(label,
+        child: Text(i18n.tr(label),
             style: TextStyle(
                 fontSize: 8,
                 color: active ? Colors.white : Colors.grey)),
@@ -1154,7 +1152,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
   /// Full-width text field with label for tool property input.
   Widget _txtField(String label, String value, ValueChanged<String> onChanged) {
     return Row(children: [
-      Text('$label:', style: const TextStyle(fontSize: 8, color: Colors.grey)),
+      Text(i18n.tr(label) + ':', style: const TextStyle(fontSize: 8, color: Colors.grey)),
       const SizedBox(width: 4),
       SizedBox(
         width: 40, height: 16,
@@ -1176,7 +1174,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
   /// Mini text field with label prefix (used inline in a Row).
   Widget _miniTxt(String label, String value, double width, ValueChanged<String> onChanged) {
     return Row(mainAxisSize: MainAxisSize.min, children: [
-      Text(label, style: const TextStyle(fontSize: 7, color: Colors.grey)),
+      Text(i18n.tr(label), style: const TextStyle(fontSize: 7, color: Colors.grey)),
       SizedBox(
         width: width, height: 14,
         child: TextField(
@@ -1209,8 +1207,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1A1A2E),
-        title: const Text('Pick Color',
-            style: TextStyle(color: Colors.white, fontSize: 11)),
+        title: Tr('Pick Color', style: TextStyle(color: Colors.white, fontSize: 11)),
         content: SizedBox(
           width: 220,
           child: Column(
@@ -1246,12 +1243,10 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel',
-                  style: TextStyle(color: Colors.grey))),
+              child: Tr('Cancel', style: TextStyle(color: Colors.grey))),
           TextButton(
               onPressed: () => Navigator.pop(ctx, _primaryColor),
-              child: const Text('Select',
-                  style: TextStyle(color: Color(0xFF6C63FF)))),
+              child: Tr('Select', style: TextStyle(color: Color(0xFF6C63FF)))),
         ],
       ),
     );
@@ -1468,7 +1463,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
                           children: [
                             const Icon(Icons.drag_indicator, size: 14, color: Colors.white70),
                             Text(
-                              _textCtrl.text.isEmpty ? 'Drag to move' : _textCtrl.text,
+                              i18n.tr(_textCtrl.text.isEmpty ? 'Drag to move' : _textCtrl.text),
                               style: const TextStyle(fontSize: 9, color: Colors.white70),
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -1523,13 +1518,13 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
       color: const Color(0xFF0D0D1A),
       padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Row(children: [
-        Text('Zoom: $zoomPct%',
+        Text(i18n.tr('Zoom: {pct}%', params: {'pct': '$zoomPct'}),
             style: const TextStyle(fontSize: 9, color: Colors.white54)),
         const SizedBox(width: 12),
         Text('${iw} × ${ih}',
             style: const TextStyle(fontSize: 9, color: Colors.white38)),
         const SizedBox(width: 12),
-        Text('Tool: $_currentTool',
+        Text(i18n.tr('Tool: {tool}', params: {'tool': _currentTool}),
             style: const TextStyle(fontSize: 9, color: Colors.white38)),
         const Spacer(),
         if (_error != null)
@@ -1556,17 +1551,16 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
           padding: const EdgeInsets.symmetric(horizontal: 6),
           alignment: Alignment.centerLeft,
           child: Row(children: [
-            const Text('Layers',
-                style: TextStyle(fontSize: 10, color: Colors.grey)),
+            Tr('Layers', style: TextStyle(fontSize: 10, color: Colors.grey)),
             const Spacer(),
             _iconBtn(Icons.add, () => _wrap(() async {
               await _api.addLayer();
               await _refreshLayers();
-            }, label: 'Add layer...', successMsg: 'Layer added')),
+            }, label: i18n.tr('Add layer...'), successMsg: i18n.tr('Layer added'))),
             _iconBtn(Icons.delete_outline, () => _wrap(() async {
               await _api.deleteLayer();
               await _refreshLayers();
-            }, label: 'Delete layer...', successMsg: 'Layer deleted')),
+            }, label: i18n.tr('Delete layer...'), successMsg: i18n.tr('Layer deleted'))),
           ]),
         ),
         SizedBox(
@@ -1611,7 +1605,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
           child: Column(children: [
             // Color
             Row(children: [
-              const Text('Color', style: TextStyle(fontSize: 8, color: Colors.grey)),
+              Tr('Color', style: TextStyle(fontSize: 8, color: Colors.grey)),
               const SizedBox(width: 6),
               GestureDetector(
                 onTap: _pickColor,
@@ -1636,7 +1630,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
             // Size slider (for brush/shape/eraser)
             if (_currentTool == 'brush' || _currentTool == 'shape' || _currentTool == 'eraser')
               Row(children: [
-                const Text('Size', style: TextStyle(fontSize: 8, color: Colors.grey)),
+                Tr('Size', style: TextStyle(fontSize: 8, color: Colors.grey)),
                 Expanded(
                   child: Slider(
                     value: _brushSize.toDouble(), min: 1, max: 50,
@@ -1650,7 +1644,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
               const SizedBox(height: 4),
               // Font family dropdown
               Row(children: [
-                const Text('Font', style: TextStyle(fontSize: 8, color: Colors.grey)),
+                Tr('Font', style: TextStyle(fontSize: 8, color: Colors.grey)),
                 const SizedBox(width: 4),
                 Expanded(
                   child: Container(
@@ -1667,7 +1661,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
                         dropdownColor: const Color(0xFF1A1A2E),
                         style: const TextStyle(fontSize: 9, color: Colors.white),
                         items: _fonts.isEmpty
-                            ? [const DropdownMenuItem(value: 'sans-serif', child: Text('Loading...', style: TextStyle(fontSize: 9)))]
+                            ? [const DropdownMenuItem(value: 'sans-serif', child: Tr('Loading...', style: TextStyle(fontSize: 9)))]
                             : _fonts.map<DropdownMenuItem<String>>((f) {
                                 final name = f['family'] as String? ?? f['name'] as String? ?? 'Unknown';
                                 return DropdownMenuItem(
@@ -1686,7 +1680,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
               const SizedBox(height: 4),
               // Font size with common presets + slider
               Row(children: [
-                const Text('Size', style: TextStyle(fontSize: 8, color: Colors.grey)),
+                Tr('Size', style: TextStyle(fontSize: 8, color: Colors.grey)),
                 const SizedBox(width: 4),
                 Expanded(
                   child: Slider(
@@ -1699,7 +1693,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
               ]),
               // Border (stroke width slider + color swatch)
               Row(children: [
-                const Text('Border', style: TextStyle(fontSize: 8, color: Colors.grey)),
+                Tr('Border', style: TextStyle(fontSize: 8, color: Colors.grey)),
                 const SizedBox(width: 4),
                 Expanded(
                   child: Slider(
@@ -1725,7 +1719,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
               const SizedBox(height: 4),
               // Shadow (blur slider + color swatch)
               Row(children: [
-                const Text('Shadow', style: TextStyle(fontSize: 8, color: Colors.grey)),
+                Tr('Shadow', style: TextStyle(fontSize: 8, color: Colors.grey)),
                 const SizedBox(width: 4),
                 Expanded(
                   child: Slider(
@@ -1751,7 +1745,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
               const SizedBox(height: 4),
               // Opacity slider
               Row(children: [
-                const Text('Opacity', style: TextStyle(fontSize: 8, color: Colors.grey)),
+                Tr('Opacity', style: TextStyle(fontSize: 8, color: Colors.grey)),
                 const SizedBox(width: 4),
                 Expanded(
                   child: Slider(
@@ -1789,7 +1783,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
                       textStyle: const TextStyle(fontSize: 9),
                     ),
                     onPressed: _applyCrop,
-                    child: const Text('Apply'),
+                    child: Tr('Apply'),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -1801,7 +1795,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
                       textStyle: const TextStyle(fontSize: 9),
                     ),
                     onPressed: _cancelCrop,
-                    child: const Text('Cancel'),
+                    child: Tr('Cancel'),
                   ),
                 ),
               ]),
@@ -1898,7 +1892,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
       padding: const EdgeInsets.symmetric(horizontal: 6),
       color: const Color(0xFF16213E),
       alignment: Alignment.centerLeft,
-      child: Text(t,
+      child: Text(i18n.tr(t),
           style: TextStyle(
             fontSize: 8,
             color: accent ? const Color(0xFFFF6B6B) : const Color(0xFF6C63FF),
@@ -1930,7 +1924,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
                 border: Border.all(color: Colors.grey[800]!),
                 borderRadius: BorderRadius.circular(2),
               ),
-              child: Text(labels[i],
+              child: Text(i18n.tr(labels[i]),
                   style:
                       TextStyle(fontSize: 8, color: Colors.grey[300])),
             ),
@@ -1961,7 +1955,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
       });
       await _updateState(r);
       _refreshLayers();
-    }, label: 'Toggling...');
+    }, label: i18n.tr('Toggling...'));
   }
 
   void _showAdjustDialog() {
@@ -1972,8 +1966,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDlgState) => AlertDialog(
           backgroundColor: const Color(0xFF1A1A2E),
-          title: const Text('Adjust',
-              style: TextStyle(color: Colors.white, fontSize: 13)),
+          title: Tr('Adjust', style: TextStyle(color: Colors.white, fontSize: 13)),
           content: SizedBox(
             width: 250,
             child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -1984,13 +1977,13 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel', style: TextStyle(color: Colors.grey))),
+                child: Tr('Cancel', style: TextStyle(color: Colors.grey))),
             TextButton(onPressed: () {
               Navigator.pop(ctx);
               _adjustVoid('brightness', {'factor': bright});
               _adjustVoid('contrast', {'factor': contrast});
               _adjustVoid('saturation', {'factor': sat});
-            }, child: const Text('Apply', style: TextStyle(color: Color(0xFF6C63FF)))),
+            }, child: Tr('Apply', style: TextStyle(color: Color(0xFF6C63FF)))),
           ],
         ),
       ),
@@ -1999,7 +1992,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
 
   Widget _adjustSlider(String label, double val, double min, double max, ValueChanged<double> onChanged) {
     return Row(children: [
-      SizedBox(width: 70, child: Text(label, style: const TextStyle(color: Colors.grey, fontSize: 11))),
+      SizedBox(width: 70, child: Text(i18n.tr(label), style: const TextStyle(color: Colors.grey, fontSize: 11))),
       Expanded(child: Slider(value: val, min: min, max: max, onChanged: onChanged)),
       SizedBox(width: 30, child: Text(val.toStringAsFixed(1), style: const TextStyle(color: Colors.white70, fontSize: 10))),
     ]);
@@ -2012,11 +2005,9 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDlgState) => AlertDialog(
           backgroundColor: const Color(0xFF1A1A2E),
-          title: const Text('AI Upscale',
-              style: TextStyle(color: Colors.white, fontSize: 13)),
+          title: Tr('AI Upscale', style: TextStyle(color: Colors.white, fontSize: 13)),
           content: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Text('Increase image resolution:',
-                style: TextStyle(color: Colors.grey, fontSize: 11)),
+            Tr('Increase image resolution:', style: TextStyle(color: Colors.grey, fontSize: 11)),
             const SizedBox(height: 8),
             Row(mainAxisAlignment: MainAxisAlignment.center, children: [
               _miniBtn('2x', scale == 2, () => setDlgState(() => scale = 2)),
@@ -2026,11 +2017,11 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
           ]),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel', style: TextStyle(color: Colors.grey))),
+                child: Tr('Cancel', style: TextStyle(color: Colors.grey))),
             TextButton(onPressed: () {
               Navigator.pop(ctx);
               _transformVoid('upscale', {'scale': scale});
-            }, child: const Text('Upscale', style: TextStyle(color: Color(0xFF6C63FF)))),
+            }, child: Tr('Upscale', style: TextStyle(color: Color(0xFF6C63FF)))),
           ],
         ),
       ),
@@ -2045,8 +2036,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1A1A2E),
-        title: const Text('Resize',
-            style: TextStyle(color: Colors.white, fontSize: 13)),
+        title: Tr('Resize', style: TextStyle(color: Colors.white, fontSize: 13)),
         content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -2062,8 +2052,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
                   'height': int.tryParse(hCtrl.text) ?? 100,
                 });
               },
-              child: const Text('Resize',
-                  style: TextStyle(color: Color(0xFF6C63FF))))
+              child: Tr('Resize', style: TextStyle(color: Color(0xFF6C63FF))))
         ],
       ),
     );
@@ -2076,7 +2065,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
         controller: ctrl,
         style: const TextStyle(color: Colors.white, fontSize: 12),
         decoration: InputDecoration(
-          labelText: label,
+          labelText: i18n.tr(label),
           labelStyle: const TextStyle(color: Colors.grey, fontSize: 10),
           border: const OutlineInputBorder(),
           isDense: true,
@@ -2102,8 +2091,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
         context: context,
         builder: (ctx) => AlertDialog(
           backgroundColor: const Color(0xFF1A1A2E),
-          title: const Text('Available Fonts',
-              style: TextStyle(color: Colors.white, fontSize: 13)),
+          title: Tr('Available Fonts', style: TextStyle(color: Colors.white, fontSize: 13)),
           content: SizedBox(
             width: 200,
             height: 300,
@@ -2119,7 +2107,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
                         color: Colors.white, fontSize: 11),
                   ),
                   subtitle: Text(
-                    'family: ${f['family'] ?? ''}  style: ${f['style'] ?? ''}',
+                    i18n.tr('family: {fam}  style: {sty}', params: {'fam': '${f['family'] ?? ''}', 'sty': '${f['style'] ?? ''}'}),
                     style: const TextStyle(
                         color: Colors.grey, fontSize: 8),
                   ),
@@ -2130,13 +2118,12 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: const Text('Close',
-                    style: TextStyle(color: Color(0xFF6C63FF))))
+                child: Tr('Close', style: TextStyle(color: Color(0xFF6C63FF))))
           ],
         ),
       );
     } catch (e) {
-      _showSnack('Failed to load fonts: $e', isError: true);
+      _showSnack(i18n.tr('Failed to load fonts: {error}', params: {'error': '$e'}), isError: true);
     }
   }
 
@@ -2147,20 +2134,18 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
-          backgroundColor: const Color(0xFF1A1A2E),
-          title: const Text('Document Info',
-              style: TextStyle(color: Colors.white, fontSize: 13)),
+          title: Tr('Document Info',
+              style: const TextStyle(color: Colors.white, fontSize: 13)),
           content: Text(
-            'Size: ${r['width']} × ${r['height']}\n'
-            'Layers: ${r['layers']}\n'
-            'Visible: ${r['visible_layers']}',
+            i18n.tr('Size: {w} × {h}', params: {'w': '${r['width']}', 'h': '${r['height']}'}) + '\n'
+            + i18n.tr('Layers: {n}', params: {'n': '${r['layers']}'}) + '\n'
+            + i18n.tr('Visible: {n}', params: {'n': '${r['visible_layers']}'}),
             style: const TextStyle(color: Colors.grey, fontSize: 11),
           ),
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: const Text('Close',
-                    style: TextStyle(color: Color(0xFF6C63FF))))
+                child: Tr('Close', style: TextStyle(color: Color(0xFF6C63FF))))
           ],
         ),
       );
