@@ -1099,7 +1099,20 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
                       return Tooltip(
                           message: i18n.tr(selLabel == 'Rect' ? 'Rect Select' : (selLabel == 'Ellipse' ? 'Ellipse Select' : (selLabel == 'Lasso' ? 'Lasso Select' : 'Polygon Select'))),
                           child: GestureDetector(
-                            onTapDown: (details) => _showSelectionMenu(details.globalPosition),
+                            onTapDown: (details) {
+                              // If selection active and tool already active → deselect
+                              if (_currentTool == 'select' && _selectionType != null) {
+                                _safeSetState(() {
+                                  _selectionType = null;
+                                  _selectionRect = null;
+                                  _selectionPoints = null;
+                                  _selectionStart = null;
+                                  _currentTool = 'select'; // keep tool selected but clear selection
+                                });
+                              } else {
+                                _showSelectionMenu(details.globalPosition);
+                              }
+                            },
                             child: Container(
                               width: 49,
                               height: 34,
