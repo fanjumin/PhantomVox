@@ -1388,9 +1388,34 @@ Rules:
         data = request.get_json(silent=True) or {}
         try:
             doc = _req_doc_snapshot()
-            amount = data.get("amount", 1.0)
-            for layer in doc.layers:
-                layer.image = smart_sharpen(layer.image, amount=amount)
+            def _fn(img, **kw):
+                from modules.image_studio.cv_tools import smart_sharpen
+                return smart_sharpen(img, data.get("amount", 1.0))
+            return jsonify(_op_current_layer(data, _fn))
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/v1/editor/move", methods=["POST"])
+    def editor_move():
+        data = request.get_json(silent=True) or {}
+        try:
+            doc = _req_doc_snapshot()
+            dx = int(data.get("dx", 0))
+            dy = int(data.get("dy", 0))
+            layer_idx = int(data.get("layer", -1))
+            if 0 <= layer_idx < len(doc.layers):
+                layer = doc.layers[layer_idx]
+                h, w = layer.image.shape[:2]
+                # Translate the image using affine transform
+                import cv2
+                import numpy as np
+                matrix = np.array([[1.0, 0.0, float(dx)], [0.0, 1.0, float(dy)]], dtype=np.float64)
+                layer.image = cv2.warpAffine(
+                    layer.image, matrix, (w, h),
+                    flags=cv2.INTER_LINEAR,
+                    borderMode=cv2.BORDER_CONSTANT,
+                    borderValue=(0, 0, 0, 0),
+                )
             return jsonify(_doc_response(doc))
         except Exception as e:
             return jsonify({"error": str(e)}), 400

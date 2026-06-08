@@ -31,6 +31,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
   bool _canUndo = false, _canRedo = false;
   int _undoCount = 0, _redoCount = 0;
   List<Map<String, dynamic>> _layers = [];
+  int _activeLayerIndex = 0; // index into _layers (reverse: bottom layer = 0)
   bool _loading = true;
   String? _error;
   String? _previewB64;
@@ -448,6 +449,11 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
     await _updateState(r);
   }, label: i18n.tr('Adjusting...'));
 
+  Future<void> _moveLayer(int dx, int dy) => _wrap(() async {
+    final r = await _api.post('/api/v1/editor/move', {'dx': dx, 'dy': dy, 'layer': _activeLayerIndex});
+    await _updateState(r);
+  }, label: i18n.tr('Moving layer...'));
+
   Future<void> _undo() => _wrap(() async {
     final r = await _api.post('/api/v1/editor/undo', {});
     await _updateState(r);
@@ -514,6 +520,8 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
 
       if (_currentTool == 'brush' || _currentTool == 'eraser') {
         _drawPoints = [imgPos];
+      } else if (_currentTool == 'move') {
+        _drawStart = imgPos; // track start for move delta
       } else if (_currentTool == 'fill') {
         _apiFill(imgPos);
       } else if (_currentTool == 'eyedropper') {
@@ -571,6 +579,13 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
     }
     if (_currentTool == 'crop') {
       _onCropUp(imgPos);
+    }
+    if (_currentTool == 'move' && _drawStart != null) {
+      final dx = (imgPos.dx - _drawStart!.dx).round();
+      final dy = (imgPos.dy - _drawStart!.dy).round();
+      if (dx.abs() > 1 || dy.abs() > 1) {
+        _moveLayer(dx, dy);
+      }
     }
     _safeSetState(() {
       _drawPoints = null;
@@ -1911,9 +1926,13 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
                         itemBuilder: (ctx, i) {
                           final l = _layers[_layers.length - 1 - i];
                           final vis = l['visible'] ?? true;
-                          return Container(
-                            height: 20,
-                            padding: const EdgeInsets.symmetric(horizontal: 6),
+                          final isActive = _activeLayerIndex == i;
+                          return GestureDetector(
+                            onTap: () => _safeSetState(() => _activeLayerIndex = i),
+                            child: Container(
+                              height: 20,
+                              padding: const EdgeInsets.symmetric(horizontal: 6),
+                              color: isActive ? const Color(0xFF6C63FF).withOpacity(0.25) : null,
                             child: Row(children: [
                               GestureDetector(
                                 onTap: () => _toggleVisibility(i),
@@ -1932,11 +1951,12 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
                                 style: const TextStyle(fontSize: 7, color: Colors.grey),
                               ),
                             ]),
-                          );
-                        },
-                      ),
+                          ),
+                        );
+                      },
                     ),
-                  ])
+                  ),
+                ])
                 // Tool Properties tab
                 : Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
