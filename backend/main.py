@@ -1,218 +1,242 @@
-import os
-import uuid
-from datetime import datetime, timedelta
-from typing import Dict, Optional
-
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from typing import Optional
+import os
+import logging
+from datetime import datetime, timedelta
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from pydantic import BaseModel
+import uuid
+import threading
 
-# ------------------------------------------------------------------
-# Configuration (must be from environment variables)
-# ------------------------------------------------------------------
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Environment variables (CRITICAL: no hardcoding)
 SECRET_KEY = os.getenv("SECRET_KEY")
 if not SECRET_KEY:
-    raise RuntimeError("SECRET_KEY environment variable not set")
+    raise ValueError("SECRET_KEY environment variable not set")
+if len(SECRET_KEY) < 32:
+    raise ValueError("SECRET_KEY must be at least 32 characters long")
+ALGORITHM = os.getenv("ALGORITHM", "HS256")
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
+REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
 
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
-REFRESH_TOKEN_EXPIRE_DAYS = 7
-
-# Password hashing context
+# Password hashing with passlib
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# OAuth2 scheme (tokenUrl for documentation)
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
+# OAuth2 scheme
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-# ------------------------------------------------------------------
-# In-memory "database" (for demonstration only)
-# ------------------------------------------------------------------
-# user_db: username -> {"hashed_password", "email", "is_active"}
-user_db = {}
+# In-memory blacklist for used refresh tokens (in production, use persistent storage)
+blacklisted_refresh_tokens: set = set()
+blacklist_lock = threading.Lock()
 
-# refresh_token_db: refresh_token_id -> {"username", "expires_at", "revoked"}
-refresh_token_db: Dict[str, dict] = {}
+# Fake user database (in production, use a real database)
+fake_users_db = {
+    "johndoe": {
+        "username": "johndoe",
+        "full_name": "John Doe",
+        "email": "johndoe@example.com",
+        "hashed_password": pwd_context.hash("secret"),
+        "is_active": True,
+    },
+    "alice": {
+        "username": "alice",
+        "full_name": "Alice Wonder",
+        "email": "alice@example.com",
+        "hashed_password": pwd_context.hash("secret2"),
+        "is_active": False,  # inactive user
+    },
+}
 
-# ------------------------------------------------------------------
-# Models
-# ------------------------------------------------------------------
+# Pydantic models
+class Token(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str
+
+class TokenData(BaseModel):
+    username: Optional[str] = None
+
 class User(BaseModel):
     username: str
     email: Optional[str] = None
+    full_name: Optional[str] = None
     is_active: bool = True
 
 class UserInDB(User):
     hashed_password: str
 
-class Token(BaseModel):
-    access_token: str
-    refresh_token: str
-    token_type: str = "bearer"
-
-class RefreshTokenRequest(BaseModel):
-    refresh_token: str
-
-class LoginResponse(Token):
-    pass
-
-class RegisterRequest(BaseModel):
-    username: str
-    password: str
-    email: Optional[str] = None
-
-# ------------------------------------------------------------------
 # Helper functions
-# ------------------------------------------------------------------
-def get_user(username: str) -> Optional[UserInDB]:
-    user = user_db.get(username)
-    if user:
-        return UserInDB(**user)
+def verify_password(plain_password, hashed_password):
+    return pwd_context.verify(plain_password, hashed_password)
+
+def get_password_hash(password):
+    return pwd_context.hash(password)
+
+def get_user(db, username: str):
+    if username in db:
+        user_dict = db[username]
+        return UserInDB(**user_dict)
     return None
 
-def create_access_token(data: dict, expires_delta: timedelta = None):
+def authenticate_user(db, username: str, password: str):
+    user = get_user(db, username)
+    if not user:
+        return False
+    if not user.is_active:
+        logger.warning(f"Inactive user attempted login: {username}")
+        return False
+    if not verify_password(password, user.hashed_password):
+        return False
+    return user
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
-    to_encode.update({"exp": expire})
-    to_encode["type"] = "access"  # Mark token type
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire, "type": "access"})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
 
-def create_refresh_token(username: str) -> str:
-    """Create a new refresh token, store it, and return the token string."""
-    token_id = str(uuid.uuid4())
-    expires = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
-    refresh_token_db[token_id] = {
-        "username": username,
-        "expires_at": expires,
-        "revoked": False
-    }
-    payload = {
-        "sub": username,
+def create_refresh_token(data: dict):
+    to_encode = data.copy()
+    # Use a unique jti to enable revocation
+    to_encode.update({
+        "exp": datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS),
         "type": "refresh",
-        "jti": token_id,
-        "exp": expires
-    }
-    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
-
-def verify_token(token: str, expected_type: str) -> dict:
-    """Verify JWT token and check its type. Returns payload if valid."""
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        token_type = payload.get("type")
-        if token_type != expected_type:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=f"Invalid token type. Expected '{expected_type}', got '{token_type}'",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        return payload
-    except JWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        "jti": str(uuid.uuid4())
+    })
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
 
 async def get_current_user(token: str = Depends(oauth2_scheme)):
-    """Dependency that returns the current user from an access token."""
-    payload = verify_token(token, "access")
-    username = payload.get("sub")
-    if username is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token payload",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    user = get_user(username)
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        token_type: str = payload.get("type")
+        if username is None or token_type != "access":
+            raise credentials_exception
+        token_data = TokenData(username=username)
+    except JWTError:
+        raise credentials_exception
+
+    user = get_user(fake_users_db, username=token_data.username)
     if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise credentials_exception
+    # ACTIVE USER CHECK – inactive users cannot access authenticated endpoints
     if not user.is_active:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Inactive user"
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User account is inactive"
         )
     return user
 
-# ------------------------------------------------------------------
+async def get_current_active_user(current_user: User = Depends(get_current_user)):
+    # Redundant safety check (already done in get_current_user)
+    return current_user
+
 # FastAPI app
-# ------------------------------------------------------------------
-app = FastAPI(title="JWT Login with Refresh Token Rotation")
+app = FastAPI()
 
-# ------------------------------------------------------------------
-# Endpoints
-# ------------------------------------------------------------------
-@app.post("/register", status_code=status.HTTP_201_CREATED)
-def register(request: RegisterRequest):
-    """Register a new user."""
-    if get_user(request.username):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already registered")
-    hashed_password = pwd_context.hash(request.password)
-    user_dict = {
-        "username": request.username,
-        "hashed_password": hashed_password,
-        "email": request.email,
-        "is_active": True
-    }
-    user_db[request.username] = user_dict
-    return {"msg": "User created successfully"}
+# CORS: allow Flutter web frontend on localhost:8900 (and other dev origins)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:8900",
+        "http://127.0.0.1:8900",
+        "http://localhost:8899",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-@app.post("/login", response_model=Token)
-def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    """Authenticate user and return tokens."""
-    user = get_user(form_data.username)
+@app.post("/token", response_model=Token)
+async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
+    user = authenticate_user(fake_users_db, form_data.username, form_data.password)
     if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect username or password")
-    if not pwd_context.verify(form_data.password, user.hashed_password):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect username or password")
-    if not user.is_active:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user")
-    access_token = create_access_token(data={"sub": user.username})
-    refresh_token = create_refresh_token(username=user.username)
-    return Token(access_token=access_token, refresh_token=refresh_token)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.username}, expires_delta=access_token_expires
+    )
+    refresh_token = create_refresh_token(data={"sub": user.username})
+    return Token(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        token_type="bearer"
+    )
 
 @app.post("/refresh", response_model=Token)
-def refresh_token(request: RefreshTokenRequest):
-    """Exchange a valid refresh token for a new access token and a new refresh token (rotation)."""
-    # Verify the refresh token
+async def refresh_access_token(refresh_token: str):
+    # Validate the refresh token
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid refresh token",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
     try:
-        payload = jwt.decode(request.refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        jti: str = payload.get("jti")
+        token_type: str = payload.get("type")
+        if username is None or token_type != "refresh" or jti is None:
+            raise credentials_exception
     except JWTError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
-    token_type = payload.get("type")
-    if token_type != "refresh":
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token is not a refresh token")
-    token_id = payload.get("jti")
-    if not token_id:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token (missing jti)")
-    # Check if token is stored and not revoked
-    stored = refresh_token_db.get(token_id)
-    if stored is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token not found")
-    if stored["revoked"]:
-        # Additional security: if a revoked token is reused, revoke all tokens for the user
-        username = stored["username"]
-        for tid, data in list(refresh_token_db.items()):
-            if data["username"] == username and not data["revoked"]:
-                data["revoked"] = True
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token revoked")
-    if stored["expires_at"] < datetime.utcnow():
-        # Remove expired token and raise
-        del refresh_token_db[token_id]
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token expired")
-    # Revoke old refresh token (rotation)
-    stored["revoked"] = True
-    # Generate new tokens
-    username = stored["username"]
-    access_token = create_access_token(data={"sub": username})
-    new_refresh_token = create_refresh_token(username=username)
-    return Token(access_token=access_token, refresh_token=new_refresh_token)
+        raise credentials_exception
+
+    # Check if the token is already blacklisted (race condition protection)
+    with blacklist_lock:
+        if jti in blacklisted_refresh_tokens:
+            raise credentials_exception
+        # Immediately blacklist this token to prevent reuse
+        blacklisted_refresh_tokens.add(jti)
+
+    # Verify user is still active
+    user = get_user(fake_users_db, username)
+    if user is None or not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User account is inactive or does not exist"
+        )
+
+    # Create new access and refresh tokens (rotation)
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    new_access_token = create_access_token(
+        data={"sub": username}, expires_delta=access_token_expires
+    )
+    new_refresh_token = create_refresh_token(data={"sub": username})
+
+    return Token(
+        access_token=new_access_token,
+        refresh_token=new_refresh_token,
+        token_type="bearer"
+    )
 
 @app.get("/users/me", response_model=User)
-def read_users_me(current_user: UserInDB = Depends(get_current_user)):
-    """Return the current user's information. Protected endpoint."""
+async def read_users_me(current_user: User = Depends(get_current_user)):
     return current_user
+
+@app.get("/")
+async def root():
+    return {"message": "JWT User Login Module"}
+
+# Cleanup old blacklisted tokens (optional, for in-memory demonstration)
+# In production use a background task with persistent storage.

@@ -1115,11 +1115,27 @@ Rules:
         if img_w * img_h > MAX_IMAGE_PIXELS:
             return jsonify({"error": f"Image too large: {img_w}x{img_h}"}), 400
         # Now fully decode
+        # Extract DPI before convert() — convert may strip info on some formats
+        dpi = 72.0
+        # Method 1: PIL info['dpi'] (PNG, TIFF, etc.)
+        info_dpi = pil_img.info.get("dpi", None)
+        if info_dpi and len(info_dpi) == 2 and info_dpi[0]:
+            dpi = float(info_dpi[0])
+        else:
+            # Method 2: EXIF XResolution (JPEG)
+            try:
+                exif = pil_img.getexif()
+                # Tag 0x011a = XResolution
+                xres = exif.get(0x011a, None)
+                if xres:
+                    dpi = float(xres)
+            except Exception:
+                pass
         pil_img = pil_img.convert("RGBA")
         arr = _pil_to_bgra(pil_img)
         with _editor_lock:
             global _editor_doc
-            _editor_doc = Document(bg_image=arr)
+            _editor_doc = Document(bg_image=arr, dpi=dpi)
             return jsonify(_doc_response(_editor_doc))
 
     @app.route("/api/v1/editor/crop", methods=["POST"])
@@ -1153,6 +1169,9 @@ Rules:
                 layer.image = _resize(layer.image, w, h, keep)
             doc.width = doc.layers[0].width if doc.layers else w
             doc.height = doc.layers[0].height if doc.layers else h
+            # Update DPI if provided (e.g. from user changing resolution in dialog)
+            if "dpi" in data:
+                doc.dpi = float(data["dpi"])
             return jsonify(_doc_response(doc))
         except Exception as e:
             return jsonify({"error": str(e)}), 400
@@ -1254,11 +1273,14 @@ Rules:
                 points = data.get("points", [])
                 layer_idx = data.get("layer", -1)
                 size = data.get("size", 20)
+                size = max(1, min(int(size), 500))
                 layers_to_mod = [doc.layers[layer_idx]] if 0 <= layer_idx < len(doc.layers) else doc.layers
                 for layer in layers_to_mod:
                     for pt in points:
                         if len(pt) == 2:
-                            cv2.circle(layer.image, (int(pt[0]), int(pt[1])), size // 2, (0, 0, 0, 0), -1)
+                            cx = int(pt[0]); cy = int(pt[1])
+                            img_h, img_w = layer.image.shape[:2]
+                            cv2.circle(layer.image, (cx, cy), size // 2, (0, 0, 0, 0), -1)
                 return jsonify(_doc_response(doc))
             except Exception as e:
                 return jsonify({"error": str(e)}), 400
@@ -1274,38 +1296,89 @@ Rules:
 
     @app.route("/api/v1/editor/gradient", methods=["POST"])
     def editor_gradient():
-        """Draw a linear gradient across the entire layer."""
+        """Draw a linear/radial gradient from drag start→end, with optional selection mask."""
         data = request.get_json(silent=True) or {}
         try:
             import cv2, numpy as np
             doc = _req_doc_snapshot()
             color1 = _validate_color(data.get("color1", [255, 255, 255]))
             color2 = _validate_color(data.get("color2", [0, 0, 0]))
-            direction = data.get("direction", "vertical")  # vertical | horizontal | diagonal
+            gtype = data.get("type", "linear")  # 'linear' | 'radial'
             opacity = _validate_factor(data.get("opacity", 1.0), 1.0, 0.0, 1.0)
             layer_idx = data.get("layer", -1)
+            x1 = int(data.get("x1", 0))
+            y1 = int(data.get("y1", 0))
+            x2 = int(data.get("x2", 0))
+            y2 = int(data.get("y2", 0))
+            # Clamp to image bounds
+            h_doc, w_doc = doc.height, doc.width
+            x1 = max(0, min(w_doc - 1, x1))
+            y1 = max(0, min(h_doc - 1, y1))
+            x2 = max(0, min(w_doc - 1, x2))
+            y2 = max(0, min(h_doc - 1, y2))
+
+            # Build selection mask if provided
+            sel_type = data.get("selection_type", "")
+            sel_mask = np.zeros((h_doc, w_doc), dtype=np.uint8)
+            has_sel = False
+            if sel_type == "rect":
+                r = data.get("selection_rect", {})
+                rx1 = max(0, int(r.get("left", 0)))
+                ry1 = max(0, int(r.get("top", 0)))
+                rx2 = min(w_doc, int(r.get("right", w_doc)))
+                ry2 = min(h_doc, int(r.get("bottom", h_doc)))
+                if rx2 > rx1 and ry2 > ry1:
+                    sel_mask[ry1:ry2, rx1:rx2] = 255
+                    has_sel = True
+            elif sel_type == "ellipse":
+                r = data.get("selection_rect", {})
+                cx = (int(r.get("left", 0)) + int(r.get("right", w_doc))) // 2
+                cy = (int(r.get("top", 0)) + int(r.get("bottom", h_doc))) // 2
+                rx = max(1, (int(r.get("right", w_doc)) - int(r.get("left", 0))) // 2)
+                ry = max(1, (int(r.get("bottom", h_doc)) - int(r.get("top", 0))) // 2)
+                cv2.ellipse(sel_mask, (cx, cy), (rx, ry), 0, 0, 360, 255, -1)
+                has_sel = True
+            elif sel_type in ("lasso", "poly"):
+                pts = data.get("selection_points", [])
+                if isinstance(pts, list) and len(pts) >= 3:
+                    poly = np.array([(int(x), int(y)) for x, y in pts], dtype=np.int32)
+                    cv2.fillPoly(sel_mask, [poly], 255)
+                    has_sel = True
 
             def _apply_gradient(layer_img):
                 h, w = layer_img.shape[:2]
                 c1 = np.array(color1, dtype=np.float32).reshape(1, 1, 3)
                 c2 = np.array(color2, dtype=np.float32).reshape(1, 1, 3)
-                if direction == "horizontal":
-                    t = np.linspace(0, 1, w, dtype=np.float32).reshape(1, w, 1)
-                    gradient = c1 * (1.0 - t) + c2 * t
-                    gradient = np.broadcast_to(gradient, (h, w, 3))
-                elif direction == "diagonal":
+
+                if gtype == "radial":
+                    # Radial gradient from center of line segment
+                    cx = (x1 + x2) / 2.0
+                    cy = (y1 + y2) / 2.0
+                    radius = max(np.sqrt((x2 - x1)**2 + (y2 - y1)**2) / 2.0, 1.0)
                     yy, xx = np.mgrid[0:h, 0:w]
-                    max_d = max(w, h)
-                    t = (xx + yy) / (max_d * 2.0)
-                    t = np.clip(t, 0, 1)[..., np.newaxis]
-                    gradient = c1 * (1.0 - t) + c2 * t
-                else:  # vertical (default)
-                    t = np.linspace(0, 1, h, dtype=np.float32).reshape(h, 1, 1)
-                    gradient = c1 * (1.0 - t) + c2 * t
-                    gradient = np.broadcast_to(gradient, (h, w, 3))
+                    dist = np.sqrt((xx - cx)**2 + (yy - cy)**2)
+                    t = np.clip(dist / radius, 0, 1)[..., np.newaxis]
+                else:
+                    # Linear: project each pixel onto the start→end direction
+                    dx = x2 - x1
+                    dy = y2 - y1
+                    vec_len = np.sqrt(dx*dx + dy*dy) or 1.0
+                    ux, uy = dx / vec_len, dy / vec_len
+                    yy, xx = np.mgrid[0:h, 0:w]
+                    proj = (xx - x1) * ux + (yy - y1) * uy
+                    t = np.clip(proj / vec_len, 0, 1)[..., np.newaxis]
+
+                gradient = c1 * (1.0 - t) + c2 * t
+                gradient = gradient.astype(np.uint8)
                 a = int(255 * opacity)
                 alpha = np.full((h, w, 1), a, dtype=np.uint8)
-                return np.concatenate([gradient.astype(np.uint8), alpha], axis=2)
+                grad_rgba = np.concatenate([gradient, alpha], axis=2)
+
+                if has_sel:
+                    # Apply gradient only within selection mask
+                    mask_3 = (sel_mask > 0).astype(np.uint8)[:, :, np.newaxis]
+                    return np.where(mask_3 > 0, grad_rgba, layer_img)
+                return grad_rgba
 
             if 0 <= layer_idx < len(doc.layers):
                 doc.layers[layer_idx].image = _apply_gradient(doc.layers[layer_idx].image)
@@ -1757,6 +1830,62 @@ Rules:
                     for layer in doc.layers:
                         if layer.visible and not layer.locked:
                             layer.image[:] = color
+                return jsonify(_doc_response(doc))
+
+            elif action == "move-selection" and has_mask:
+                dx = int(data.get("dx", 0))
+                dy = int(data.get("dy", 0))
+                for layer in doc.layers:
+                    if layer.visible and not layer.locked:
+                        img = layer.image
+                        # Extract selected pixels
+                        selected = img.copy()
+                        selected[mask == 0] = (0, 0, 0, 0)
+                        # Clear original position
+                        img[mask > 0, 3] = 0
+                        # Shift selected pixels
+                        M = np.array([[1, 0, dx], [0, 1, dy]], dtype=np.float32)
+                        shifted = cv2.warpAffine(selected, M, (w, h),
+                            borderMode=cv2.BORDER_CONSTANT, borderValue=(0, 0, 0, 0))
+                        # Composite shifted onto layer
+                        fg_mask = shifted[:, :, 3] > 0
+                        for c in range(4):
+                            img[:, :, c] = np.where(fg_mask, shifted[:, :, c], img[:, :, c])
+                        break
+                return jsonify(_doc_response(doc))
+
+            elif action == "stroke-selection" and has_mask:
+                stroke_color = data.get("color", [255, 255, 255, 255])
+                stroke_width = int(data.get("width", 2))
+                if len(stroke_color) == 3:
+                    stroke_color = list(stroke_color) + [255]
+                contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                for layer in doc.layers:
+                    if layer.visible and not layer.locked:
+                        img = layer.image
+                        cv2.drawContours(img, contours, -1, stroke_color, stroke_width)
+                        break
+                return jsonify(_doc_response(doc))
+
+            elif action == "invert-selection":
+                if has_mask:
+                    mask[:] = 255 - mask
+                return jsonify(_doc_response(doc))
+
+            elif action == "feather-selection" and has_mask:
+                feather_px = int(data.get("radius", 5))
+                if feather_px > 0:
+                    mask[:] = cv2.GaussianBlur(mask, (0, 0), sigmaX=feather_px)
+                    mask[:] = np.clip(mask, 0, 255).astype(np.uint8)
+                return jsonify(_doc_response(doc))
+
+            elif action == "expand-selection" and has_mask:
+                expand_px = int(data.get("px", 5))
+                kernel = np.ones((abs(expand_px)*2+1, abs(expand_px)*2+1), dtype=np.uint8)
+                if expand_px > 0:
+                    mask[:] = cv2.dilate(mask, kernel, iterations=1)
+                elif expand_px < 0:
+                    mask[:] = cv2.erode(mask, kernel, iterations=1)
                 return jsonify(_doc_response(doc))
 
             return jsonify(_doc_response(doc))

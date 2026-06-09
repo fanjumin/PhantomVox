@@ -8,10 +8,37 @@ import 'package:flutter/gestures.dart';
 import 'package:file_picker/file_picker.dart';
 import 'image_studio_api.dart';
 import 'image_studio_painter.dart';
-// ignore: undefined_prefixed_name — dart:html only available on Flutter Web
 import 'dart:html' as html show window;
 import '../widgets/tr.dart';
 import '../services/i18n_service.dart';
+
+/// Thin vertical bar slider thumb — looks like a fader, not a circle.
+class FaderThumbShape extends SliderComponentShape {
+  const FaderThumbShape();
+  @override
+  Size getPreferredSize(bool isEnabled, bool isDiscrete) => const Size(4, 12);
+  @override
+  void paint(PaintingContext context, Offset center,
+      {required Animation<double> activationAnimation,
+      required Animation<double> enableAnimation,
+      required bool isDiscrete,
+      required TextPainter? labelPainter,
+      required RenderBox? parentBox,
+      required SliderThemeData sliderTheme,
+      required TextDirection textDirection,
+      required double value,
+      required double textScaleFactor,
+      required Size sizeWithOverflow}) {
+    final canvas = context.canvas;
+    final paint = Paint()
+      ..color = sliderTheme.activeTrackColor ?? Colors.white
+      ..style = PaintingStyle.fill;
+    canvas.drawRect(
+      Rect.fromCenter(center: center, width: 3, height: 10),
+      paint,
+    );
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Main page
@@ -60,6 +87,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
   // -- Pointer state --
   List<Offset>? _drawPoints;
   Offset? _drawStart;
+  Offset? _moveDelta; // current drag offset for Move tool
   List<Offset>? _shapePreview;
 
   // -- Selection state --
@@ -68,6 +96,13 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
   Rect? _selectionRect;
   List<Offset>? _selectionPoints; // lasso points
   Offset? _selectionStart;
+
+  // -- Gradient state --
+  Offset? _gradientStart;
+  Offset? _gradientEnd;
+  bool _isDraggingGradient = false;
+  String _gradientType = 'linear'; // 'linear' | 'radial'
+  bool _showGradientOptions = false;
 
   // -- Crop state --
   bool _cropMode = false;
@@ -90,12 +125,14 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
 
   // -- Fonts --
   List<Map<String, dynamic>> _fonts = [];
+  bool _showRotateOptions = false;
 
   // -- InteractiveViewer --
   final TransformationController _tc = TransformationController();
   double _vpW = 0, _vpH = 0; // viewport size (set by LayoutBuilder)
   bool _needsInitFit = false;
   bool _vpReady = false;
+  bool _imageLoadedOnce = false; // true after first image load, prevents viewport reset on tool ops
 
   // -- Misc --
   Size? _lastCanvasSize;
@@ -146,6 +183,16 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
           _applyCrop();
         } else if (e.key == 'Escape') {
           _cancelCrop();
+        }
+      }
+      if (_currentTool == 'text' && _textMode) {
+        if (e.key == 'Enter') {
+          _confirmText();
+        } else if (e.key == 'Escape') {
+          _safeSetState(() {
+            _textMode = false;
+            _textPos = null;
+          });
         }
       }
     });
@@ -342,12 +389,10 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
         _loading = false;
         _previewImage = img;
       });
-      // Schedule fit-to-viewport
-      if (_vpW > 0 && _vpH > 0) {
+      // Fit-to-viewport only on first image load (not on tool updates)
+      if (!_imageLoadedOnce) {
+        _imageLoadedOnce = true;
         _needsInitFit = true;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (_mountedFlag && _needsInitFit) _fitToViewport();
-        });
       }
     } on TimeoutException {
       if (token.isCancelled) return;
@@ -376,6 +421,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
     final dy = (_vpH - ih * s) / 2;
     _tc.value = Matrix4.diagonal3Values(s, s, 1)..setTranslationRaw(dx, dy, 0);
     _needsInitFit = false;
+    _safeSetState(() {}); // trigger rebuild of _canvas() now that fit is done
   }
 
   /// Convert Listener localPosition (which is already in image-pixel space
@@ -420,8 +466,9 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
     await _updateState(r);
   }, label: i18n.tr('{name}...', params: {'name': name}));
 
-  Future<void> _editorAction(String action) => _wrap(() async {
+  Future<void> _editorAction(String action, [Map<String, dynamic>? extra]) => _wrap(() async {
     final body = <String, dynamic>{'action': action};
+    if (extra != null) body.addAll(extra);
     // Send selection info
     if (_selectionType != null && _selectionRect != null && _selectionRect!.width > 2) {
       body['selection_type'] = _selectionType;
@@ -446,7 +493,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
   }, label: i18n.tr('{action}...', params: {'action': action}));
 
   Future<void> _adjustVoid(String name, Map<String, dynamic> p) => _wrap(() async {
-    final r = await _api.post('/api/v1/editor/adjust', {'type': name, ...p, 'preview_only': true});
+    final r = await _api.post('/api/v1/editor/adjust', {'type': name, ...p, 'layer': _activeLayerIndex, 'preview_only': true});
     await _updateState(r);
   }, label: i18n.tr('Adjusting...'));
 
@@ -515,6 +562,8 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
   // Pointer event handlers
   // -----------------------------------------------------------------------
   void _onPointerDown(PointerDownEvent event) {
+    // If fit hasn't run yet, reject click — coordinates are in pre-fit space
+    if (_needsInitFit) return;
     final imgPos = _screenToImage(event.localPosition);
     _safeSetState(() {
       _drawStart = imgPos;
@@ -528,7 +577,9 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
       } else if (_currentTool == 'eyedropper') {
         _apiEyedropper(imgPos);
       } else if (_currentTool == 'gradient') {
-        _applyQuickGradient(imgPos);
+        _gradientStart = imgPos;
+        _gradientEnd = imgPos;
+        _isDraggingGradient = true;
       } else if (_currentTool == 'crop') {
         _onCropDown(imgPos);
       } else if (_currentTool == 'text') {
@@ -566,6 +617,10 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
         } else {
           _selectionRect = Rect.fromPoints(_selectionStart!, imgPos);
         }
+      } else if (_currentTool == 'move' && _drawStart != null) {
+        _moveDelta = Offset(imgPos.dx - _drawStart!.dx, imgPos.dy - _drawStart!.dy);
+      } else if (_currentTool == 'gradient' && _isDraggingGradient) {
+        _gradientEnd = imgPos;
       }
     });
   }
@@ -585,13 +640,29 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
       final dx = (imgPos.dx - _drawStart!.dx).round();
       final dy = (imgPos.dy - _drawStart!.dy).round();
       if (dx.abs() > 1 || dy.abs() > 1) {
-        _moveLayer(dx, dy);
+        if (_selectionType != null && _selectionRect != null && _selectionRect!.width > 2) {
+          // Move selection content
+          _editorAction('move-selection', {'dx': dx, 'dy': dy});
+          _selectionRect = _selectionRect!.translate(dx.toDouble(), dy.toDouble());
+        } else if (_selectionType == 'lasso' && _selectionPoints != null && _selectionPoints!.length >= 3) {
+          _editorAction('move-selection', {'dx': dx, 'dy': dy});
+        } else if (_selectionType == 'poly' && _selectionPoints != null && _selectionPoints!.length >= 3) {
+          _editorAction('move-selection', {'dx': dx, 'dy': dy});
+        } else {
+          _moveLayer(dx, dy);
+        }
       }
+    }
+    if (_currentTool == 'gradient' && _gradientStart != null && _gradientEnd != null) {
+      _execGradient();
     }
     _safeSetState(() {
       _drawPoints = null;
       _drawStart = null;
       _shapePreview = null;
+      _gradientStart = null;
+      _gradientEnd = null;
+      _isDraggingGradient = false;
     });
   }
 
@@ -606,16 +677,11 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
     }
     _safeSetState(() {
       _currentTool = t;
-      // Clear all drawing/selection state when switching tools
+      // Clear all drawing/crop state when switching tools (selection persists across tools like Photoshop)
       _drawPoints = null;
       _drawStart = null;
       _shapePreview = null;
       _selectionStart = null;
-      if (t != 'select') {
-        _selectionType = null;
-        _selectionRect = null;
-        _selectionPoints = null;
-      }
       if (t == 'crop' && _previewImage != null) {
         _cropMode = true;
         _cropRect = Offset.zero & Size(_previewImage!.width.toDouble(), _previewImage!.height.toDouble());
@@ -775,7 +841,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
       'font_size': _fontSize, 'font_family': _fontFamily, 'color': c, 'opacity': _opacity,
       'stroke_width': _textStrokeWidth, 'stroke_color': sc,
       'shadow_blur': _textShadowBlur, 'shadow_color': shc,
-      'preview_only': true,
+      'layer': _activeLayerIndex, 'preview_only': true,
     });
     await _updateState(r);
   }, label: i18n.tr('Adding text...'), successMsg: i18n.tr('Text added'));
@@ -793,7 +859,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
       'points': p, 'color': c, 'size': _brushSize, 'opacity': _opacity,
     };
     if (isEraser) body['mode'] = 'eraser';
-    final r = await _api.post('/api/v1/editor/draw', {...body, 'preview_only': true});
+    final r = await _api.post('/api/v1/editor/draw', {...body, 'preview_only': true, 'layer': _activeLayerIndex});
     await _updateState(r);
   }, label: i18n.tr('Drawing...'));
 
@@ -807,6 +873,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
     final r = await _api.post('/api/v1/editor/shape', {
       'shape_type': _shapeType, 'x': x, 'y': y, 'w': w, 'h': h,
       'fill_color': fc, 'stroke_color': sc, 'stroke_width': _shapeStrokeWidth,
+      'opacity': _opacity, 'layer': _activeLayerIndex,
     });
     await _updateState(r);
   }, label: i18n.tr('Drawing shape...'));
@@ -815,7 +882,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
     final c = [_primaryColor.red, _primaryColor.green, _primaryColor.blue];
     final r = await _api.post('/api/v1/editor/fill', {
       'x': pos.dx.round(), 'y': pos.dy.round(), 'color': c,
-      'preview_only': true,
+      'layer': _activeLayerIndex, 'preview_only': true,
     });
     await _updateState(r);
   }, label: i18n.tr('Filling...'));
@@ -831,18 +898,38 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
     }
   }, label: i18n.tr('Picking color...'));
 
-  // Quick gradient: uses current primary/secondary colors, no dialog
-  void _applyQuickGradient(Offset pos) {
-    // Use position as a clue for direction: if closer to left edge → horizontal
-    final iw = _previewImage?.width.toDouble() ?? 800;
-    final dir = pos.dx < iw / 3 ? 'horizontal' : 'vertical';
+  // Gradient: drag start→end determines direction + length, uses primary & secondary colors
+  void _execGradient() {
+    final s = _gradientStart!;
+    final e = _gradientEnd!;
+    if ((s - e).distance < 5) return; // ignore tiny drags
     _wrap(() async {
-      final r = await _api.post('/api/v1/editor/gradient', {
+      final body = <String, dynamic>{
+        'x1': s.dx.round(), 'y1': s.dy.round(),
+        'x2': e.dx.round(), 'y2': e.dy.round(),
         'color1': [_primaryColor.red, _primaryColor.green, _primaryColor.blue],
-        'color2': [0, 0, 0],
-        'direction': dir,
+        'color2': [_bgColor.red, _bgColor.green, _bgColor.blue],
+        'type': _gradientType,
+        'layer': _activeLayerIndex,
         'preview_only': true,
-      });
+      };
+      // Include selection if present
+      if (_selectionType != null && _selectionRect != null && _selectionRect!.width > 2) {
+        body['selection_type'] = _selectionType;
+        body['selection_rect'] = {
+          'left': _selectionRect!.left.round(),
+          'top': _selectionRect!.top.round(),
+          'right': _selectionRect!.right.round(),
+          'bottom': _selectionRect!.bottom.round(),
+        };
+      } else if (_selectionType == 'lasso' && _selectionPoints != null && _selectionPoints!.length >= 3) {
+        body['selection_type'] = 'lasso';
+        body['selection_points'] = _selectionPoints!.map((p) => [p.dx.round(), p.dy.round()]).toList();
+      } else if (_selectionType == 'poly' && _selectionPoints != null && _selectionPoints!.length >= 3) {
+        body['selection_type'] = 'poly';
+        body['selection_points'] = _selectionPoints!.map((p) => [p.dx.round(), p.dy.round()]).toList();
+      }
+      final r = await _api.post('/api/v1/editor/gradient', body);
       await _updateState(r);
     }, label: i18n.tr('Gradient...'), successMsg: i18n.tr('Gradient applied'));
   }
@@ -969,8 +1056,59 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
       _toolbar(),
       Expanded(
         child: Column(children: [
-          _optionsBar(),
-          Expanded(child: _canvas()),
+          Expanded(
+            child: Row(children: [
+              // Vertical ruler (20px wide) — uses _tc.value for coordinate mapping
+              SizedBox(
+                width: 20,
+                child: ListenableBuilder(
+                  listenable: _tc,
+                  builder: (_, __) => LayoutBuilder(
+                    builder: (_, c) {
+                      // Canvas starts 20px below Row top (horizontal ruler height)
+                      final m = _tc.value.clone();
+                      final t = m.getTranslation();
+                      m.setTranslationRaw(t.x, t.y + 20.0, t.z);
+                      return CustomPaint(
+                        size: c.biggest,
+                        painter: RulerPainter(
+                          horizontal: false,
+                          matrix: m,
+                          rulerLen: c.biggest.height,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              // Horizontal ruler + Canvas
+              Expanded(
+                child: Column(children: [
+                  // Horizontal ruler (20px tall)
+                  SizedBox(
+                    height: 20,
+                    child: ListenableBuilder(
+                      listenable: _tc,
+                      builder: (_, __) => LayoutBuilder(
+                        builder: (_, c) {
+                          return CustomPaint(
+                            size: c.biggest,
+                            painter: RulerPainter(
+                              horizontal: true,
+                              matrix: _tc.value,
+                              rulerLen: c.biggest.width,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  // Canvas
+                  Expanded(child: _canvas()),
+                ]),
+              ),
+            ]),
+          ),
           _statusBar(),
         ]),
       ),
@@ -990,8 +1128,17 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
       case 'resize':
         _showResizeDialog();
         break;
-      case 'rotate':
-        _showRotateSubActions();
+      case 'rotate-cw':
+        _transformVoid('rotate', {'angle': 90, 'expand': true});
+        break;
+      case 'rotate-ccw':
+        _transformVoid('rotate', {'angle': -90, 'expand': true});
+        break;
+      case 'rotate-180':
+        _transformVoid('rotate', {'angle': 180, 'expand': true});
+        break;
+      case 'flip-h':
+        _transformVoid('flip', {'direction': 'horizontal'});
         break;
       case 'adjust':
         _showAdjustDialog();
@@ -1062,7 +1209,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
       ['eyedropper',   Icons.colorize,            'Eyedropper',                false, null],
       ['shape',        Icons.category_outlined,   'Shape',                     false, null],
       ['resize',     Icons.photo_size_select_small, 'Resize',                 true,  'resize'],
-      ['rotate',     Icons.rotate_right,         'Rotate',                    true,  'rotate'],
+      ['rotate',     Icons.rotate_right,          'Rotate',                    false, null],
       ['adjst',      Icons.tune,                 'Adjust',                    true,  'adjust'],
       // ── Filters ──
       ['gray',       Icons.filter_b_and_w,       'Grayscale',                 true,  'gray'],
@@ -1163,10 +1310,57 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
                             ),
                           ));
                     }
+                    // ── Shape tool: popup menu ──
+                    if (id == 'shape') {
+                      final shapeIcon = _shapeType == 'rect'
+                          ? Icons.rectangle_outlined
+                          : (_shapeType == 'ellipse'
+                              ? Icons.circle_outlined
+                              : (_shapeType == 'line'
+                                  ? Icons.horizontal_rule
+                                  : Icons.change_history));
+                      return Tooltip(
+                          message: i18n.tr(tip),
+                          child: GestureDetector(
+                            onTapDown: (details) {
+                              _safeSetState(() => _currentTool = 'shape');
+                              _showShapeMenu(details.globalPosition);
+                            },
+                            child: Container(
+                              width: 49,
+                              height: 34,
+                              color: _currentTool == 'shape'
+                                  ? const Color(0xFF6C63FF).withOpacity(0.3)
+                                  : null,
+                              alignment: Alignment.center,
+                              child: Stack(
+                                clipBehavior: Clip.none,
+                                children: [
+                                  Icon(shapeIcon, size: 16,
+                                      color: _currentTool == 'shape'
+                                          ? const Color(0xFF6C63FF) : Colors.grey),
+                                  Positioned(
+                                    right: -2, bottom: -2,
+                                    child: Icon(Icons.arrow_drop_down, size: 10,
+                                        color: Colors.grey[500]),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ));
+                    }
                     return Tooltip(
                         message: i18n.tr(tip),
                         child: GestureDetector(
                           onTap: () {
+                            if (id == 'rotate') {
+                              _safeSetState(() => _showRotateOptions = !_showRotateOptions);
+                              return;
+                            }
+                            if (id == 'gradient') {
+                              _safeSetState(() => _showGradientOptions = !_showGradientOptions);
+                              return;
+                            }
                             if (isAction) {
                               final actionName = t[4] as String;
                               // Fit to Screen — no delay
@@ -1204,6 +1398,48 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
                 ),
                 // separator line between rows
                 Container(height: 1, color: const Color(0xFF16213E)),
+                // Rotate sub-options (expandable)
+                if (_showRotateOptions && row.any((t) => t[0] == 'rotate'))
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 1),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      _rotateMiniBtn(Icons.rotate_90_degrees_cw, i18n.tr('CW 90°'), () {
+                        _transformVoid('rotate', {'angle': 90, 'expand': true});
+                        _safeSetState(() => _showRotateOptions = false);
+                      }),
+                      _rotateMiniBtn(Icons.rotate_90_degrees_ccw, i18n.tr('CCW 90°'), () {
+                        _transformVoid('rotate', {'angle': -90, 'expand': true});
+                        _safeSetState(() => _showRotateOptions = false);
+                      }),
+                      _rotateMiniBtn(Icons.sync, i18n.tr('180°'), () {
+                        _transformVoid('rotate', {'angle': 180, 'expand': true});
+                        _safeSetState(() => _showRotateOptions = false);
+                      }),
+                      _rotateMiniBtn(Icons.flip, i18n.tr('Flip H'), () {
+                        _transformVoid('flip', {'direction': 'horizontal'});
+                        _safeSetState(() => _showRotateOptions = false);
+                      }),
+                    ]),
+                  ),
+                // Gradient type sub-options (expandable)
+                if (_showGradientOptions && row.any((t) => t[0] == 'gradient'))
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 1),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      _gradientMiniBtn('L', _gradientType == 'linear', () {
+                        _safeSetState(() {
+                          _gradientType = 'linear';
+                          _showGradientOptions = false;
+                        });
+                      }),
+                      _gradientMiniBtn('R', _gradientType == 'radial', () {
+                        _safeSetState(() {
+                          _gradientType = 'radial';
+                          _showGradientOptions = false;
+                        });
+                      }),
+                    ]),
+                  ),
               ];
             }).toList()),
       ),
@@ -1263,34 +1499,99 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
     });
   }
 
-  void _showRotateSubActions() {
-    showDialog(
+  void _showShapeMenu(Offset position) {
+    showMenu<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A2E),
-        title: Tr('Rotate', style: TextStyle(color: Colors.white, fontSize: 13)),
-        content: Column(mainAxisSize: MainAxisSize.min, children: [
-          _actionBtn('Rotate 90° CW', () {
-            Navigator.pop(ctx);
-            _transformVoid('rotate', {'angle': 90});
-          }),
-          _actionBtn('Rotate 90° CCW', () {
-            Navigator.pop(ctx);
-            _transformVoid('rotate', {'angle': -90});
-          }),
-          _actionBtn('Rotate 180°', () {
-            Navigator.pop(ctx);
-            _transformVoid('rotate', {'angle': 180});
-          }),
-        ]),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Tr('Cancel', style: TextStyle(color: Colors.grey)))
-        ],
+      position: RelativeRect.fromLTRB(
+        position.dx - 40, position.dy - 10, position.dx + 40, position.dy + 10,
+      ),
+      color: const Color(0xFF1A1A2E),
+      items: [
+        PopupMenuItem(
+          value: 'rect',
+          child: Row(children: [
+            Icon(Icons.rectangle_outlined, size: 14, color: _shapeType == 'rect' ? const Color(0xFF6C63FF) : Colors.grey),
+            const SizedBox(width: 6),
+            Text(i18n.tr('Rectangle'), style: TextStyle(fontSize: 11, color: Colors.white)),
+          ]),
+        ),
+        PopupMenuItem(
+          value: 'ellipse',
+          child: Row(children: [
+            Icon(Icons.circle_outlined, size: 14, color: _shapeType == 'ellipse' ? const Color(0xFF6C63FF) : Colors.grey),
+            const SizedBox(width: 6),
+            Text(i18n.tr('Ellipse'), style: TextStyle(fontSize: 11, color: Colors.white)),
+          ]),
+        ),
+        PopupMenuItem(
+          value: 'line',
+          child: Row(children: [
+            Icon(Icons.horizontal_rule, size: 14, color: _shapeType == 'line' ? const Color(0xFF6C63FF) : Colors.grey),
+            const SizedBox(width: 6),
+            Text(i18n.tr('Line'), style: TextStyle(fontSize: 11, color: Colors.white)),
+          ]),
+        ),
+        PopupMenuItem(
+          value: 'polygon',
+          child: Row(children: [
+            Icon(Icons.change_history, size: 14, color: _shapeType == 'polygon' ? const Color(0xFF6C63FF) : Colors.grey),
+            const SizedBox(width: 6),
+            Text(i18n.tr('Polygon'), style: TextStyle(fontSize: 11, color: Colors.white)),
+          ]),
+        ),
+      ],
+      elevation: 4,
+    ).then((value) {
+      if (value != null) {
+        _safeSetState(() {
+          _shapeType = value;
+          _setTool('shape');
+        });
+      }
+    });
+  }
+
+  // ── Rotate sub-option button (small, inline in toolbar) ──
+  Widget _rotateMiniBtn(IconData icon, String tooltip, VoidCallback onTap) {
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 24, height: 24,
+          decoration: BoxDecoration(
+            color: const Color(0xFF6C63FF).withOpacity(0.2),
+            border: Border.all(color: const Color(0xFF6C63FF).withOpacity(0.4)),
+            borderRadius: BorderRadius.circular(2),
+          ),
+          alignment: Alignment.center,
+          child: Icon(icon, size: 12, color: const Color(0xFF6C63FF)),
+        ),
       ),
     );
   }
+
+  // ── Gradient sub-option button (small, inline in toolbar) ──
+  Widget _gradientMiniBtn(String label, bool isActive, VoidCallback onTap) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 24, height: 24,
+          decoration: BoxDecoration(
+            color: isActive ? const Color(0xFF6C63FF).withOpacity(0.4) : const Color(0xFF6C63FF).withOpacity(0.15),
+            border: Border.all(color: const Color(0xFF6C63FF).withOpacity(0.4)),
+            borderRadius: BorderRadius.circular(2),
+          ),
+          alignment: Alignment.center,
+          child: Text(label, style: TextStyle(fontSize: 10, color: isActive ? Colors.white : const Color(0xFF6C63FF), fontWeight: FontWeight.bold)),
+        ),
+      ),
+    );
+  }
+
+  // ── Dialogs / UI helpers ──
 
   void _showFlipSubActions() {
     showDialog(
@@ -1344,35 +1645,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
       color: const Color(0xFF16213E),
       padding: const EdgeInsets.symmetric(horizontal: 6),
       child: Row(children: [
-        if (_currentTool == 'brush' || _currentTool == 'shape')
-          _slider('Size', _brushSize, 1, 50, (v) => _brushSize = v),
-        if (_currentTool == 'text')
-          const SizedBox(width: 40), // placeholder for text
-        const SizedBox(width: 6),
-        GestureDetector(
-            onTap: _pickColor,
-            child: Container(
-              width: 16,
-              height: 16,
-              decoration: BoxDecoration(
-                color: _primaryColor,
-                border: Border.all(color: Colors.grey),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            )),
-        const SizedBox(width: 4),
-        Text(
-          '${_primaryColor.red},${_primaryColor.green},${_primaryColor.blue}',
-          style: const TextStyle(fontSize: 8, color: Colors.grey)),
-        if (_currentTool == 'shape') ...[
-          const SizedBox(width: 4),
-          _miniBtn('Rect', _shapeType == 'rect', () => _shapeType = 'rect'),
-          _miniBtn('Ellipse', _shapeType == 'ellipse',
-              () => _shapeType = 'ellipse'),
-          _miniBtn('Line', _shapeType == 'line', () => _shapeType = 'line'),
-          _miniBtn('Circle', _shapeType == 'circle',
-              () => _shapeType = 'circle'),
-        ],
+        // Shape buttons removed from canvas top-left — they're in the right panel instead.
         if (_currentTool == 'text' && _textMode) ...[
           const SizedBox(width: 8),
           SizedBox(
@@ -1401,47 +1674,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
             ),
           ),
         ],
-        // Opacity slider — always visible
-        const Spacer(),
-        _sliderFloat('Opacity', _opacity, 0.0, 1.0, (v) => _opacity = v),
       ]),
-    );
-  }
-
-  Widget _sliderFloat(String label, double v, double min, double max, ValueChanged<double> onChange) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(i18n.tr(label) + ':',
-            style: const TextStyle(fontSize: 8, color: Colors.grey)),
-        SizedBox(
-            width: 40,
-            child: Slider(
-                value: v,
-                min: min,
-                max: max,
-                onChanged: (x) => _safeSetState(() => onChange(x)))),
-        Text('${(v * 100).round()}%',
-            style: const TextStyle(fontSize: 8, color: Colors.white)),
-      ],
-    );
-  }
-
-  Widget _slider(String label, int v, int min, int max, ValueChanged<int> onChange) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(i18n.tr(label) + ':',
-            style: const TextStyle(fontSize: 8, color: Colors.grey)),
-        SizedBox(
-            width: 40,
-            child: Slider(
-                value: v.toDouble(),
-                min: min.toDouble(),
-                max: max.toDouble(),
-                onChanged: (x) => _safeSetState(() => onChange(x.round())))),
-        Text('$v', style: const TextStyle(fontSize: 8, color: Colors.white)),
-      ],
     );
   }
 
@@ -1604,10 +1837,15 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
         _vpW = constraints.maxWidth;
         _vpH = constraints.maxHeight;
         if (_needsInitFit && _previewImage != null) {
+          // Use postFrameCallback so InteractiveViewer re-renders before user interaction.
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (_mountedFlag && _needsInitFit) _fitToViewport();
           });
         }
+      }
+      // Don't render image pixels until fit-to-viewport has run
+      if (_needsInitFit) {
+        return Container(color: const Color(0xFF1A1A2E));
       }
       final iw = _previewImage!.width.toDouble();
       final ih = _previewImage!.height.toDouble();
@@ -1636,6 +1874,13 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
             height: ih,
             child: Stack(
               children: [
+                // Checkerboard transparency background
+                if (_previewImage != null)
+                  Positioned.fill(
+                    child: CustomPaint(
+                      painter: CheckerboardPainter(size: Size(iw, ih)),
+                    ),
+                  ),
                 // Image
                 if (_previewImage != null)
                   RawImage(
@@ -1653,9 +1898,13 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
                       brushSize: _brushSize,
                       cropRect: _cropMode ? _cropRect : null,
                       shapePreview: _shapePreview,
+                      shapeType: _shapeType,
                       selectionType: _selectionType,
                       selectionRect: _selectionRect,
                       selectionPoints: _selectionPoints,
+                      gradientStart: _gradientStart,
+                      gradientEnd: _gradientEnd,
+                      isDraggingGradient: _isDraggingGradient,
                       imageSize: Size(iw, ih),
                       zoomScale: _tc.value.getMaxScaleOnAxis(),
                     ),
@@ -1940,10 +2189,11 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
                         itemCount: _layers.length,
                         itemBuilder: (ctx, i) {
                           final l = _layers[_layers.length - 1 - i];
+                          final actualIdx = _layers.length - 1 - i;
                           final vis = l['visible'] ?? true;
-                          final isActive = _activeLayerIndex == i;
+                          final isActive = _activeLayerIndex == actualIdx;
                           return GestureDetector(
-                            onTap: () => _safeSetState(() => _activeLayerIndex = i),
+                            onTap: () => _safeSetState(() => _activeLayerIndex = actualIdx),
                             child: Container(
                               height: 20,
                               padding: const EdgeInsets.symmetric(horizontal: 6),
@@ -2076,31 +2326,6 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
                           ),
                         ]),
                         const SizedBox(height: 4),
-                        Row(children: [
-                          Tr('Opacity', style: TextStyle(fontSize: 8, color: Colors.grey)),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Slider(
-                              value: _opacity, min: 0.0, max: 1.0, divisions: 20,
-                              label: '${(_opacity * 100).round()}%',
-                              onChanged: (v) => _safeSetState(() => _opacity = v),
-                            ),
-                          ),
-                          Text('${(_opacity * 100).round()}%', style: const TextStyle(fontSize: 9, color: Colors.white)),
-                        ]),
-                      ],
-                      // Shape type (for shape tool)
-                      if (_currentTool == 'shape') ...[
-                        const SizedBox(height: 4),
-                        Row(children: [
-                          _miniBtn('Rect', _shapeType == 'rect', () => _shapeType = 'rect'),
-                          const SizedBox(width: 2),
-                          _miniBtn('Ellipse', _shapeType == 'ellipse', () => _shapeType = 'ellipse'),
-                          const SizedBox(width: 2),
-                          _miniBtn('Line', _shapeType == 'line', () => _shapeType = 'line'),
-                          const SizedBox(width: 2),
-                          _miniBtn('Circle', _shapeType == 'circle', () => _shapeType = 'circle'),
-                        ]),
                       ],
                       // Crop confirm/cancel (for crop tool)
                       if (_currentTool == 'crop' && _cropRect != null) ...[
@@ -2231,7 +2456,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
         ),
         const Divider(height: 1, color: Color(0xFF16213E)),
 
-        // ACTIONS — copy/cut/paste/transform
+        // ACTIONS — copy/cut/paste/transform/stroke
         _sectionTitle('ACTIONS', accent: true),
         _btnRow(
           labels: const ['✂ Cut', '📋 Copy', '📄 Paste', '🔄 Transform'],
@@ -2243,7 +2468,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
           ],
         ),
         _btnRow(
-          labels: const ['Select All', 'Deselect', '✂ Cut', 'Fill'],
+          labels: const ['Select All', 'Deselect', '🎨 Stroke', '🎨 Fill'],
           callbacks: [
             () => _safeSetState(() {
               _selectionType = 'rect';
@@ -2254,17 +2479,17 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
               _selectionRect = null;
               _selectionPoints = null;
             }),
-            () => _editorAction('cut'),
+            () => _editorAction('stroke-selection'),
             () => _editorAction('fill-selection'),
           ],
         ),
         _btnRow(
-          labels: const ['Copy', 'Paste', 'Delete', 'Invert Sel'],
+          labels: const ['Delete', 'Invert Sel', 'Feather', 'Expand'],
           callbacks: [
-            () => _editorAction('copy'),
-            () => _editorAction('paste'),
             () => _editorAction('delete'),
             () => _editorAction('invert-selection'),
+            () => _editorAction('feather-selection'),
+            () => _editorAction('expand-selection'),
           ],
         ),
         const Divider(height: 1, color: Color(0xFF16213E)),
@@ -2330,72 +2555,123 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
     );
   }
 
-  /// Fixed color bar + size slider — always visible at top of right panel.
+  /// Color, size, and opacity controls — grouped in 3 sections at top of right panel.
   Widget _colorSizeBar() {
-    final sizeLabel = _currentTool == 'shape' ? i18n.tr('线宽') : i18n.tr('大小');
     final sizeVal = _currentTool == 'shape' ? _shapeStrokeWidth : _brushSize;
+    final sizeLabel = _currentTool == 'shape' ? i18n.tr('线宽') : i18n.tr('大小');
     return Container(
-      height: 28,
-      padding: const EdgeInsets.symmetric(horizontal: 6),
-      child: Row(children: [
-        // Foreground color
-        GestureDetector(
-          onTap: () => _pickColorCustom((c) => _safeSetState(() => _primaryColor = c)),
-          child: Container(width: 16, height: 12,
-            decoration: BoxDecoration(
-              color: _primaryColor, border: Border.all(color: Colors.white),
-              borderRadius: BorderRadius.circular(2)),
-          ),
-        ),
-        const SizedBox(width: 2),
-        // Swap
-        GestureDetector(
-          onTap: () => _safeSetState(() {
-            final t = _primaryColor; _primaryColor = _bgColor; _bgColor = t;
-          }),
-          child: const Icon(Icons.swap_vert, size: 10, color: Colors.grey),
-        ),
-        const SizedBox(width: 2),
-        // Background color
-        GestureDetector(
-          onTap: () => _pickColorCustom((c) => _safeSetState(() => _bgColor = c)),
-          child: Container(width: 16, height: 12,
-            decoration: BoxDecoration(
-              color: _bgColor, border: Border.all(color: Colors.grey[600]!),
-              borderRadius: BorderRadius.circular(2)),
-          ),
-        ),
-        const SizedBox(width: 2),
-        // Hex label
-        Text('#${_primaryColor.red.toRadixString(16).padLeft(2,"0")}'
-            '${_primaryColor.green.toRadixString(16).padLeft(2,"0")}'
-            '${_primaryColor.blue.toRadixString(16).padLeft(2,"0")}',
-            style: const TextStyle(fontSize: 7, color: Colors.white54)),
-        const Spacer(),
-        // Size slider
-        Text(sizeLabel, style: const TextStyle(fontSize: 7, color: Colors.grey)),
-        const SizedBox(width: 2),
-        SizedBox(
-          width: 40, height: 16,
-          child: Slider(
-            value: sizeVal.toDouble(), min: 1, max: 50,
-            onChanged: (v) => _safeSetState(() {
-              if (_currentTool == 'shape') {
-                _shapeStrokeWidth = v.round();
-              } else {
-                _brushSize = v.round();
-              }
-            }),
-          ),
-        ),
-        Text('$sizeVal', style: const TextStyle(fontSize: 7, color: Colors.white)),
-      ]),
+      padding: const EdgeInsets.fromLTRB(6, 4, 6, 4),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // ── Color group ──
+          Row(children: [
+            // Foreground color
+            GestureDetector(
+              onTap: () => _pickColorCustom((c) => _safeSetState(() => _primaryColor = c)),
+              child: Container(width: 16, height: 12,
+                decoration: BoxDecoration(
+                  color: _primaryColor, border: Border.all(color: Colors.white),
+                  borderRadius: BorderRadius.circular(2)),
+              ),
+            ),
+            const SizedBox(width: 2),
+            // Swap
+            GestureDetector(
+              onTap: () => _safeSetState(() {
+                final t = _primaryColor; _primaryColor = _bgColor; _bgColor = t;
+              }),
+              child: const Icon(Icons.swap_vert, size: 10, color: Colors.grey),
+            ),
+            const SizedBox(width: 2),
+            // Background color
+            GestureDetector(
+              onTap: () => _pickColorCustom((c) => _safeSetState(() => _bgColor = c)),
+              child: Container(width: 16, height: 12,
+                decoration: BoxDecoration(
+                  color: _bgColor, border: Border.all(color: Colors.grey[600]!),
+                  borderRadius: BorderRadius.circular(2)),
+              ),
+            ),
+            const SizedBox(width: 2),
+            // Hex label
+            Text('#${_primaryColor.red.toRadixString(16).padLeft(2,"0")}'
+                '${_primaryColor.green.toRadixString(16).padLeft(2,"0")}'
+                '${_primaryColor.blue.toRadixString(16).padLeft(2,"0")}',
+                style: const TextStyle(fontSize: 7, color: Colors.white54)),
+          ]),
+          const SizedBox(height: 6),
+
+          // ── Size group ──
+          Row(children: [
+            Text(sizeLabel, style: const TextStyle(fontSize: 8, color: Colors.grey)),
+            const SizedBox(width: 6),
+            SizedBox(
+              width: 100,
+              height: 20,
+              child: SliderTheme(
+                data: SliderTheme.of(context).copyWith(
+                  trackHeight: 4,
+                  activeTrackColor: Colors.white,
+                  inactiveTrackColor: Color(0xFF2A2A3E),
+                  thumbShape: const FaderThumbShape(),
+                ),
+                child: Slider(
+                  value: sizeVal.toDouble(),
+                  min: 1,
+                  max: 50,
+                  onChanged: (v) => _safeSetState(() {
+                    if (_currentTool == 'shape') {
+                      _shapeStrokeWidth = v.round();
+                    } else {
+                      _brushSize = v.round();
+                    }
+                  }),
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            Text('$sizeVal',
+                style: const TextStyle(fontSize: 9, color: Colors.white,
+                    fontFeatures: [FontFeature.tabularFigures()])),
+          ]),
+          const SizedBox(height: 6),
+
+          // ── Opacity group ──
+          Row(children: [
+            Text(i18n.tr('Opacity') + ':',
+                style: const TextStyle(fontSize: 8, color: Colors.grey)),
+            const SizedBox(width: 6),
+            SizedBox(
+              width: 100,
+              height: 20,
+              child: SliderTheme(
+                data: SliderTheme.of(context).copyWith(
+                  trackHeight: 4,
+                  activeTrackColor: Colors.white,
+                  inactiveTrackColor: Color(0xFF2A2A3E),
+                  thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6.0),
+                ),
+                child: Slider(
+                  value: _opacity,
+                  min: 0.0,
+                  max: 1.0,
+                  onChanged: (v) => _safeSetState(() => _opacity = v),
+                ),
+              ),
+            ),
+            Text('${(_opacity * 100).round()}%',
+                style: const TextStyle(fontSize: 9, color: Colors.white,
+                    fontFeatures: [FontFeature.tabularFigures()])),
+          ]),
+        ],
+      ),
     );
   }
 
-  // -----------------------------------------------------------------------
-  // Right panel sub-widgets
-  // -----------------------------------------------------------------------
+// -----------------------------------------------------------------------
+// Right panel sub-widgets
+// -----------------------------------------------------------------------
   Widget _sectionTitle(String t, {bool accent = false}) {
     return Container(
       height: 18,
@@ -2540,39 +2816,176 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
 
   void _showResizeDialog() {
     if (_info == null) return;
-    final wCtrl = TextEditingController(text: '${_info!['width']}');
-    final hCtrl = TextEditingController(text: '${_info!['height']}');
+    final curW = _info!['width'] as int? ?? 0;
+    final curH = _info!['height'] as int? ?? 0;
+    final curDpi = (_info!['dpi'] as num?)?.toDouble() ?? 72.0;
+    // Unit: 0=px, 1=inch, 2=cm
+    int unit = 0;
+    bool constrain = true;
+    // storedDpi is ALWAYS in px/inch (canonical)
+    double storedDpi = curDpi;
+
+    // Display the Resolution value for the current unit
+    String dpiDisplay(double dpi, int u) {
+      if (u == 2) return (dpi / 2.54).toStringAsFixed(1); // px/cm
+      return dpi.toStringAsFixed(1); // px/inch
+    }
+    // Parse the Resolution display value back to px/inch
+    double dpiFromDisplay(String txt, int u) {
+      final v = double.tryParse(txt) ?? storedDpi;
+      if (v <= 0) return 72.0;
+      if (u == 2) return v * 2.54; // px/cm → px/inch
+      return v; // already px/inch
+    }
+
+    // Convert pixel to display value for W/H
+    String pxToUnit(int px, int u) {
+      if (u == 0) return px.toString();
+      final inches = px / storedDpi;
+      if (u == 1) return inches.toStringAsFixed(2);
+      return (inches * 2.54).toStringAsFixed(2); // cm
+    }
+    // Convert W/H display value back to pixels
+    int unitToPx(String txt, int u) {
+      final v = double.tryParse(txt) ?? 0;
+      if (v <= 0) return 1;
+      if (u == 0) return v.round();
+      if (u == 1) return (v * storedDpi).round();
+      return (v / 2.54 * storedDpi).round(); // cm to px
+    }
+
+    final wCtrl = TextEditingController(text: pxToUnit(curW, unit));
+    final hCtrl = TextEditingController(text: pxToUnit(curH, unit));
+    final dpiCtrl = TextEditingController(text: dpiDisplay(storedDpi, unit));
+
+    final origRatio = curW / math.max(curH, 1);
+
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A2E),
-        title: Tr('Resize', style: TextStyle(color: Colors.white, fontSize: 13)),
-        content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _field('Width', wCtrl),
-              _field('Height', hCtrl),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlgState) {
+          // Resolution label suffix
+          String resLabel = unit == 2 ? 'px/cm' : 'px/inch';
+
+          return AlertDialog(
+            backgroundColor: const Color(0xFF1A1A2E),
+            title: Text(i18n.tr('Image Size'),
+                style: const TextStyle(color: Colors.white, fontSize: 13)),
+            content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              // Dimension line: px + physical
+              Text('$curDpi DPI — ${pxToUnit(curW, 1)} × ${pxToUnit(curH, 1)} in  (${pxToUnit(curW, 2)} × ${pxToUnit(curH, 2)} cm)',
+                  style: const TextStyle(color: Colors.grey, fontSize: 9)),
+              const SizedBox(height: 8),
+
+              // Width
+              Row(children: [
+                Expanded(child: _field('Width', wCtrl, onChanged: (v) {
+                  if (constrain) {
+                    final px = unitToPx(v, unit);
+                    if (px > 0) hCtrl.text = pxToUnit((px / origRatio).round(), unit);
+                  }
+                })),
+                const SizedBox(width: 4),
+                // Unit dropdown
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2A2A3E),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<int>(
+                      value: unit,
+                      dropdownColor: const Color(0xFF2A2A3E),
+                      style: const TextStyle(color: Colors.white, fontSize: 10),
+                      items: const [
+                        DropdownMenuItem(value: 0, child: Text('px', style: TextStyle(fontSize: 10))),
+                        DropdownMenuItem(value: 1, child: Text('in', style: TextStyle(fontSize: 10))),
+                        DropdownMenuItem(value: 2, child: Text('cm', style: TextStyle(fontSize: 10))),
+                      ],
+                      onChanged: (v) {
+                        if (v == null) return;
+                        final pxW = unitToPx(wCtrl.text, unit);
+                        final pxH = unitToPx(hCtrl.text, unit);
+                        setDlgState(() {
+                          unit = v;
+                          wCtrl.text = pxToUnit(pxW, unit);
+                          hCtrl.text = pxToUnit(pxH, unit);
+                          dpiCtrl.text = dpiDisplay(storedDpi, unit);
+                        });
+                      },
+                    ),
+                  ),
+                ),
+              ]),
+              const SizedBox(height: 4),
+
+              // Height
+              Row(children: [
+                Expanded(child: _field('Height', hCtrl, onChanged: (v) {
+                  if (constrain) {
+                    final px = unitToPx(v, unit);
+                    if (px > 0) wCtrl.text = pxToUnit((px * origRatio).round(), unit);
+                  }
+                })),
+                const SizedBox(width: 4),
+                const SizedBox(width: 64), // spacer matching dropdown
+              ]),
+              const SizedBox(height: 4),
+
+              // Resolution — value changes dynamically with unit
+              Row(children: [
+                Expanded(
+                  child: _fieldFloat('Resolution', dpiCtrl, onChanged: (_) {}),
+                ),
+                const SizedBox(width: 4),
+                Text(resLabel,
+                    style: const TextStyle(color: Colors.grey, fontSize: 10)),
+              ]),
+              const SizedBox(height: 6),
+
+              // Constrain toggle
+              GestureDetector(
+                onTap: () => setDlgState(() => constrain = !constrain),
+                child: Row(children: [
+                  Icon(constrain ? Icons.link : Icons.link_off,
+                      size: 14, color: const Color(0xFF6C63FF)),
+                  const SizedBox(width: 4),
+                  Text(i18n.tr('Constrain proportions'),
+                      style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                ]),
+              ),
             ]),
-        actions: [
-          TextButton(
-              onPressed: () {
-                Navigator.pop(ctx);
-                _transformVoid('resize', {
-                  'width': int.tryParse(wCtrl.text) ?? 100,
-                  'height': int.tryParse(hCtrl.text) ?? 100,
-                });
-              },
-              child: Tr('Resize', style: TextStyle(color: Color(0xFF6C63FF))))
-        ],
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: Text(i18n.tr('Cancel'),
+                      style: const TextStyle(color: Colors.grey, fontSize: 11))),
+              TextButton(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    final dpi = dpiFromDisplay(dpiCtrl.text, unit);
+                    _transformVoid('resize', {
+                      'width': unitToPx(wCtrl.text, unit),
+                      'height': unitToPx(hCtrl.text, unit),
+                      'dpi': dpi,
+                    });
+                  },
+                  child: Text(i18n.tr('OK'),
+                      style: const TextStyle(color: Color(0xFF6C63FF), fontSize: 11))),
+            ],
+          );
+        },
       ),
     );
   }
 
-  Widget _field(String label, TextEditingController ctrl) {
+  Widget _field(String label, TextEditingController ctrl, {ValueChanged<String>? onChanged}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: TextField(
         controller: ctrl,
+        onChanged: onChanged,
         style: const TextStyle(color: Colors.white, fontSize: 12),
         decoration: InputDecoration(
           labelText: i18n.tr(label),
@@ -2587,9 +3000,24 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
     );
   }
 
-  Future<void> _pickColor() async {
-    final p = await _showPaletteDialog();
-    if (p != null) _safeSetState(() => _primaryColor = p);
+  Widget _fieldFloat(String label, TextEditingController ctrl, {ValueChanged<String>? onChanged}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: TextField(
+        controller: ctrl,
+        onChanged: onChanged,
+        style: const TextStyle(color: Colors.white, fontSize: 12),
+        decoration: InputDecoration(
+          labelText: i18n.tr(label),
+          labelStyle: const TextStyle(color: Colors.grey, fontSize: 10),
+          border: const OutlineInputBorder(),
+          isDense: true,
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+        ),
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      ),
+    );
   }
 
   Future<void> _showFonts() async {

@@ -1,23 +1,24 @@
-name: phantomvox_app
-description: PhantomVox AI — Intelligent Audio-Video Creation Suite
-publish_to: 'none'
-version: 0.3.75+1
-
-environment:
-  sdk: '>=3.0.0 <4.0.0'
-
-dependencies:
-  flutter:
-    sdk: flutter
-  cupertino_icons: ^1.0.8
-  http: ^1.2.0
-  provider: ^6.1.0
-  file_picker: ^8.0.0
-
-dev_dependencies:
-  flutter_test:
-    sdk: flutter
-  flutter_lints: ^5.0.0
-
-flutter:
-  uses-material-design: true
+1|name: phantomvox_app
+2|description: PhantomVox AI — Intelligent Audio-Video Creation Suite
+3|publish_to: 'none'
+4|version: 0.3.77+1
+5|
+6|environment:
+7|  sdk: '>=3.0.0 <4.0.0'
+8|
+9|dependencies:
+10|  flutter:
+11|    sdk: flutter
+12|  cupertino_icons: ^1.0.8
+13|  http: ^1.2.0
+14|  provider: ^6.1.0
+15|  file_picker: ^8.0.0
+16|
+17|dev_dependencies:
+18|  flutter_test:
+19|    sdk: flutter
+20|  flutter_lints: ^5.0.0
+21|
+22|flutter:
+23|  uses-material-design: true
+24|

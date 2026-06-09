@@ -259,7 +259,7 @@ def _bgra_to_pil(arr: np.ndarray) -> Image.Image:
 class Document:
     """Represents a single open image document with undo/redo history."""
 
-    def __init__(self, bg_image: np.ndarray | None = None, width: int = 1920, height: int = 1080):
+    def __init__(self, bg_image: np.ndarray | None = None, width: int = 1920, height: int = 1080, dpi: float = 72.0):
         if bg_image is not None:
             self.width = bg_image.shape[1]
             self.height = bg_image.shape[0]
@@ -270,6 +270,7 @@ class Document:
             self.height = height
             self.layers = []
 
+        self.dpi = dpi
         self._undo_stack: list[_Snapshot] = []
         self._redo_stack: list[_Snapshot] = []
 
@@ -390,6 +391,7 @@ class Document:
         return {
             "width": self.width,
             "height": self.height,
+            "dpi": self.dpi,
             "layers": len(self.layers),
             "visible_layers": sum(1 for l in self.layers if l.visible),
         }

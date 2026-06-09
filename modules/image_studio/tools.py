@@ -306,13 +306,14 @@ def draw_shape(
     fill_color: tuple[int, int, int] | None = None,
     stroke_color: tuple[int, int, int] = (255, 255, 255),
     stroke_width: int = 2,
+    opacity: float = 1.0,
 ) -> np.ndarray:
     """Draw a shape (rect/ellipse/circle/line/arrow)."""
     result = img.copy()
     fill = None
     if fill_color is not None:
-        fill = _bgr_with_alpha(fill_color, 1.0)
-    stroke = _bgr_with_alpha(stroke_color, 1.0)
+        fill = _bgr_with_alpha(fill_color, opacity)
+    stroke = _bgr_with_alpha(stroke_color, opacity)
 
     if shape_type == "rect":
         pt1, pt2 = (x, y), (x + w, y + h)
@@ -335,6 +336,18 @@ def draw_shape(
         cv2.line(result, (x, y), (x + w, y + h), stroke, stroke_width, cv2.LINE_AA)
     elif shape_type == "arrow":
         cv2.arrowedLine(result, (x, y), (x + w, y + h), stroke, stroke_width, cv2.LINE_AA)
+    elif shape_type == "polygon":
+        # Diamond shape from edge midpoints of bounding rect
+        cpx, cpy = x + w // 2, y + h // 2
+        pts = np.array([
+            [cpx, y],        # top
+            [x + w, cpy],    # right
+            [cpx, y + h],    # bottom
+            [x, cpy],        # left
+        ], np.int32)
+        if fill_color is not None:
+            cv2.fillPoly(result, [pts], fill)
+        cv2.polylines(result, [pts], True, stroke, stroke_width, cv2.LINE_AA)
     return result
 
 
