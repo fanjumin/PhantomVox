@@ -1350,29 +1350,49 @@ Rules:
                 c1 = np.array(color1, dtype=np.float32).reshape(1, 1, 3)
                 c2 = np.array(color2, dtype=np.float32).reshape(1, 1, 3)
 
+                if has_sel:
+                    # When selection exists, compute gradient to span the selection bounds
+                    ys_sel, xs_sel = np.where(sel_mask > 0)
+                    if len(ys_sel) > 0 and len(xs_sel) > 0:
+                        sel_x1 = float(xs_sel.min())
+                        sel_y1 = float(ys_sel.min())
+                        sel_x2 = float(xs_sel.max())
+                        sel_y2 = float(ys_sel.max())
+                    else:
+                        sel_x1, sel_y1, sel_x2, sel_y2 = 0.0, 0.0, float(w-1), float(h-1)
+                else:
+                    sel_x1, sel_y1, sel_x2, sel_y2 = 0.0, 0.0, float(w-1), float(h-1)
+
                 if gtype == "radial":
-                    # Radial gradient from center of line segment
-                    cx = (x1 + x2) / 2.0
-                    cy = (y1 + y2) / 2.0
-                    radius = max(np.sqrt((x2 - x1)**2 + (y2 - y1)**2) / 2.0, 1.0)
+                    # Radial: center at midpoint of selection, radius = half of selection diagonal
+                    cx = (sel_x1 + sel_x2) / 2.0
+                    cy = (sel_y1 + sel_y2) / 2.0
+                    radius = max((sel_x2 - sel_x1) / 2.0, (sel_y2 - sel_y1) / 2.0, 1.0)
                     yy, xx = np.mgrid[0:h, 0:w]
                     dist = np.sqrt((xx - cx)**2 + (yy - cy)**2)
                     t = np.clip(dist / radius, 0, 1)[..., np.newaxis]
                 else:
-                    # Linear: project each pixel onto the start→end direction
+                    # Linear: project onto drag direction, but span the selection bounds
                     dx = x2 - x1
                     dy = y2 - y1
                     vec_len = np.sqrt(dx*dx + dy*dy) or 1.0
                     ux, uy = dx / vec_len, dy / vec_len
                     yy, xx = np.mgrid[0:h, 0:w]
-                    proj = (xx - x1) * ux + (yy - y1) * uy
-                    t = np.clip(proj / vec_len, 0, 1)[..., np.newaxis]
+                    # Project selection diagonal onto drag direction to get span length
+                    sel_span = (sel_x2 - sel_x1) * ux + (sel_y2 - sel_y1) * uy
+                    if sel_span <= 0:
+                        sel_span = max(sel_x2 - sel_x1, sel_y2 - sel_y1, 1.0)
+                        ux, uy = 1.0, 0.0 if sel_span == sel_x2 - sel_x1 else (0.0, 1.0)
+                    proj = (xx - sel_x1) * ux + (yy - sel_y1) * uy
+                    t = np.clip(proj / sel_span, 0, 1)[..., np.newaxis]
 
                 gradient = c1 * (1.0 - t) + c2 * t
                 gradient = gradient.astype(np.uint8)
+                # Convert RGB gradient to BGR for Document's BGRA storage
+                gradient_bgr = cv2.cvtColor(gradient, cv2.COLOR_RGB2BGR)
                 a = int(255 * opacity)
                 alpha = np.full((h, w, 1), a, dtype=np.uint8)
-                grad_rgba = np.concatenate([gradient, alpha], axis=2)
+                grad_rgba = np.concatenate([gradient_bgr, alpha], axis=2)
 
                 if has_sel:
                     # Apply gradient only within selection mask
@@ -1380,12 +1400,15 @@ Rules:
                     return np.where(mask_3 > 0, grad_rgba, layer_img)
                 return grad_rgba
 
+            doc._save_snapshot()
             if 0 <= layer_idx < len(doc.layers):
                 doc.layers[layer_idx].image = _apply_gradient(doc.layers[layer_idx].image)
             else:
                 for layer in doc.layers:
                     layer.image = _apply_gradient(layer.image)
-            return jsonify(_doc_response(doc))
+            preview_only = data.get("preview_only", False)
+            thumb_max = 320 if preview_only else None
+            return jsonify(_doc_response(doc, thumbnail_max=thumb_max))
         except Exception as e:
             return jsonify({"error": str(e)}), 400
 

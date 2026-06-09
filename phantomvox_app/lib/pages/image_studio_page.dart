@@ -101,8 +101,6 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
   Offset? _gradientStart;
   Offset? _gradientEnd;
   bool _isDraggingGradient = false;
-  String _gradientType = 'linear'; // 'linear' | 'radial'
-  bool _showGradientOptions = false;
 
   // -- Crop state --
   bool _cropMode = false;
@@ -909,9 +907,8 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
         'x2': e.dx.round(), 'y2': e.dy.round(),
         'color1': [_primaryColor.red, _primaryColor.green, _primaryColor.blue],
         'color2': [_bgColor.red, _bgColor.green, _bgColor.blue],
-        'type': _gradientType,
+        'type': 'linear',
         'layer': _activeLayerIndex,
-        'preview_only': true,
       };
       // Include selection if present
       if (_selectionType != null && _selectionRect != null && _selectionRect!.width > 2) {
@@ -1358,7 +1355,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
                               return;
                             }
                             if (id == 'gradient') {
-                              _safeSetState(() => _showGradientOptions = !_showGradientOptions);
+                              _setTool(id);
                               return;
                             }
                             if (isAction) {
@@ -1418,25 +1415,6 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
                       _rotateMiniBtn(Icons.flip, i18n.tr('Flip H'), () {
                         _transformVoid('flip', {'direction': 'horizontal'});
                         _safeSetState(() => _showRotateOptions = false);
-                      }),
-                    ]),
-                  ),
-                // Gradient type sub-options (expandable)
-                if (_showGradientOptions && row.any((t) => t[0] == 'gradient'))
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 1),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      _gradientMiniBtn('L', _gradientType == 'linear', () {
-                        _safeSetState(() {
-                          _gradientType = 'linear';
-                          _showGradientOptions = false;
-                        });
-                      }),
-                      _gradientMiniBtn('R', _gradientType == 'radial', () {
-                        _safeSetState(() {
-                          _gradientType = 'radial';
-                          _showGradientOptions = false;
-                        });
                       }),
                     ]),
                   ),
